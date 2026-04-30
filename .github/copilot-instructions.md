@@ -1,0 +1,38 @@
+# Copilot Instructions
+
+## Project Context
+
+This is a standalone bedside alarm clock built on the **Elecrow CrowPanel Advance 4.3"** (ESP32-S3, 800×480 capacitive touch IPS display). The firmware runs **ESPHome** with **LVGL** for the touchscreen UI.
+
+### Hardware
+
+| Component | Detail |
+|---|---|
+| Board | Elecrow CrowPanel Advance 4.3" (ESP32-S3-WROOM-1, 16 MB flash, 8 MB PSRAM) |
+| Display | 4.3" 800×480 IPS with capacitive touch (GT911) |
+| Audio | MAX98357A I2S amplifier → speaker |
+| Sensors | On-board light sensor (ADC); optional I²C temperature/humidity |
+| Connectivity | Wi-Fi (built-in), Bluetooth LE (built-in) |
+
+### Software Stack
+
+- **ESPHome** — core firmware framework, OTA updates, Home Assistant integration
+- **LVGL** — touchscreen UI (clock faces, alarm configuration, settings)
+- Custom C++ components under `components/` for alarm logic, audio playback, and sensor handling
+
+## C/C++ Coding Style
+
+Follow the [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html) with the following rules emphasized:
+
+- **Always use curly braces** for `if`, `else`, `for`, `while`, and `do` bodies — even single-line bodies. No braceless control structures.
+- Use `snake_case` for variables and functions, `kConstantName` for constants, `ClassName` for types.
+- Prefer `const` wherever applicable.
+- Use `uint8_t`, `uint16_t`, etc. (from `<cstdint>`) instead of bare `int` for sized fields.
+
+## Testing
+
+- **Write or update tests** in `tests/` for every change to testable logic in custom components.
+- Keep pure-logic functions (time calculations, alarm scheduling, parsing, state machine logic) decoupled from ESPHome/Arduino APIs so they can compile and run on the host with `g++` under `-DUNIT_TEST`.
+- Use the `TEST(name)` / `ASSERT_EQ` / `ASSERT_TRUE` / `PASS()` macros defined in `tests/test_framework.h`.
+- Tests are compiled with `-Wall -Wextra -Werror`; all warnings must be clean.
+- CI runs tests automatically on every push and pull request via GitHub Actions (`.github/workflows/test.yml`).
