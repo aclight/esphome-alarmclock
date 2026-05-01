@@ -16,8 +16,34 @@ jobs:
         run: >
           g++ -std=c++17 -Wall -Wextra -Werror -DUNIT_TEST
           -I .
-          tests/test_alarm.cpp
+          tests/test_alarmclock.cpp
           -o run_tests
 
       - name: Run tests
         run: ./run_tests
+
+  esphome-compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ESPHome
+        run: pip install esphome
+
+      - name: Create dummy secrets
+        run: |
+          cat > secrets.yaml <<'EOF'
+          wifi_ssid: "TestSSID"
+          wifi_password: "TestPassword"
+          ap_password: "TestAP123"
+          api_encryption_key: "dGVzdGtleXRlc3RrZXl0ZXN0a2V5dGVzdGtleT0="
+          ota_password: "testotapassword"
+          EOF
+
+      - name: Compile ESPHome config
+        run: esphome compile alarmclock.yaml

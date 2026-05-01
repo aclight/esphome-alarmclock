@@ -30,3 +30,12 @@
 *.exe
 *.out
 *.app
+run_tests
+
+# ESPHome
+secrets.yaml
+.esphome/
+
+# Python
+__pycache__/
+*.pyc
