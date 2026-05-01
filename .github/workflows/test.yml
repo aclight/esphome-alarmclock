@@ -41,7 +41,7 @@ jobs:
           wifi_ssid: "TestSSID"
           wifi_password: "TestPassword"
           wifi_fallback_password: "TestFallback123"
-          encryption_key: "dGVzdGtleXRlc3RrZXl0ZXN0a2V5dGVzdGtleT0="
+          encryption_key: "qQpfEIA1sPWVORMZ3QJKuRYAigxlOyParAwrqBm95Hg="
           ota_password: "testotapassword"
           EOF
 
