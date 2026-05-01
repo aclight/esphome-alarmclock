@@ -49,10 +49,13 @@ i2c:
   scl: GPIO16
   scan: true
 
-# --- Time source from Home Assistant ---
+# --- Time source from Home Assistant (with SNTP fallback) ---
 time:
   - platform: homeassistant
     id: ha_time
+    timezone: America/Chicago
+  - platform: sntp
+    id: sntp_time
     timezone: America/Chicago
 
 # --- Display: rpi_dpi_rgb 800x480 ---
@@ -112,27 +115,36 @@ lvgl:
     - touch
   pages:
     - id: clock_page
+      bg_color: 0x000000
       widgets:
         - label:
             align: CENTER
-            text: "00:00"
+            text: "--:--"
             id: clock_label
             text_font: montserrat_48
+            text_color: 0xFFFFFF
 
-# --- Backlight (PWM via LEDC) ---
-output:
-  - platform: ledc
-    pin: GPIO2
-    id: backlight_output
-    frequency: 1000Hz
+# --- Update clock display every second ---
+interval:
+  - interval: 1s
+    then:
+      - lvgl.label.update:
+          id: clock_label
+          text: !lambda |-
+            auto time = id(ha_time).now();
+            if (!time.is_valid()) {
+              time = id(sntp_time).now();
+            }
+            if (!time.is_valid()) {
+              return std::string("--:--");
+            }
+            char buf[6];
+            snprintf(buf, sizeof(buf), "%02d:%02d", time.hour, time.minute);
+            return std::string(buf);
 
-light:
-  - platform: monochromatic
-    output: backlight_output
-    name: "Display Backlight"
-    id: backlight
-    default_transition_length: 500ms
-    restore_mode: ALWAYS_ON
+# --- Alarm clock custom component (I2C backlight controller) ---
+alarmclock:
+  address: 0x30
 
 # --- I2S audio output (MAX98357A) ---
 i2s_audio:

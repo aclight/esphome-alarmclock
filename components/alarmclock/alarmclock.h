@@ -10,6 +10,12 @@
 #include "alarm_time.h"
 #include "alarm_state.h"
 
+// ESPHome headers must be included outside the alarmclock namespace.
+#ifndef UNIT_TEST
+#include "esphome/core/component.h"
+#include "esphome/components/i2c/i2c.h"
+#endif  // UNIT_TEST
+
 namespace alarmclock {
 
 // ---------------------------------------------------------------------------
@@ -67,16 +73,13 @@ inline std::pair<uint8_t, uint8_t> compute_snooze_time(uint8_t h, uint8_t m,
 // ---------------------------------------------------------------------------
 #ifndef UNIT_TEST
 
-#include "esphome/core/component.h"
-#include "esphome/components/i2c/i2c.h"
-
 class AlarmClockComponent : public esphome::Component,
                             public esphome::i2c::I2CDevice {
  public:
   void setup() override;
   void loop() override;
   float get_setup_priority() const override {
-    return esphome::setup_priority::LATE;
+    return esphome::setup_priority::HARDWARE;
   }
 };
 

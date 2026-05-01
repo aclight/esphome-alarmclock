@@ -40,8 +40,8 @@ jobs:
           cat > secrets.yaml <<'EOF'
           wifi_ssid: "TestSSID"
           wifi_password: "TestPassword"
-          ap_password: "TestAP123"
-          api_encryption_key: "dGVzdGtleXRlc3RrZXl0ZXN0a2V5dGVzdGtleT0="
+          wifi_fallback_password: "TestFallback123"
+          encryption_key: "dGVzdGtleXRlc3RrZXl0ZXN0a2V5dGVzdGtleT0="
           ota_password: "testotapassword"
           EOF
 
