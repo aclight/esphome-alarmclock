@@ -66,7 +66,7 @@ logger:
 globals:
   - id: speaker_volume
     type: float
-    initial_value: "1.0"
+    initial_value: "0.5"
 
 # --- I2C bus (shared: touch controller + BH1750) ---
 i2c:
@@ -171,6 +171,8 @@ lvgl:
                 - lvgl.label.update:
                     id: debug_label
                     text: "playing..."
+                - lambda: |-
+                    id(alarm_rtttl).set_gain(id(speaker_volume));
                 - rtttl.play:
                     rtttl: "Nokia:d=4,o=5,b=225:8e6,8d6,f#,g#,8c#6,8b,d,e,8b,8a,c#,e,2a"
                 - lvgl.label.update:
@@ -217,6 +219,7 @@ lvgl:
               then:
                 - lambda: |-
                     id(speaker_volume) = std::min(1.0f, id(speaker_volume) + 0.1f);
+                    id(alarm_rtttl).set_gain(id(speaker_volume));
                 - speaker.volume_set:
                     id: alarm_speaker
                     volume: !lambda 'return id(speaker_volume);'
@@ -234,7 +237,7 @@ lvgl:
         - label:
             align: CENTER
             y: 90
-            text: "100%"
+            text: "50%"
             id: volume_label
             text_color: 0xFFFFFF
         - button:
@@ -247,6 +250,7 @@ lvgl:
               then:
                 - lambda: |-
                     id(speaker_volume) = std::max(0.0f, id(speaker_volume) - 0.1f);
+                    id(alarm_rtttl).set_gain(id(speaker_volume));
                 - speaker.volume_set:
                     id: alarm_speaker
                     volume: !lambda 'return id(speaker_volume);'
@@ -303,7 +307,7 @@ speaker:
 rtttl:
   speaker: alarm_speaker
   id: alarm_rtttl
-  gain: 80%
+  gain: 50%
   on_finished_playback:
     - logger.log:
         level: WARN
