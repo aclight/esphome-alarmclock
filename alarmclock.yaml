@@ -3,6 +3,19 @@ esphome:
   friendly_name: Alarm Clock
   platformio_options:
     board_build.flash_mode: dio
+  on_boot:
+    priority: -100
+    then:
+      # Enable the speaker amplifier via the STC8H1K28 microcontroller at 0x30
+      # Command 248 = turn on speaker amp (per Elecrow's Arduino example)
+      - lambda: |-
+          uint8_t cmd = 248;
+          auto err = id(i2c_bus).write(0x30, &cmd, 1);
+          if (err == esphome::i2c::ERROR_OK) {
+            ESP_LOGW("speaker_init", "Speaker amplifier enabled (cmd 248 to 0x30)");
+          } else {
+            ESP_LOGE("speaker_init", "Failed to enable speaker amplifier!");
+          }
 
 esp32:
   board: esp32-s3-devkitc-1
@@ -41,10 +54,23 @@ ota:
     password: !secret ota_password
 
 logger:
-  level: DEBUG
+  level: VERBOSE
+  hardware_uart: UART0
+  logs:
+    i2c.idf: WARN
+    lvgl: WARN
+    touchscreen: WARN
+    gt911.touchscreen: WARN
+
+# --- Volume tracking ---
+globals:
+  - id: speaker_volume
+    type: float
+    initial_value: "1.0"
 
 # --- I2C bus (shared: touch controller + BH1750) ---
 i2c:
+  id: i2c_bus
   sda: GPIO15
   scl: GPIO16
   scan: true
@@ -119,10 +145,122 @@ lvgl:
       widgets:
         - label:
             align: CENTER
+            y: -60
             text: "--:--"
             id: clock_label
             text_font: montserrat_48
             text_color: 0xFFFFFF
+        - label:
+            align: CENTER
+            y: -10
+            text: "ready"
+            id: debug_label
+            text_color: 0xFFFF00
+        - button:
+            align: CENTER
+            y: 20
+            x: -80
+            width: 120
+            height: 50
+            on_click:
+              then:
+                - logger.log:
+                    level: WARN
+                    format: "PLAY pressed - starting RTTTL, speaker state: %d, volume: %.2f"
+                    args: ['(int)id(alarm_speaker).is_running()', 'id(speaker_volume)']
+                - lvgl.label.update:
+                    id: debug_label
+                    text: "playing..."
+                - rtttl.play:
+                    rtttl: "Nokia:d=4,o=5,b=225:8e6,8d6,f#,g#,8c#6,8b,d,e,8b,8a,c#,e,2a"
+                - lvgl.label.update:
+                    id: debug_label
+                    text: !lambda |-
+                      if (id(alarm_rtttl).is_playing()) {
+                        return std::string("rtttl: playing");
+                      }
+                      return std::string("rtttl: NOT playing!");
+            widgets:
+              - label:
+                  align: CENTER
+                  text: "Play"
+                  text_color: 0xFFFFFF
+        - button:
+            align: CENTER
+            y: 20
+            x: 80
+            width: 120
+            height: 50
+            on_click:
+              then:
+                - logger.log:
+                    level: WARN
+                    format: "STOP pressed - is_playing: %d"
+                    args: ['id(alarm_rtttl).is_playing()']
+                - rtttl.stop:
+                    id: alarm_rtttl
+                - lvgl.label.update:
+                    id: debug_label
+                    text: "stopped"
+            widgets:
+              - label:
+                  align: CENTER
+                  text: "Stop"
+                  text_color: 0xFFFFFF
+        - button:
+            align: CENTER
+            y: 90
+            x: -80
+            width: 120
+            height: 50
+            on_click:
+              then:
+                - lambda: |-
+                    id(speaker_volume) = std::min(1.0f, id(speaker_volume) + 0.1f);
+                - speaker.volume_set:
+                    id: alarm_speaker
+                    volume: !lambda 'return id(speaker_volume);'
+                - lvgl.label.update:
+                    id: volume_label
+                    text: !lambda |-
+                      char buf[8];
+                      snprintf(buf, sizeof(buf), "%d%%", (int)(id(speaker_volume) * 100));
+                      return std::string(buf);
+            widgets:
+              - label:
+                  align: CENTER
+                  text: "Vol +"
+                  text_color: 0xFFFFFF
+        - label:
+            align: CENTER
+            y: 90
+            text: "100%"
+            id: volume_label
+            text_color: 0xFFFFFF
+        - button:
+            align: CENTER
+            y: 90
+            x: 80
+            width: 120
+            height: 50
+            on_click:
+              then:
+                - lambda: |-
+                    id(speaker_volume) = std::max(0.0f, id(speaker_volume) - 0.1f);
+                - speaker.volume_set:
+                    id: alarm_speaker
+                    volume: !lambda 'return id(speaker_volume);'
+                - lvgl.label.update:
+                    id: volume_label
+                    text: !lambda |-
+                      char buf[8];
+                      snprintf(buf, sizeof(buf), "%d%%", (int)(id(speaker_volume) * 100));
+                      return std::string(buf);
+            widgets:
+              - label:
+                  align: CENTER
+                  text: "Vol -"
+                  text_color: 0xFFFFFF
 
 # --- Update clock display every second ---
 interval:
@@ -156,6 +294,23 @@ speaker:
     id: alarm_speaker
     dac_type: external
     i2s_dout_pin: GPIO4
+    channel: mono
+    timeout: never
+    sample_rate: 16000
+    use_apll: true
+
+# --- RTTTL tone generator (for speaker test / alarm sound) ---
+rtttl:
+  speaker: alarm_speaker
+  id: alarm_rtttl
+  gain: 80%
+  on_finished_playback:
+    - logger.log:
+        level: WARN
+        format: "RTTTL playback finished"
+    - lvgl.label.update:
+        id: debug_label
+        text: "finished"
 
 # --- Light sensor ---
 # BH1750 I²C light sensor (optional, connect to I2C bus)
