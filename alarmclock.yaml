@@ -90,9 +90,10 @@ time:
     id: sntp_time
     timezone: America/Chicago
 
-# --- Display: rpi_dpi_rgb 800x480 ---
+# --- Display: mipi_rgb 800x480 ---
 display:
-  - platform: rpi_dpi_rgb
+  - platform: mipi_rgb
+    model: RPI
     id: main_display
     auto_clear_enabled: false
     color_order: RGB
@@ -443,21 +444,28 @@ rtttl:
         text: "finished"
 
 # --- Light sensor ---
-# BH1750 I²C light sensor (optional, connect to I2C bus).
-# Uncomment below to enable auto-dimming.  The sensor reads ambient lux and
-# adjusts backlight brightness within the range set by the user's brightness
-# level (the Bright +/- buttons).
-#
-# sensor:
-#   - platform: bh1750
-#     name: "Ambient Light"
-#     id: ambient_light
-#     address: 0x23
-#     update_interval: 5s
-#     on_value:
-#       then:
-#         - lambda: |-
-#             float sf = alarmclock::lux_to_sensor_factor(x, 10.0f, 500.0f);
-#             float bright = alarmclock::compute_brightness(id(brightness_level), sf);
-#             uint8_t pwm = alarmclock::brightness_to_pwm(bright);
-#             id(i2c_bus).write(0x30, &pwm, 1);
+# BH1750 I²C light sensor.  Feeds into the same simulated_sensor global that
+# the Light +/- buttons use, so both the real sensor and manual buttons work.
+# When the sensor is disconnected, the Light +/- buttons still work for testing.
+sensor:
+  - platform: bh1750
+    name: "Ambient Light"
+    id: ambient_light
+    address: 0x23
+    update_interval: 5s
+    on_value:
+      then:
+        - lambda: |-
+            float sf = alarmclock::lux_to_sensor_factor(x, 10.0f, 500.0f);
+            id(simulated_sensor) = sf;
+            float bright = alarmclock::compute_brightness(id(brightness_level), sf);
+            uint8_t pwm = alarmclock::brightness_to_pwm(bright);
+            id(i2c_bus).write(0x30, &pwm, 1);
+            uint32_t color = alarmclock::compute_content_color(bright);
+            lv_obj_set_style_text_color(id(clock_label), lv_color_hex(color), 0);
+        - lvgl.label.update:
+            id: sensor_label
+            text: !lambda |-
+              char buf[8];
+              snprintf(buf, sizeof(buf), "%d%%", (int)(id(simulated_sensor) * 100));
+              return std::string(buf);

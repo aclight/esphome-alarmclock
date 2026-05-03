@@ -55,6 +55,22 @@ The CrowPanel Advance 4.3" has a 4-position DIP switch used during flashing and 
 2. Power via USB-C (5 V). The board has an on-board voltage regulator.
 3. Speaker connects to the on-board SPK connector (2-pin, wired to the MAX98357A).
 
+### BH1750 Light Sensor Wiring
+
+The BH1750 is an optional external module that connects to the CrowPanel's I2C header.
+
+| BH1750 Pin | Connect to | Note |
+|---|---|---|
+| VCC | 3.3V | From CrowPanel I2C header |
+| GND | GND | Any ground pin |
+| SDA | IO15 | Shared I2C data line |
+| SCL | IO16 | Shared I2C clock line |
+| ADDR | GND | Sets I2C address to 0x23 |
+
+The CrowPanel Advance 4.3" exposes a 4-pin I2C connector (IO15/IO16/3.3V/GND). If your BH1750 breakout board has a matching connector (e.g. STEMMA QT / Qwiic), you can plug it in directly. Otherwise, use jumper wires to the header pins.
+
+My BH1750 board uses I2C address 0x23 if ADDR is floating or grounded and 0x5C if it is tied to VCC.
+
 ## Open Questions
 
 - Optimal PCLK frequency for 800×480 @ 60 Hz — Elecrow examples suggest 12–16 MHz.
