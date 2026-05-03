@@ -67,6 +67,12 @@ globals:
   - id: speaker_volume
     type: float
     initial_value: "0.5"
+  - id: brightness_level
+    type: float
+    initial_value: "0.5"
+  - id: simulated_sensor
+    type: float
+    initial_value: "1.0"
 
 # --- I2C bus (shared: touch controller + BH1750) ---
 i2c:
@@ -265,6 +271,122 @@ lvgl:
                   align: CENTER
                   text: "Vol -"
                   text_color: 0xFFFFFF
+        - button:
+            align: CENTER
+            y: 160
+            x: -80
+            width: 120
+            height: 50
+            on_click:
+              then:
+                - lambda: |-
+                    id(brightness_level) = std::min(1.0f, id(brightness_level) + 0.1f);
+                    float bright = alarmclock::compute_brightness(id(brightness_level), id(simulated_sensor));
+                    uint8_t pwm = alarmclock::brightness_to_pwm(bright);
+                    id(i2c_bus).write(0x30, &pwm, 1);
+                    uint32_t color = alarmclock::compute_content_color(bright);
+                    lv_obj_set_style_text_color(id(clock_label), lv_color_hex(color), 0);
+                - lvgl.label.update:
+                    id: brightness_label
+                    text: !lambda |-
+                      char buf[8];
+                      snprintf(buf, sizeof(buf), "%d%%", (int)(id(brightness_level) * 100));
+                      return std::string(buf);
+            widgets:
+              - label:
+                  align: CENTER
+                  text: "Bright +"
+                  text_color: 0xFFFFFF
+        - label:
+            align: CENTER
+            y: 160
+            text: "50%"
+            id: brightness_label
+            text_color: 0xFFFFFF
+        - button:
+            align: CENTER
+            y: 160
+            x: 80
+            width: 120
+            height: 50
+            on_click:
+              then:
+                - lambda: |-
+                    id(brightness_level) = std::max(0.0f, id(brightness_level) - 0.1f);
+                    float bright = alarmclock::compute_brightness(id(brightness_level), id(simulated_sensor));
+                    uint8_t pwm = alarmclock::brightness_to_pwm(bright);
+                    id(i2c_bus).write(0x30, &pwm, 1);
+                    uint32_t color = alarmclock::compute_content_color(bright);
+                    lv_obj_set_style_text_color(id(clock_label), lv_color_hex(color), 0);
+                - lvgl.label.update:
+                    id: brightness_label
+                    text: !lambda |-
+                      char buf[8];
+                      snprintf(buf, sizeof(buf), "%d%%", (int)(id(brightness_level) * 100));
+                      return std::string(buf);
+            widgets:
+              - label:
+                  align: CENTER
+                  text: "Bright -"
+                  text_color: 0xFFFFFF
+        - button:
+            align: BOTTOM_MID
+            y: -10
+            x: -80
+            width: 120
+            height: 50
+            on_click:
+              then:
+                - lambda: |-
+                    id(simulated_sensor) = std::min(1.0f, id(simulated_sensor) + 0.1f);
+                    float bright = alarmclock::compute_brightness(id(brightness_level), id(simulated_sensor));
+                    uint8_t pwm = alarmclock::brightness_to_pwm(bright);
+                    id(i2c_bus).write(0x30, &pwm, 1);
+                    uint32_t color = alarmclock::compute_content_color(bright);
+                    lv_obj_set_style_text_color(id(clock_label), lv_color_hex(color), 0);
+                - lvgl.label.update:
+                    id: sensor_label
+                    text: !lambda |-
+                      char buf[8];
+                      snprintf(buf, sizeof(buf), "%d%%", (int)(id(simulated_sensor) * 100));
+                      return std::string(buf);
+            widgets:
+              - label:
+                  align: CENTER
+                  text: "Light +"
+                  text_color: 0xFFFFFF
+        - label:
+            align: BOTTOM_MID
+            y: -10
+            text: "100%"
+            id: sensor_label
+            text_color: 0x00FFFF
+        - button:
+            align: BOTTOM_MID
+            y: -10
+            x: 80
+            width: 120
+            height: 50
+            on_click:
+              then:
+                - lambda: |-
+                    id(simulated_sensor) = std::max(0.0f, id(simulated_sensor) - 0.1f);
+                    float bright = alarmclock::compute_brightness(id(brightness_level), id(simulated_sensor));
+                    uint8_t pwm = alarmclock::brightness_to_pwm(bright);
+                    id(i2c_bus).write(0x30, &pwm, 1);
+                    uint32_t color = alarmclock::compute_content_color(bright);
+                    lv_obj_set_style_text_color(id(clock_label), lv_color_hex(color), 0);
+                - lvgl.label.update:
+                    id: sensor_label
+                    text: !lambda |-
+                      char buf[8];
+                      snprintf(buf, sizeof(buf), "%d%%", (int)(id(simulated_sensor) * 100));
+                      return std::string(buf);
+            widgets:
+              - label:
+                  align: CENTER
+                  text: "Light -"
+                  text_color: 0xFFFFFF
 
 # --- Update clock display every second ---
 interval:
@@ -283,6 +405,10 @@ interval:
             char buf[6];
             snprintf(buf, sizeof(buf), "%02d:%02d", time.hour, time.minute);
             return std::string(buf);
+      - lambda: |-
+          float bright = alarmclock::compute_brightness(id(brightness_level), id(simulated_sensor));
+          uint32_t color = alarmclock::compute_content_color(bright);
+          lv_obj_set_style_text_color(id(clock_label), lv_color_hex(color), 0);
 
 # --- Alarm clock custom component (I2C backlight controller) ---
 alarmclock:
@@ -317,10 +443,21 @@ rtttl:
         text: "finished"
 
 # --- Light sensor ---
-# BH1750 I²C light sensor (optional, connect to I2C bus)
+# BH1750 I²C light sensor (optional, connect to I2C bus).
+# Uncomment below to enable auto-dimming.  The sensor reads ambient lux and
+# adjusts backlight brightness within the range set by the user's brightness
+# level (the Bright +/- buttons).
+#
 # sensor:
 #   - platform: bh1750
 #     name: "Ambient Light"
 #     id: ambient_light
 #     address: 0x23
 #     update_interval: 5s
+#     on_value:
+#       then:
+#         - lambda: |-
+#             float sf = alarmclock::lux_to_sensor_factor(x, 10.0f, 500.0f);
+#             float bright = alarmclock::compute_brightness(id(brightness_level), sf);
+#             uint8_t pwm = alarmclock::brightness_to_pwm(bright);
+#             id(i2c_bus).write(0x30, &pwm, 1);

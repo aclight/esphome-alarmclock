@@ -61,6 +61,179 @@ TEST(backlight_constants_sanity) {
 }
 
 // ===========================================================================
+// lux_to_sensor_factor tests
+// ===========================================================================
+
+TEST(sensor_factor_dark) {
+    ASSERT_TRUE(lux_to_sensor_factor(0.0f, 10.0f, 500.0f) == 0.0f);
+    ASSERT_TRUE(lux_to_sensor_factor(10.0f, 10.0f, 500.0f) == 0.0f);
+    PASS();
+}
+
+TEST(sensor_factor_bright) {
+    ASSERT_TRUE(lux_to_sensor_factor(500.0f, 10.0f, 500.0f) == 1.0f);
+    ASSERT_TRUE(lux_to_sensor_factor(1000.0f, 10.0f, 500.0f) == 1.0f);
+    PASS();
+}
+
+TEST(sensor_factor_midpoint) {
+    float sf = lux_to_sensor_factor(255.0f, 10.0f, 500.0f);
+    ASSERT_TRUE(sf > 0.45f && sf < 0.55f);
+    PASS();
+}
+
+TEST(sensor_factor_invalid_range) {
+    ASSERT_TRUE(lux_to_sensor_factor(100.0f, 500.0f, 10.0f) == 0.0f);
+    ASSERT_TRUE(lux_to_sensor_factor(100.0f, 100.0f, 100.0f) == 0.0f);
+    PASS();
+}
+
+// ===========================================================================
+// compute_brightness tests
+// ===========================================================================
+
+TEST(brightness_user_high_sensor_bright) {
+    // user=1.0, sensor=1.0 → top of highest window → 1.0
+    float b = compute_brightness(1.0f, 1.0f, 0.5f, 0.1f, 1.0f);
+    ASSERT_TRUE(b > 0.99f && b <= 1.0f);
+    PASS();
+}
+
+TEST(brightness_user_high_sensor_dark) {
+    // user=1.0, sensor=0.0 → bottom of highest window → 0.5
+    float b = compute_brightness(1.0f, 0.0f, 0.5f, 0.1f, 1.0f);
+    ASSERT_TRUE(b > 0.49f && b < 0.51f);
+    PASS();
+}
+
+TEST(brightness_user_low_sensor_bright) {
+    // user=0.0, sensor=1.0 → top of lowest window → 0.6
+    float b = compute_brightness(0.0f, 1.0f, 0.5f, 0.1f, 1.0f);
+    ASSERT_TRUE(b > 0.59f && b < 0.61f);
+    PASS();
+}
+
+TEST(brightness_user_low_sensor_dark) {
+    // user=0.0, sensor=0.0 → bottom of lowest window → 0.1
+    float b = compute_brightness(0.0f, 0.0f, 0.5f, 0.1f, 1.0f);
+    ASSERT_TRUE(b > 0.09f && b < 0.11f);
+    PASS();
+}
+
+TEST(brightness_user_mid_sensor_mid) {
+    // user=0.5, sensor=0.5 → middle of middle window → 0.55
+    float b = compute_brightness(0.5f, 0.5f, 0.5f, 0.1f, 1.0f);
+    ASSERT_TRUE(b > 0.54f && b < 0.56f);
+    PASS();
+}
+
+TEST(brightness_no_sensor) {
+    // Without sensor, pass sensor_factor=1.0 → gets window's upper bound.
+    // Defaults: auto_range=0.5, min=0.0, max=1.0
+    // user=0.0 → window [0.0, 0.5] → top = 0.5
+    // user=0.5 → window [0.25, 0.75] → top = 0.75
+    // user=1.0 → window [0.5, 1.0] → top = 1.0
+    float b0 = compute_brightness(0.0f, 1.0f);
+    float b5 = compute_brightness(0.5f, 1.0f);
+    float b1 = compute_brightness(1.0f, 1.0f);
+    ASSERT_TRUE(b0 > 0.49f && b0 < 0.51f);
+    ASSERT_TRUE(b5 > 0.74f && b5 < 0.76f);
+    ASSERT_TRUE(b1 > 0.99f && b1 <= 1.0f);
+    PASS();
+}
+
+TEST(brightness_clamps_inputs) {
+    // Out-of-range inputs should be clamped.
+    float b1 = compute_brightness(-0.5f, 0.5f);
+    float b2 = compute_brightness(0.5f, -0.5f);
+    float b3 = compute_brightness(1.5f, 1.5f);
+    ASSERT_TRUE(b1 >= 0.0f);
+    ASSERT_TRUE(b2 >= 0.0f);
+    ASSERT_TRUE(b3 <= 1.0f);
+    PASS();
+}
+
+TEST(brightness_zero_auto_range) {
+    // auto_range=0 → sensor has no effect, user_level maps directly.
+    float b = compute_brightness(0.5f, 0.0f, 0.0f, 0.1f, 1.0f);
+    float b2 = compute_brightness(0.5f, 1.0f, 0.0f, 0.1f, 1.0f);
+    ASSERT_TRUE(b > 0.54f && b < 0.56f);
+    // With no auto range, sensor doesn't matter.
+    ASSERT_TRUE(b == b2);
+    PASS();
+}
+
+TEST(brightness_full_auto_range) {
+    // auto_range equals total range → window doesn't slide, always [min, max].
+    float b_dark = compute_brightness(0.5f, 0.0f, 0.9f, 0.1f, 1.0f);
+    float b_bright = compute_brightness(0.5f, 1.0f, 0.9f, 0.1f, 1.0f);
+    ASSERT_TRUE(b_dark > 0.09f && b_dark < 0.11f);
+    ASSERT_TRUE(b_bright > 0.99f && b_bright <= 1.0f);
+    PASS();
+}
+
+TEST(brightness_invalid_min_max) {
+    ASSERT_TRUE(compute_brightness(0.5f, 0.5f, 0.5f, 1.0f, 0.1f) == 1.0f);
+    PASS();
+}
+
+// ===========================================================================
+// brightness_to_pwm tests
+// ===========================================================================
+
+TEST(pwm_min_brightness) {
+    ASSERT_EQ(brightness_to_pwm(0.0f), kBacklightMin);
+    PASS();
+}
+
+TEST(pwm_max_brightness) {
+    ASSERT_EQ(brightness_to_pwm(1.0f), kBacklightMax);
+    PASS();
+}
+
+TEST(pwm_mid_brightness) {
+    uint8_t pwm = brightness_to_pwm(0.5f);
+    ASSERT_TRUE(pwm > 100 && pwm < 140);
+    PASS();
+}
+
+TEST(pwm_clamps_below_zero) {
+    ASSERT_EQ(brightness_to_pwm(-1.0f), kBacklightMin);
+    PASS();
+}
+
+TEST(pwm_clamps_above_one) {
+    ASSERT_EQ(brightness_to_pwm(2.0f), kBacklightMax);
+    PASS();
+}
+
+// ===========================================================================
+// compute_content_color tests
+// ===========================================================================
+
+TEST(content_color_full_bright) {
+    ASSERT_EQ(compute_content_color(1.0f), (uint32_t)0xFFFFFF);
+    ASSERT_EQ(compute_content_color(2.0f), (uint32_t)0xFFFFFF);
+    PASS();
+}
+
+TEST(content_color_zero) {
+    ASSERT_EQ(compute_content_color(0.0f), (uint32_t)0x1A1A1A);
+    ASSERT_EQ(compute_content_color(-1.0f), (uint32_t)0x1A1A1A);
+    PASS();
+}
+
+TEST(content_color_decreases_with_brightness) {
+    uint32_t c_high = compute_content_color(0.8f);
+    uint32_t c_mid = compute_content_color(0.5f);
+    uint32_t c_low = compute_content_color(0.2f);
+    ASSERT_TRUE(c_high > c_mid);
+    ASSERT_TRUE(c_mid > c_low);
+    ASSERT_TRUE(c_low > (uint32_t)0x1A1A1A);
+    PASS();
+}
+
+// ===========================================================================
 // Simple alarm matching tests (hour/minute only)
 // ===========================================================================
 
@@ -374,6 +547,36 @@ int main() {
     RUN(backlight_midpoint);
     RUN(backlight_invalid_range);
     RUN(backlight_constants_sanity);
+
+    // lux_to_sensor_factor
+    RUN(sensor_factor_dark);
+    RUN(sensor_factor_bright);
+    RUN(sensor_factor_midpoint);
+    RUN(sensor_factor_invalid_range);
+
+    // compute_brightness
+    RUN(brightness_user_high_sensor_bright);
+    RUN(brightness_user_high_sensor_dark);
+    RUN(brightness_user_low_sensor_bright);
+    RUN(brightness_user_low_sensor_dark);
+    RUN(brightness_user_mid_sensor_mid);
+    RUN(brightness_no_sensor);
+    RUN(brightness_clamps_inputs);
+    RUN(brightness_zero_auto_range);
+    RUN(brightness_full_auto_range);
+    RUN(brightness_invalid_min_max);
+
+    // brightness_to_pwm
+    RUN(pwm_min_brightness);
+    RUN(pwm_max_brightness);
+    RUN(pwm_mid_brightness);
+    RUN(pwm_clamps_below_zero);
+    RUN(pwm_clamps_above_one);
+
+    // compute_content_color
+    RUN(content_color_full_bright);
+    RUN(content_color_zero);
+    RUN(content_color_decreases_with_brightness);
 
     // Simple alarm matching
     RUN(alarm_matches_simple_exact);
