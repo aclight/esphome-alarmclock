@@ -71,7 +71,7 @@ void ui_build_firing_overlay(lv_obj_t *parent) {
   lv_label_set_text(firing_message_label_, "ALARM");
 
   // Snooze button (large, easy to hit half-asleep).
-  snooze_btn_ = lv_btn_create(parent);
+  snooze_btn_ = lv_button_create(parent);
   lv_obj_align(snooze_btn_, LV_ALIGN_CENTER, 0, theme::kFiringSnoozeY);
   lv_obj_set_size(snooze_btn_, theme::kButtonWidth, theme::kButtonHeight);
   lv_obj_set_style_radius(snooze_btn_, theme::kButtonRadius, 0);
@@ -85,7 +85,7 @@ void ui_build_firing_overlay(lv_obj_t *parent) {
   lv_label_set_text(snooze_label, "Snooze");
 
   // Dismiss button.
-  dismiss_btn_ = lv_btn_create(parent);
+  dismiss_btn_ = lv_button_create(parent);
   lv_obj_align(dismiss_btn_, LV_ALIGN_CENTER, 0, theme::kFiringDismissY);
   lv_obj_set_size(dismiss_btn_, theme::kButtonWidth, theme::kButtonHeight);
   lv_obj_set_style_radius(dismiss_btn_, theme::kButtonRadius, 0);

@@ -38,7 +38,7 @@ const UiCallbacks &ui_get_callbacks();
 // ---------------------------------------------------------------------------
 static void alarm_toggle_cb(lv_event_t *e) {
   uint8_t index = reinterpret_cast<uintptr_t>(lv_event_get_user_data(e));
-  lv_obj_t *toggle = lv_event_get_target(e);
+  lv_obj_t *toggle = static_cast<lv_obj_t *>(lv_event_get_target(e));
   bool enabled = lv_obj_has_state(toggle, LV_STATE_CHECKED);
   const auto &cb = ui_get_callbacks();
   if (cb.on_alarm_toggle) {
@@ -113,7 +113,7 @@ void ui_build_alarm_page(lv_obj_t *parent) {
 
   // "Add alarm" button.
   // TODO: Implement add-alarm flow (time picker + day selector).
-  add_btn_ = lv_btn_create(parent);
+  add_btn_ = lv_button_create(parent);
   lv_obj_align(add_btn_, LV_ALIGN_BOTTOM_MID, 0, -30);
   lv_obj_set_size(add_btn_, 160, 50);
   lv_obj_set_style_radius(add_btn_, theme::kButtonRadius, 0);

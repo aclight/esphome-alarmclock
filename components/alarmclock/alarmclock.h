@@ -232,23 +232,27 @@ inline std::pair<uint8_t, uint8_t> compute_snooze_time(uint8_t h, uint8_t m,
 // ---------------------------------------------------------------------------
 #ifndef UNIT_TEST
 
-// Forward-declare RTTTL component (avoid pulling its full header into ours).
+}  // namespace alarmclock
+
+// Forward-declare RTTTL component at global scope.
 namespace esphome {
 namespace rtttl {
 class Rtttl;
 }  // namespace rtttl
 }  // namespace esphome
 
+namespace alarmclock {
+
 // Maximum number of configurable alarms.
 static constexpr uint8_t kMaxAlarms = 4;
 
-class AlarmClockComponent : public esphome::Component,
-                            public esphome::i2c::I2CDevice {
+class AlarmClockComponent : public ::esphome::Component,
+                            public ::esphome::i2c::I2CDevice {
  public:
   void setup() override;
   void loop() override;
   float get_setup_priority() const override {
-    return esphome::setup_priority::HARDWARE;
+    return ::esphome::setup_priority::HARDWARE;
   }
 
   // --- Alarm management (called from HA or UI) ---
@@ -268,7 +272,7 @@ class AlarmClockComponent : public esphome::Component,
   float brightness() const { return brightness_; }
 
   // --- RTTTL audio ---
-  void set_rtttl(esphome::rtttl::Rtttl *rtttl) { rtttl_ = rtttl; }
+  void set_rtttl(::esphome::rtttl::Rtttl *rtttl) { rtttl_ = rtttl; }
   void on_rtttl_finished();
 
   // --- State queries (for HA sensors) ---
@@ -291,7 +295,7 @@ class AlarmClockComponent : public esphome::Component,
   float sensor_factor_ = 1.0f;
 
   // RTTTL audio.
-  esphome::rtttl::Rtttl *rtttl_ = nullptr;
+  ::esphome::rtttl::Rtttl *rtttl_ = nullptr;
   bool alarm_sound_active_ = false;
   bool alarm_pause_active_ = false;
   uint32_t alarm_sound_start_ms_ = 0;

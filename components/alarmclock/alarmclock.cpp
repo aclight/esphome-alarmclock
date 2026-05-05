@@ -73,7 +73,7 @@ void AlarmClockComponent::setup() {
 
   // Turn on backlight at maximum brightness.
   uint8_t brightness = kBacklightMax;
-  if (this->write(&brightness, 1) != esphome::i2c::ERROR_OK) {
+  if (this->write(&brightness, 1) != ::esphome::i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Failed to set backlight via I2C (address 0x%02X)",
              this->address_);
   } else {
@@ -104,7 +104,7 @@ void AlarmClockComponent::setup() {
 void AlarmClockComponent::loop() {
   // Handle alarm sound pause between RTTTL loops.
   if (alarm_sound_active_ && alarm_pause_active_) {
-    uint32_t now_ms = millis();
+    uint32_t now_ms = ::esphome::millis();
     if (now_ms - alarm_pause_start_ms_ >= kAlarmPauseDurationMs) {
       alarm_pause_active_ = false;
       play_alarm_melody_();
@@ -112,7 +112,7 @@ void AlarmClockComponent::loop() {
   }
 
   // Tick timers once per minute.
-  uint32_t now_ms = millis();
+  uint32_t now_ms = ::esphome::millis();
   if (now_ms - last_minute_check_ms_ >= 60000) {
     last_minute_check_ms_ = now_ms;
 
@@ -268,7 +268,7 @@ void AlarmClockComponent::start_alarm_sound_() {
   ESP_LOGI(TAG, "Starting alarm sound (volume=%.0f%%)", volume_ * 100);
   alarm_sound_active_ = true;
   alarm_pause_active_ = false;
-  alarm_sound_start_ms_ = millis();
+  alarm_sound_start_ms_ = ::esphome::millis();
   play_alarm_melody_();
 }
 
@@ -285,7 +285,7 @@ void AlarmClockComponent::play_alarm_melody_() {
   if (rtttl_ == nullptr) {
     return;
   }
-  uint32_t elapsed = millis() - alarm_sound_start_ms_;
+  uint32_t elapsed = ::esphome::millis() - alarm_sound_start_ms_;
   float gain = compute_ramp_volume(volume_, elapsed);
   rtttl_->set_gain(gain);
   rtttl_->play(kDefaultAlarmMelody);
@@ -299,7 +299,7 @@ void AlarmClockComponent::on_rtttl_finished() {
   }
   // Start a pause before the next melody loop.
   alarm_pause_active_ = true;
-  alarm_pause_start_ms_ = millis();
+  alarm_pause_start_ms_ = ::esphome::millis();
   ESP_LOGD(TAG, "RTTTL finished, pausing %ums before next loop",
            kAlarmPauseDurationMs);
 }
@@ -318,15 +318,19 @@ void AlarmClockComponent::sync_ui_() {
 }
 
 void AlarmClockComponent::fire_ha_event_(const char *event_type) {
-  auto *api = esphome::api::global_api_server;
+#ifdef USE_API_HOMEASSISTANT_SERVICES
+  auto *api = ::esphome::api::global_api_server;
   if (api == nullptr) {
     return;
   }
-  esphome::api::HomeassistantServiceResponse resp;
-  resp.service = event_type;
-  resp.is_event = true;
-  api->send_homeassistant_service_call(resp);
+  ::esphome::api::HomeassistantActionRequest req;
+  req.service = ::esphome::StringRef(event_type);
+  req.is_event = true;
+  api->send_homeassistant_action(req);
   ESP_LOGD(TAG, "Fired HA event: %s", event_type);
+#else
+  ESP_LOGW(TAG, "HA services not enabled, cannot fire event: %s", event_type);
+#endif
 }
 
 void AlarmClockComponent::auto_disable_one_shot_alarm_() {

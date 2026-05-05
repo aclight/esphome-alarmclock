@@ -25,7 +25,7 @@ static lv_obj_t *sound_label_ = nullptr;
 // Event handlers.
 // ---------------------------------------------------------------------------
 static void volume_slider_cb(lv_event_t *e) {
-  lv_obj_t *slider = lv_event_get_target(e);
+  lv_obj_t *slider = static_cast<lv_obj_t *>(lv_event_get_target(e));
   int32_t val = lv_slider_get_value(slider);
   float volume = static_cast<float>(val) / 100.0f;
 
@@ -42,7 +42,7 @@ static void volume_slider_cb(lv_event_t *e) {
 }
 
 static void brightness_slider_cb(lv_event_t *e) {
-  lv_obj_t *slider = lv_event_get_target(e);
+  lv_obj_t *slider = static_cast<lv_obj_t *>(lv_event_get_target(e));
   int32_t val = lv_slider_get_value(slider);
   float brightness = static_cast<float>(val) / 100.0f;
 
