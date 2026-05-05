@@ -48,6 +48,7 @@ wifi:
 api:
   encryption:
     key: !secret encryption_key
+  homeassistant_services: true
 
 ota:
   - platform: esphome
@@ -132,11 +133,43 @@ touchscreen:
     display: main_display
 
 # --- LVGL UI (minimal — all UI built in C++ component) ---
+# The boot_page exists solely to force ESPHome to compile in the LVGL fonts
+# and widgets used by our C++ UI code.  The C++ ui_init() replaces this page.
 lvgl:
   displays:
     - main_display
   touchscreens:
     - touch
+  pages:
+    - id: boot_page
+      widgets:
+        - label:
+            text_font: montserrat_48
+            text: ""
+        - label:
+            text_font: montserrat_28
+            text: ""
+        - label:
+            text_font: montserrat_24
+            text: ""
+        - label:
+            text_font: montserrat_20
+            text: ""
+        - label:
+            text_font: montserrat_18
+            text: ""
+        - label:
+            text_font: montserrat_16
+            text: ""
+        - label:
+            text_font: montserrat_14
+            text: ""
+        - switch:
+            hidden: true
+        - button:
+            hidden: true
+        - slider:
+            hidden: true
 
 # --- Update clock display every second ---
 interval:

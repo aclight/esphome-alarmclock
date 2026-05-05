@@ -73,7 +73,7 @@ void AlarmClockComponent::setup() {
 
   // Turn on backlight at maximum brightness.
   uint8_t brightness = kBacklightMax;
-  if (this->write(&brightness, 1) != esphome::i2c::ERROR_OK) {
+  if (this->write(&brightness, 1) != ::esphome::i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Failed to set backlight via I2C (address 0x%02X)",
              this->address_);
   } else {
@@ -94,9 +94,9 @@ void AlarmClockComponent::setup() {
   // Build the UI (LVGL must already be initialized by the lvgl: component).
   ui_init();
 
-  // Set a default alarm for demo purposes.
-  // TODO: Load from NVS/flash persistent storage.
-  set_alarm(0, 7, 0, alarm_clock::kWeekdays, true);
+  // Initialize NVS and load persisted alarms + settings.
+  alarm_clock::storage_init();
+  load_from_storage_();
 
   ESP_LOGI(TAG, "AlarmClock ready");
 }
@@ -104,7 +104,7 @@ void AlarmClockComponent::setup() {
 void AlarmClockComponent::loop() {
   // Handle alarm sound pause between RTTTL loops.
   if (alarm_sound_active_ && alarm_pause_active_) {
-    uint32_t now_ms = millis();
+    uint32_t now_ms = ::esphome::millis();
     if (now_ms - alarm_pause_start_ms_ >= kAlarmPauseDurationMs) {
       alarm_pause_active_ = false;
       play_alarm_melody_();
@@ -112,7 +112,7 @@ void AlarmClockComponent::loop() {
   }
 
   // Tick timers once per minute.
-  uint32_t now_ms = millis();
+  uint32_t now_ms = ::esphome::millis();
   if (now_ms - last_minute_check_ms_ >= 60000) {
     last_minute_check_ms_ = now_ms;
 
@@ -158,6 +158,9 @@ void AlarmClockComponent::set_alarm(uint8_t index, uint8_t hour, uint8_t minute,
   alarms_[index].enabled = enabled;
   alarm_clock::alarm_set_label(alarms_[index], label);
 
+  // Persist to NVS.
+  alarm_clock::storage_save_alarm(index, alarms_[index]);
+
   // Update the UI alarm list.
   ui_update_alarm_row(index, hour, minute, days_mask, enabled,
                       alarms_[index].label);
@@ -171,6 +174,7 @@ void AlarmClockComponent::enable_alarm(uint8_t index, bool enabled) {
     return;
   }
   alarms_[index].enabled = enabled;
+  alarm_clock::storage_save_alarm(index, alarms_[index]);
   ui_update_alarm_row(index, alarms_[index].hour, alarms_[index].minute,
                       alarms_[index].days_of_week, enabled,
                       alarms_[index].label);
@@ -214,6 +218,7 @@ void AlarmClockComponent::set_volume(float volume) {
   if (volume < 0.0f) { volume = 0.0f; }
   if (volume > 1.0f) { volume = 1.0f; }
   volume_ = volume;
+  save_settings_to_storage_();
   ui_update_volume(volume);
   // TODO: Apply to speaker/RTTTL gain.
 }
@@ -222,6 +227,7 @@ void AlarmClockComponent::set_brightness(float brightness) {
   if (brightness < 0.0f) { brightness = 0.0f; }
   if (brightness > 1.0f) { brightness = 1.0f; }
   brightness_ = brightness;
+  save_settings_to_storage_();
   update_backlight_();
   ui_update_brightness(brightness);
 }
@@ -268,7 +274,7 @@ void AlarmClockComponent::start_alarm_sound_() {
   ESP_LOGI(TAG, "Starting alarm sound (volume=%.0f%%)", volume_ * 100);
   alarm_sound_active_ = true;
   alarm_pause_active_ = false;
-  alarm_sound_start_ms_ = millis();
+  alarm_sound_start_ms_ = ::esphome::millis();
   play_alarm_melody_();
 }
 
@@ -285,7 +291,7 @@ void AlarmClockComponent::play_alarm_melody_() {
   if (rtttl_ == nullptr) {
     return;
   }
-  uint32_t elapsed = millis() - alarm_sound_start_ms_;
+  uint32_t elapsed = ::esphome::millis() - alarm_sound_start_ms_;
   float gain = compute_ramp_volume(volume_, elapsed);
   rtttl_->set_gain(gain);
   rtttl_->play(kDefaultAlarmMelody);
@@ -299,7 +305,7 @@ void AlarmClockComponent::on_rtttl_finished() {
   }
   // Start a pause before the next melody loop.
   alarm_pause_active_ = true;
-  alarm_pause_start_ms_ = millis();
+  alarm_pause_start_ms_ = ::esphome::millis();
   ESP_LOGD(TAG, "RTTTL finished, pausing %ums before next loop",
            kAlarmPauseDurationMs);
 }
@@ -318,15 +324,19 @@ void AlarmClockComponent::sync_ui_() {
 }
 
 void AlarmClockComponent::fire_ha_event_(const char *event_type) {
-  auto *api = esphome::api::global_api_server;
+#ifdef USE_API_HOMEASSISTANT_SERVICES
+  auto *api = ::esphome::api::global_api_server;
   if (api == nullptr) {
     return;
   }
-  esphome::api::HomeassistantServiceResponse resp;
-  resp.service = event_type;
-  resp.is_event = true;
-  api->send_homeassistant_service_call(resp);
+  ::esphome::api::HomeassistantActionRequest req;
+  req.service = ::esphome::StringRef(event_type);
+  req.is_event = true;
+  api->send_homeassistant_action(req);
   ESP_LOGD(TAG, "Fired HA event: %s", event_type);
+#else
+  ESP_LOGW(TAG, "HA services not enabled, cannot fire event: %s", event_type);
+#endif
 }
 
 void AlarmClockComponent::auto_disable_one_shot_alarm_() {
@@ -339,12 +349,65 @@ void AlarmClockComponent::auto_disable_one_shot_alarm_() {
   ESP_LOGI(TAG, "One-shot alarm %d auto-disabled after firing",
            fired_alarm_index_);
   alarms_[fired_alarm_index_].enabled = false;
+  alarm_clock::storage_save_alarm(fired_alarm_index_, alarms_[fired_alarm_index_]);
   ui_update_alarm_row(fired_alarm_index_,
                       alarms_[fired_alarm_index_].hour,
                       alarms_[fired_alarm_index_].minute,
                       alarms_[fired_alarm_index_].days_of_week,
                       false,
                       alarms_[fired_alarm_index_].label);
+}
+
+void AlarmClockComponent::save_alarms_to_storage_() {
+  for (uint8_t i = 0; i < kMaxAlarms; ++i) {
+    alarm_clock::storage_save_alarm(i, alarms_[i]);
+  }
+}
+
+void AlarmClockComponent::save_settings_to_storage_() {
+  alarm_clock::StorageSettings settings;
+  settings.volume = volume_;
+  settings.brightness = brightness_;
+  settings.snooze_duration_minutes = state_machine_.snooze_duration_minutes();
+  // TODO: Populate time_format_24h and selected_sound_index when implemented.
+  settings.time_format_24h = false;
+  settings.selected_sound_index = 0;
+  alarm_clock::storage_save_settings(settings);
+}
+
+void AlarmClockComponent::load_from_storage_() {
+  // Load alarms.
+  bool any_loaded = false;
+  for (uint8_t i = 0; i < kMaxAlarms; ++i) {
+    if (alarm_clock::storage_load_alarm(i, &alarms_[i])) {
+      any_loaded = true;
+      ESP_LOGI(TAG, "Loaded alarm %u from NVS: %02u:%02u days=0x%02X en=%d",
+               i, alarms_[i].hour, alarms_[i].minute,
+               alarms_[i].days_of_week, alarms_[i].enabled);
+    }
+  }
+
+  if (!any_loaded) {
+    // First boot — set a default alarm.
+    ESP_LOGI(TAG, "No alarms in NVS, setting default");
+    alarms_[0].hour = 7;
+    alarms_[0].minute = 0;
+    alarms_[0].days_of_week = alarm_clock::kWeekdays;
+    alarms_[0].enabled = true;
+    alarm_clock::alarm_set_label(alarms_[0], nullptr);
+  }
+
+  // Load settings.
+  alarm_clock::StorageSettings settings;
+  if (alarm_clock::storage_load_settings(&settings)) {
+    volume_ = settings.volume;
+    brightness_ = settings.brightness;
+    state_machine_.set_snooze_duration(settings.snooze_duration_minutes);
+    ESP_LOGI(TAG, "Loaded settings from NVS");
+  }
+
+  // Sync UI with loaded data.
+  sync_ui_();
 }
 
 }  // namespace alarmclock
