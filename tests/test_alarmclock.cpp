@@ -3,6 +3,7 @@
 
 #include "tests/test_framework.h"
 #include "components/alarmclock/alarmclock.h"
+#include "components/alarmclock/storage.h"
 #include <cstring>
 
 using namespace alarmclock;
@@ -829,6 +830,253 @@ TEST(tick_firing_resets_on_reset) {
     PASS();
 }
 
+// ===========================================================================
+// Storage serialization tests (Task 5)
+// ===========================================================================
+
+TEST(serialized_alarm_size_constant) {
+    ASSERT_EQ(alarm_clock::kSerializedAlarmSize, (size_t)21);
+    PASS();
+}
+
+TEST(serialized_settings_size_constant) {
+    ASSERT_EQ(alarm_clock::kSerializedSettingsSize, (size_t)12);
+    PASS();
+}
+
+TEST(serialize_alarm_roundtrip) {
+    AlarmTime orig{};
+    orig.hour = 7;
+    orig.minute = 30;
+    orig.days_of_week = kWeekdays;
+    orig.enabled = true;
+    alarm_set_label(orig, "Work");
+
+    uint8_t buf[alarm_clock::kSerializedAlarmSize];
+    size_t written = alarm_clock::serialize_alarm(orig, buf, sizeof(buf));
+    ASSERT_EQ(written, alarm_clock::kSerializedAlarmSize);
+
+    AlarmTime loaded{};
+    ASSERT_TRUE(alarm_clock::deserialize_alarm(buf, written, &loaded));
+    ASSERT_EQ(loaded.hour, 7);
+    ASSERT_EQ(loaded.minute, 30);
+    ASSERT_EQ(loaded.days_of_week, kWeekdays);
+    ASSERT_TRUE(loaded.enabled);
+    ASSERT_TRUE(strcmp(loaded.label, "Work") == 0);
+    PASS();
+}
+
+TEST(serialize_alarm_disabled) {
+    AlarmTime orig{};
+    orig.hour = 22;
+    orig.minute = 15;
+    orig.days_of_week = kWeekends;
+    orig.enabled = false;
+    alarm_set_label(orig, "Weekend");
+
+    uint8_t buf[alarm_clock::kSerializedAlarmSize];
+    size_t written = alarm_clock::serialize_alarm(orig, buf, sizeof(buf));
+    ASSERT_EQ(written, alarm_clock::kSerializedAlarmSize);
+
+    AlarmTime loaded{};
+    ASSERT_TRUE(alarm_clock::deserialize_alarm(buf, written, &loaded));
+    ASSERT_EQ(loaded.hour, 22);
+    ASSERT_EQ(loaded.minute, 15);
+    ASSERT_EQ(loaded.days_of_week, kWeekends);
+    ASSERT_FALSE(loaded.enabled);
+    ASSERT_TRUE(strcmp(loaded.label, "Weekend") == 0);
+    PASS();
+}
+
+TEST(serialize_alarm_empty_label) {
+    AlarmTime orig{};
+    orig.hour = 6;
+    orig.minute = 0;
+    orig.days_of_week = kEveryDay;
+    orig.enabled = true;
+
+    uint8_t buf[alarm_clock::kSerializedAlarmSize];
+    alarm_clock::serialize_alarm(orig, buf, sizeof(buf));
+
+    AlarmTime loaded{};
+    ASSERT_TRUE(alarm_clock::deserialize_alarm(buf, sizeof(buf), &loaded));
+    ASSERT_EQ(loaded.label[0], '\0');
+    PASS();
+}
+
+TEST(serialize_alarm_one_shot) {
+    AlarmTime orig{};
+    orig.hour = 14;
+    orig.minute = 45;
+    orig.days_of_week = 0;  // one-shot
+    orig.enabled = true;
+    alarm_set_label(orig, "Nap");
+
+    uint8_t buf[alarm_clock::kSerializedAlarmSize];
+    alarm_clock::serialize_alarm(orig, buf, sizeof(buf));
+
+    AlarmTime loaded{};
+    ASSERT_TRUE(alarm_clock::deserialize_alarm(buf, sizeof(buf), &loaded));
+    ASSERT_EQ(loaded.days_of_week, 0);
+    ASSERT_TRUE(is_one_shot(loaded));
+    ASSERT_TRUE(strcmp(loaded.label, "Nap") == 0);
+    PASS();
+}
+
+TEST(serialize_alarm_max_label) {
+    AlarmTime orig{};
+    orig.hour = 8;
+    orig.minute = 0;
+    orig.days_of_week = kMonday;
+    orig.enabled = true;
+    alarm_set_label(orig, "123456789012345");  // exactly 15 chars
+
+    uint8_t buf[alarm_clock::kSerializedAlarmSize];
+    alarm_clock::serialize_alarm(orig, buf, sizeof(buf));
+
+    AlarmTime loaded{};
+    ASSERT_TRUE(alarm_clock::deserialize_alarm(buf, sizeof(buf), &loaded));
+    ASSERT_EQ(strlen(loaded.label), (size_t)15);
+    ASSERT_TRUE(strcmp(loaded.label, "123456789012345") == 0);
+    PASS();
+}
+
+TEST(serialize_alarm_null_buf) {
+    AlarmTime alarm{};
+    ASSERT_EQ(alarm_clock::serialize_alarm(alarm, nullptr, 100), (size_t)0);
+    PASS();
+}
+
+TEST(serialize_alarm_small_buf) {
+    AlarmTime alarm{};
+    uint8_t buf[5];
+    ASSERT_EQ(alarm_clock::serialize_alarm(alarm, buf, sizeof(buf)), (size_t)0);
+    PASS();
+}
+
+TEST(deserialize_alarm_null_buf) {
+    AlarmTime alarm{};
+    ASSERT_FALSE(alarm_clock::deserialize_alarm(nullptr, 100, &alarm));
+    PASS();
+}
+
+TEST(deserialize_alarm_null_alarm) {
+    uint8_t buf[alarm_clock::kSerializedAlarmSize] = {};
+    ASSERT_FALSE(alarm_clock::deserialize_alarm(buf, sizeof(buf), nullptr));
+    PASS();
+}
+
+TEST(deserialize_alarm_small_buf) {
+    AlarmTime alarm{};
+    uint8_t buf[5] = {};
+    ASSERT_FALSE(alarm_clock::deserialize_alarm(buf, sizeof(buf), &alarm));
+    PASS();
+}
+
+TEST(deserialize_alarm_wrong_version) {
+    uint8_t buf[alarm_clock::kSerializedAlarmSize] = {};
+    buf[0] = 99;  // wrong version
+    AlarmTime alarm{};
+    ASSERT_FALSE(alarm_clock::deserialize_alarm(buf, sizeof(buf), &alarm));
+    PASS();
+}
+
+TEST(serialize_settings_roundtrip) {
+    alarm_clock::StorageSettings orig{};
+    orig.volume = 0.75f;
+    orig.brightness = 0.3f;
+    orig.snooze_duration_minutes = 15;
+    orig.time_format_24h = true;
+    orig.selected_sound_index = 2;
+
+    uint8_t buf[alarm_clock::kSerializedSettingsSize];
+    size_t written = alarm_clock::serialize_settings(orig, buf, sizeof(buf));
+    ASSERT_EQ(written, alarm_clock::kSerializedSettingsSize);
+
+    alarm_clock::StorageSettings loaded{};
+    ASSERT_TRUE(alarm_clock::deserialize_settings(buf, written, &loaded));
+    ASSERT_TRUE(loaded.volume > 0.74f && loaded.volume < 0.76f);
+    ASSERT_TRUE(loaded.brightness > 0.29f && loaded.brightness < 0.31f);
+    ASSERT_EQ(loaded.snooze_duration_minutes, 15);
+    ASSERT_TRUE(loaded.time_format_24h);
+    ASSERT_EQ(loaded.selected_sound_index, 2);
+    PASS();
+}
+
+TEST(serialize_settings_defaults) {
+    alarm_clock::StorageSettings orig{};  // all defaults
+
+    uint8_t buf[alarm_clock::kSerializedSettingsSize];
+    alarm_clock::serialize_settings(orig, buf, sizeof(buf));
+
+    alarm_clock::StorageSettings loaded{};
+    ASSERT_TRUE(alarm_clock::deserialize_settings(buf, sizeof(buf), &loaded));
+    ASSERT_TRUE(loaded.volume > 0.49f && loaded.volume < 0.51f);
+    ASSERT_TRUE(loaded.brightness > 0.49f && loaded.brightness < 0.51f);
+    ASSERT_EQ(loaded.snooze_duration_minutes, 9);
+    ASSERT_FALSE(loaded.time_format_24h);
+    ASSERT_EQ(loaded.selected_sound_index, 0);
+    PASS();
+}
+
+TEST(serialize_settings_null_buf) {
+    alarm_clock::StorageSettings s{};
+    ASSERT_EQ(alarm_clock::serialize_settings(s, nullptr, 100), (size_t)0);
+    PASS();
+}
+
+TEST(serialize_settings_small_buf) {
+    alarm_clock::StorageSettings s{};
+    uint8_t buf[5];
+    ASSERT_EQ(alarm_clock::serialize_settings(s, buf, sizeof(buf)), (size_t)0);
+    PASS();
+}
+
+TEST(deserialize_settings_null_buf) {
+    alarm_clock::StorageSettings s{};
+    ASSERT_FALSE(alarm_clock::deserialize_settings(nullptr, 100, &s));
+    PASS();
+}
+
+TEST(deserialize_settings_null_settings) {
+    uint8_t buf[alarm_clock::kSerializedSettingsSize] = {};
+    ASSERT_FALSE(alarm_clock::deserialize_settings(buf, sizeof(buf), nullptr));
+    PASS();
+}
+
+TEST(deserialize_settings_small_buf) {
+    alarm_clock::StorageSettings s{};
+    uint8_t buf[5] = {};
+    ASSERT_FALSE(alarm_clock::deserialize_settings(buf, sizeof(buf), &s));
+    PASS();
+}
+
+TEST(deserialize_settings_wrong_version) {
+    uint8_t buf[alarm_clock::kSerializedSettingsSize] = {};
+    buf[0] = 99;
+    alarm_clock::StorageSettings s{};
+    ASSERT_FALSE(alarm_clock::deserialize_settings(buf, sizeof(buf), &s));
+    PASS();
+}
+
+TEST(serialize_alarm_version_byte) {
+    AlarmTime alarm{};
+    alarm.hour = 12;
+    alarm.minute = 0;
+    uint8_t buf[alarm_clock::kSerializedAlarmSize];
+    alarm_clock::serialize_alarm(alarm, buf, sizeof(buf));
+    ASSERT_EQ(buf[0], alarm_clock::kStorageVersion);
+    PASS();
+}
+
+TEST(serialize_settings_version_byte) {
+    alarm_clock::StorageSettings s{};
+    uint8_t buf[alarm_clock::kSerializedSettingsSize];
+    alarm_clock::serialize_settings(s, buf, sizeof(buf));
+    ASSERT_EQ(buf[0], alarm_clock::kStorageVersion);
+    PASS();
+}
+
 // ---------------------------------------------------------------------------
 // main — register every TEST here.
 // ---------------------------------------------------------------------------
@@ -962,6 +1210,31 @@ int main() {
     RUN(tick_firing_resets_on_trigger);
     RUN(tick_firing_resets_after_snooze_expires);
     RUN(tick_firing_resets_on_reset);
+
+    // Storage serialization (Task 5)
+    RUN(serialized_alarm_size_constant);
+    RUN(serialized_settings_size_constant);
+    RUN(serialize_alarm_roundtrip);
+    RUN(serialize_alarm_disabled);
+    RUN(serialize_alarm_empty_label);
+    RUN(serialize_alarm_one_shot);
+    RUN(serialize_alarm_max_label);
+    RUN(serialize_alarm_null_buf);
+    RUN(serialize_alarm_small_buf);
+    RUN(deserialize_alarm_null_buf);
+    RUN(deserialize_alarm_null_alarm);
+    RUN(deserialize_alarm_small_buf);
+    RUN(deserialize_alarm_wrong_version);
+    RUN(serialize_settings_roundtrip);
+    RUN(serialize_settings_defaults);
+    RUN(serialize_settings_null_buf);
+    RUN(serialize_settings_small_buf);
+    RUN(deserialize_settings_null_buf);
+    RUN(deserialize_settings_null_settings);
+    RUN(deserialize_settings_small_buf);
+    RUN(deserialize_settings_wrong_version);
+    RUN(serialize_alarm_version_byte);
+    RUN(serialize_settings_version_byte);
 
     printf("\n%d test(s) run, %d failed.\n", tests_run, tests_failed);
     return tests_failed == 0 ? 0 : 1;

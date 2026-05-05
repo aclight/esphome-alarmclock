@@ -9,6 +9,7 @@
 
 #include "alarm_time.h"
 #include "alarm_state.h"
+#include "storage.h"
 
 // ESPHome headers must be included outside the alarmclock namespace.
 #ifndef UNIT_TEST
@@ -313,6 +314,9 @@ class AlarmClockComponent : public ::esphome::Component,
   void sync_ui_();
   void fire_ha_event_(const char *event_type);
   void auto_disable_one_shot_alarm_();
+  void save_alarms_to_storage_();
+  void save_settings_to_storage_();
+  void load_from_storage_();
 
   // Index of the alarm that is currently firing (0xFF = none).
   uint8_t fired_alarm_index_ = 0xFF;
