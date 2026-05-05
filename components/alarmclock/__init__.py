@@ -6,7 +6,7 @@ from esphome.components import i2c
 from esphome.const import CONF_ID
 
 DEPENDENCIES = ["i2c"]
-AUTO_LOAD = []
+AUTO_LOAD = ["sensor", "switch", "button", "number"]
 
 alarmclock_ns = cg.esphome_ns.namespace("alarmclock")
 AlarmClockComponent = alarmclock_ns.class_(

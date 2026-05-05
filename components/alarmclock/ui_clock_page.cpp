@@ -1,0 +1,125 @@
+// Clock page — main face with time, date, and next alarm indicator.
+#ifndef UNIT_TEST
+
+#include "ui.h"
+#include "ui_theme.h"
+#include "lvgl.h"
+#include <cstdio>
+
+namespace alarmclock {
+
+// ---------------------------------------------------------------------------
+// Static widgets.
+// ---------------------------------------------------------------------------
+static lv_obj_t *time_label_ = nullptr;
+static lv_obj_t *date_label_ = nullptr;
+static lv_obj_t *next_alarm_label_ = nullptr;
+
+// Page indicator dots.
+static lv_obj_t *page_dots_[theme::kPageCount] = {};
+
+// ---------------------------------------------------------------------------
+// Day-of-week names (0=Sunday).
+// ---------------------------------------------------------------------------
+static const char *kDayNames[] = {
+    "Sunday", "Monday", "Tuesday", "Wednesday",
+    "Thursday", "Friday", "Saturday"};
+
+static const char *kMonthNames[] = {
+    "", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+
+// ---------------------------------------------------------------------------
+// Build the clock page.
+// ---------------------------------------------------------------------------
+void ui_build_clock_page(lv_obj_t *parent) {
+  // Large time label (e.g. "7:00").
+  time_label_ = lv_label_create(parent);
+  lv_obj_align(time_label_, LV_ALIGN_CENTER, 0, theme::kClockTimeY);
+  lv_obj_set_style_text_font(time_label_, &lv_font_montserrat_48, 0);
+  lv_obj_set_style_text_color(time_label_, lv_color_hex(theme::kColorPrimary), 0);
+  lv_label_set_text(time_label_, "--:--");
+
+  // Date label (e.g. "Monday, Jan 15").
+  date_label_ = lv_label_create(parent);
+  lv_obj_align(date_label_, LV_ALIGN_CENTER, 0, theme::kClockDateY);
+  lv_obj_set_style_text_font(date_label_, &lv_font_montserrat_20, 0);
+  lv_obj_set_style_text_color(date_label_, lv_color_hex(theme::kColorSecondary), 0);
+  lv_label_set_text(date_label_, "");
+
+  // Next alarm indicator (e.g. "⏰ 7:00 AM").
+  next_alarm_label_ = lv_label_create(parent);
+  lv_obj_align(next_alarm_label_, LV_ALIGN_CENTER, 0, theme::kClockAlarmY);
+  lv_obj_set_style_text_font(next_alarm_label_, &lv_font_montserrat_16, 0);
+  lv_obj_set_style_text_color(next_alarm_label_, lv_color_hex(theme::kColorAccent), 0);
+  lv_label_set_text(next_alarm_label_, "");
+
+  // Page indicator dots at bottom.
+  int16_t dot_spacing = 20;
+  int16_t dot_start_x = -(dot_spacing * (theme::kPageCount - 1)) / 2;
+  for (uint8_t i = 0; i < theme::kPageCount; i++) {
+    page_dots_[i] = lv_obj_create(parent);
+    lv_obj_set_size(page_dots_[i], 8, 8);
+    lv_obj_set_style_radius(page_dots_[i], 4, 0);
+    lv_obj_set_style_border_width(page_dots_[i], 0, 0);
+    lv_obj_align(page_dots_[i], LV_ALIGN_BOTTOM_MID,
+                 dot_start_x + i * dot_spacing, -15);
+    uint32_t color = (i == theme::kPageClock) ? theme::kColorPrimary : theme::kColorMuted;
+    lv_obj_set_style_bg_color(page_dots_[i], lv_color_hex(color), 0);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Update functions.
+// ---------------------------------------------------------------------------
+
+void ui_update_clock(uint8_t hour, uint8_t minute) {
+  if (!time_label_) {
+    return;
+  }
+  // 12-hour format with AM/PM.
+  // TODO: Add 24-hour format setting.
+  const char *ampm = (hour >= 12) ? "PM" : "AM";
+  uint8_t display_hour = hour % 12;
+  if (display_hour == 0) {
+    display_hour = 12;
+  }
+  char buf[12];
+  snprintf(buf, sizeof(buf), "%d:%02d %s", display_hour, minute, ampm);
+  lv_label_set_text(time_label_, buf);
+}
+
+void ui_update_date(uint8_t month, uint8_t day, uint8_t day_of_week) {
+  if (!date_label_) {
+    return;
+  }
+  if (day_of_week > 6 || month == 0 || month > 12) {
+    return;
+  }
+  char buf[32];
+  snprintf(buf, sizeof(buf), "%s, %s %d",
+           kDayNames[day_of_week], kMonthNames[month], day);
+  lv_label_set_text(date_label_, buf);
+}
+
+void ui_update_next_alarm(const char *text) {
+  if (!next_alarm_label_) {
+    return;
+  }
+  lv_label_set_text(next_alarm_label_, text ? text : "");
+}
+
+// Update page dots when page changes (called from ui_show_page).
+// TODO: Hook this into ui_show_page or call from the component loop.
+void ui_update_page_dots(uint8_t active_page) {
+  for (uint8_t i = 0; i < theme::kPageCount; i++) {
+    if (page_dots_[i]) {
+      uint32_t color = (i == active_page) ? theme::kColorPrimary : theme::kColorMuted;
+      lv_obj_set_style_bg_color(page_dots_[i], lv_color_hex(color), 0);
+    }
+  }
+}
+
+}  // namespace alarmclock
+
+#endif  // UNIT_TEST

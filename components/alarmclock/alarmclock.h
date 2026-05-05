@@ -14,6 +14,7 @@
 #ifndef UNIT_TEST
 #include "esphome/core/component.h"
 #include "esphome/components/i2c/i2c.h"
+#include "ui.h"
 #endif  // UNIT_TEST
 
 namespace alarmclock {
@@ -191,6 +192,9 @@ inline std::pair<uint8_t, uint8_t> compute_snooze_time(uint8_t h, uint8_t m,
 // ---------------------------------------------------------------------------
 #ifndef UNIT_TEST
 
+// Maximum number of configurable alarms.
+static constexpr uint8_t kMaxAlarms = 4;
+
 class AlarmClockComponent : public esphome::Component,
                             public esphome::i2c::I2CDevice {
  public:
@@ -199,6 +203,48 @@ class AlarmClockComponent : public esphome::Component,
   float get_setup_priority() const override {
     return esphome::setup_priority::HARDWARE;
   }
+
+  // --- Alarm management (called from HA or UI) ---
+  void set_alarm(uint8_t index, uint8_t hour, uint8_t minute,
+                 uint8_t days_mask, bool enabled);
+  void enable_alarm(uint8_t index, bool enabled);
+  void dismiss_alarm();
+  void snooze_alarm();
+
+  // --- Settings ---
+  void set_volume(float volume);
+  void set_brightness(float brightness);
+  float volume() const { return volume_; }
+  float brightness() const { return brightness_; }
+
+  // --- State queries (for HA sensors) ---
+  alarm_clock::AlarmState alarm_state() const { return state_machine_.state(); }
+  bool is_firing() const {
+    return state_machine_.state() == alarm_clock::AlarmState::kFiring;
+  }
+
+  // Called from YAML interval to check alarms against current time.
+  void check_alarms_(uint8_t hour, uint8_t minute, uint8_t day_of_week);
+
+ private:
+  // Alarm storage.
+  alarm_clock::AlarmTime alarms_[kMaxAlarms] = {};
+  alarm_clock::AlarmStateMachine state_machine_;
+
+  // Settings.
+  float volume_ = 0.5f;
+  float brightness_ = 0.5f;
+  float sensor_factor_ = 1.0f;
+
+  // Timing.
+  uint32_t last_minute_check_ms_ = 0;
+  uint8_t last_checked_minute_ = 0xFF;
+
+  // Internal helpers.
+  void update_backlight_();
+  void start_alarm_sound_();
+  void stop_alarm_sound_();
+  void sync_ui_();
 };
 
 #endif  // UNIT_TEST

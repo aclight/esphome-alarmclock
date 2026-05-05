@@ -62,17 +62,8 @@ logger:
     touchscreen: WARN
     gt911.touchscreen: WARN
 
-# --- Volume tracking ---
-globals:
-  - id: speaker_volume
-    type: float
-    initial_value: "0.5"
-  - id: brightness_level
-    type: float
-    initial_value: "0.5"
-  - id: simulated_sensor
-    type: float
-    initial_value: "1.0"
+# --- Volume/brightness now managed by the C++ component ---
+# (globals removed — state lives in AlarmClockComponent)
 
 # --- I2C bus (shared: touch controller + BH1750) ---
 i2c:
@@ -140,279 +131,42 @@ touchscreen:
     id: touch
     display: main_display
 
-# --- LVGL UI skeleton ---
+# --- LVGL UI (minimal — all UI built in C++ component) ---
 lvgl:
   displays:
     - main_display
   touchscreens:
     - touch
-  pages:
-    - id: clock_page
-      bg_color: 0x000000
-      widgets:
-        - label:
-            align: CENTER
-            y: -60
-            text: "--:--"
-            id: clock_label
-            text_font: montserrat_48
-            text_color: 0xFFFFFF
-        - label:
-            align: CENTER
-            y: -10
-            text: "ready"
-            id: debug_label
-            text_color: 0xFFFF00
-        - button:
-            align: CENTER
-            y: 20
-            x: -80
-            width: 120
-            height: 50
-            on_click:
-              then:
-                - logger.log:
-                    level: WARN
-                    format: "PLAY pressed - starting RTTTL, speaker state: %d, volume: %.2f"
-                    args: ['(int)id(alarm_speaker).is_running()', 'id(speaker_volume)']
-                - lvgl.label.update:
-                    id: debug_label
-                    text: "playing..."
-                - lambda: |-
-                    id(alarm_rtttl).set_gain(id(speaker_volume));
-                - rtttl.play:
-                    rtttl: "Nokia:d=4,o=5,b=225:8e6,8d6,f#,g#,8c#6,8b,d,e,8b,8a,c#,e,2a"
-                - lvgl.label.update:
-                    id: debug_label
-                    text: !lambda |-
-                      if (id(alarm_rtttl).is_playing()) {
-                        return std::string("rtttl: playing");
-                      }
-                      return std::string("rtttl: NOT playing!");
-            widgets:
-              - label:
-                  align: CENTER
-                  text: "Play"
-                  text_color: 0xFFFFFF
-        - button:
-            align: CENTER
-            y: 20
-            x: 80
-            width: 120
-            height: 50
-            on_click:
-              then:
-                - logger.log:
-                    level: WARN
-                    format: "STOP pressed - is_playing: %d"
-                    args: ['id(alarm_rtttl).is_playing()']
-                - rtttl.stop:
-                    id: alarm_rtttl
-                - lvgl.label.update:
-                    id: debug_label
-                    text: "stopped"
-            widgets:
-              - label:
-                  align: CENTER
-                  text: "Stop"
-                  text_color: 0xFFFFFF
-        - button:
-            align: CENTER
-            y: 90
-            x: -80
-            width: 120
-            height: 50
-            on_click:
-              then:
-                - lambda: |-
-                    id(speaker_volume) = std::min(1.0f, id(speaker_volume) + 0.1f);
-                    id(alarm_rtttl).set_gain(id(speaker_volume));
-                - speaker.volume_set:
-                    id: alarm_speaker
-                    volume: !lambda 'return id(speaker_volume);'
-                - lvgl.label.update:
-                    id: volume_label
-                    text: !lambda |-
-                      char buf[8];
-                      snprintf(buf, sizeof(buf), "%d%%", (int)(id(speaker_volume) * 100));
-                      return std::string(buf);
-            widgets:
-              - label:
-                  align: CENTER
-                  text: "Vol +"
-                  text_color: 0xFFFFFF
-        - label:
-            align: CENTER
-            y: 90
-            text: "50%"
-            id: volume_label
-            text_color: 0xFFFFFF
-        - button:
-            align: CENTER
-            y: 90
-            x: 80
-            width: 120
-            height: 50
-            on_click:
-              then:
-                - lambda: |-
-                    id(speaker_volume) = std::max(0.0f, id(speaker_volume) - 0.1f);
-                    id(alarm_rtttl).set_gain(id(speaker_volume));
-                - speaker.volume_set:
-                    id: alarm_speaker
-                    volume: !lambda 'return id(speaker_volume);'
-                - lvgl.label.update:
-                    id: volume_label
-                    text: !lambda |-
-                      char buf[8];
-                      snprintf(buf, sizeof(buf), "%d%%", (int)(id(speaker_volume) * 100));
-                      return std::string(buf);
-            widgets:
-              - label:
-                  align: CENTER
-                  text: "Vol -"
-                  text_color: 0xFFFFFF
-        - button:
-            align: CENTER
-            y: 160
-            x: -80
-            width: 120
-            height: 50
-            on_click:
-              then:
-                - lambda: |-
-                    id(brightness_level) = std::min(1.0f, id(brightness_level) + 0.1f);
-                    float bright = alarmclock::compute_brightness(id(brightness_level), id(simulated_sensor));
-                    uint8_t pwm = alarmclock::brightness_to_pwm(bright);
-                    id(i2c_bus).write(0x30, &pwm, 1);
-                    uint32_t color = alarmclock::compute_content_color(bright);
-                    lv_obj_set_style_text_color(id(clock_label), lv_color_hex(color), 0);
-                - lvgl.label.update:
-                    id: brightness_label
-                    text: !lambda |-
-                      char buf[8];
-                      snprintf(buf, sizeof(buf), "%d%%", (int)(id(brightness_level) * 100));
-                      return std::string(buf);
-            widgets:
-              - label:
-                  align: CENTER
-                  text: "Bright +"
-                  text_color: 0xFFFFFF
-        - label:
-            align: CENTER
-            y: 160
-            text: "50%"
-            id: brightness_label
-            text_color: 0xFFFFFF
-        - button:
-            align: CENTER
-            y: 160
-            x: 80
-            width: 120
-            height: 50
-            on_click:
-              then:
-                - lambda: |-
-                    id(brightness_level) = std::max(0.0f, id(brightness_level) - 0.1f);
-                    float bright = alarmclock::compute_brightness(id(brightness_level), id(simulated_sensor));
-                    uint8_t pwm = alarmclock::brightness_to_pwm(bright);
-                    id(i2c_bus).write(0x30, &pwm, 1);
-                    uint32_t color = alarmclock::compute_content_color(bright);
-                    lv_obj_set_style_text_color(id(clock_label), lv_color_hex(color), 0);
-                - lvgl.label.update:
-                    id: brightness_label
-                    text: !lambda |-
-                      char buf[8];
-                      snprintf(buf, sizeof(buf), "%d%%", (int)(id(brightness_level) * 100));
-                      return std::string(buf);
-            widgets:
-              - label:
-                  align: CENTER
-                  text: "Bright -"
-                  text_color: 0xFFFFFF
-        - button:
-            align: BOTTOM_MID
-            y: -10
-            x: -80
-            width: 120
-            height: 50
-            on_click:
-              then:
-                - lambda: |-
-                    id(simulated_sensor) = std::min(1.0f, id(simulated_sensor) + 0.1f);
-                    float bright = alarmclock::compute_brightness(id(brightness_level), id(simulated_sensor));
-                    uint8_t pwm = alarmclock::brightness_to_pwm(bright);
-                    id(i2c_bus).write(0x30, &pwm, 1);
-                    uint32_t color = alarmclock::compute_content_color(bright);
-                    lv_obj_set_style_text_color(id(clock_label), lv_color_hex(color), 0);
-                - lvgl.label.update:
-                    id: sensor_label
-                    text: !lambda |-
-                      char buf[8];
-                      snprintf(buf, sizeof(buf), "%d%%", (int)(id(simulated_sensor) * 100));
-                      return std::string(buf);
-            widgets:
-              - label:
-                  align: CENTER
-                  text: "Light +"
-                  text_color: 0xFFFFFF
-        - label:
-            align: BOTTOM_MID
-            y: -10
-            text: "100%"
-            id: sensor_label
-            text_color: 0x00FFFF
-        - button:
-            align: BOTTOM_MID
-            y: -10
-            x: 80
-            width: 120
-            height: 50
-            on_click:
-              then:
-                - lambda: |-
-                    id(simulated_sensor) = std::max(0.0f, id(simulated_sensor) - 0.1f);
-                    float bright = alarmclock::compute_brightness(id(brightness_level), id(simulated_sensor));
-                    uint8_t pwm = alarmclock::brightness_to_pwm(bright);
-                    id(i2c_bus).write(0x30, &pwm, 1);
-                    uint32_t color = alarmclock::compute_content_color(bright);
-                    lv_obj_set_style_text_color(id(clock_label), lv_color_hex(color), 0);
-                - lvgl.label.update:
-                    id: sensor_label
-                    text: !lambda |-
-                      char buf[8];
-                      snprintf(buf, sizeof(buf), "%d%%", (int)(id(simulated_sensor) * 100));
-                      return std::string(buf);
-            widgets:
-              - label:
-                  align: CENTER
-                  text: "Light -"
-                  text_color: 0xFFFFFF
 
 # --- Update clock display every second ---
 interval:
   - interval: 1s
     then:
-      - lvgl.label.update:
-          id: clock_label
-          text: !lambda |-
-            auto time = id(ha_time).now();
-            if (!time.is_valid()) {
-              time = id(sntp_time).now();
-            }
-            if (!time.is_valid()) {
-              return std::string("--:--");
-            }
-            char buf[6];
-            snprintf(buf, sizeof(buf), "%02d:%02d", time.hour, time.minute);
-            return std::string(buf);
       - lambda: |-
-          float bright = alarmclock::compute_brightness(id(brightness_level), id(simulated_sensor));
-          uint32_t color = alarmclock::compute_content_color(bright);
-          lv_obj_set_style_text_color(id(clock_label), lv_color_hex(color), 0);
+          auto time = id(ha_time).now();
+          if (!time.is_valid()) {
+            time = id(sntp_time).now();
+          }
+          if (time.is_valid()) {
+            alarmclock::ui_update_clock(time.hour, time.minute);
+            alarmclock::ui_update_date(time.month, time.day_of_month, time.day_of_week);
+          }
+  # Check alarms once per minute.
+  - interval: 60s
+    then:
+      - lambda: |-
+          auto time = id(ha_time).now();
+          if (!time.is_valid()) {
+            time = id(sntp_time).now();
+          }
+          if (time.is_valid()) {
+            id(alarm_clock_component).check_alarms_(
+                time.hour, time.minute, time.day_of_week);
+          }
 
-# --- Alarm clock custom component (I2C backlight controller) ---
+# --- Alarm clock custom component (I2C backlight controller + alarm logic) ---
 alarmclock:
+  id: alarm_clock_component
   address: 0x30
 
 # --- I2S audio output (MAX98357A) ---
@@ -430,7 +184,7 @@ speaker:
     sample_rate: 16000
     use_apll: true
 
-# --- RTTTL tone generator (for speaker test / alarm sound) ---
+# --- RTTTL tone generator (for alarm sound) ---
 rtttl:
   speaker: alarm_speaker
   id: alarm_rtttl
@@ -439,14 +193,9 @@ rtttl:
     - logger.log:
         level: WARN
         format: "RTTTL playback finished"
-    - lvgl.label.update:
-        id: debug_label
-        text: "finished"
 
 # --- Light sensor ---
-# BH1750 I²C light sensor.  Feeds into the same simulated_sensor global that
-# the Light +/- buttons use, so both the real sensor and manual buttons work.
-# When the sensor is disconnected, the Light +/- buttons still work for testing.
+# BH1750 I²C light sensor. Feeds brightness data to the alarm clock component.
 sensor:
   - platform: bh1750
     name: "Ambient Light"
@@ -456,16 +205,81 @@ sensor:
     on_value:
       then:
         - lambda: |-
+            // Let the component handle sensor → brightness mapping.
+            // TODO: Wire sensor_factor_ into the component from here.
             float sf = alarmclock::lux_to_sensor_factor(x, 10.0f, 500.0f);
-            id(simulated_sensor) = sf;
-            float bright = alarmclock::compute_brightness(id(brightness_level), sf);
-            uint8_t pwm = alarmclock::brightness_to_pwm(bright);
-            id(i2c_bus).write(0x30, &pwm, 1);
-            uint32_t color = alarmclock::compute_content_color(bright);
-            lv_obj_set_style_text_color(id(clock_label), lv_color_hex(color), 0);
-        - lvgl.label.update:
-            id: sensor_label
-            text: !lambda |-
-              char buf[8];
-              snprintf(buf, sizeof(buf), "%d%%", (int)(id(simulated_sensor) * 100));
-              return std::string(buf);
+            (void)sf;
+
+# ---------------------------------------------------------------------------
+# Home Assistant control entities.
+# These let you control the alarm from HA automations, dashboards, or
+# external buttons (e.g., bedside button to dismiss alarm + trigger scenes).
+# ---------------------------------------------------------------------------
+
+# --- Buttons: Dismiss / Snooze from HA ---
+button:
+  - platform: template
+    name: "Dismiss Alarm"
+    id: btn_dismiss
+    icon: "mdi:alarm-off"
+    on_press:
+      - lambda: 'id(alarm_clock_component).dismiss_alarm();'
+
+  - platform: template
+    name: "Snooze Alarm"
+    id: btn_snooze
+    icon: "mdi:alarm-snooze"
+    on_press:
+      - lambda: 'id(alarm_clock_component).snooze_alarm();'
+
+# --- Number: Volume / Brightness from HA ---
+number:
+  - platform: template
+    name: "Alarm Volume"
+    id: num_volume
+    icon: "mdi:volume-high"
+    min_value: 0
+    max_value: 100
+    step: 5
+    unit_of_measurement: "%"
+    optimistic: true
+    set_action:
+      - lambda: 'id(alarm_clock_component).set_volume(x / 100.0f);'
+
+  - platform: template
+    name: "Display Brightness"
+    id: num_brightness
+    icon: "mdi:brightness-6"
+    min_value: 0
+    max_value: 100
+    step: 5
+    unit_of_measurement: "%"
+    optimistic: true
+    set_action:
+      - lambda: 'id(alarm_clock_component).set_brightness(x / 100.0f);'
+
+# --- Text Sensor: Alarm state (idle/firing/snoozed) ---
+text_sensor:
+  - platform: template
+    name: "Alarm State"
+    id: alarm_state_sensor
+    icon: "mdi:alarm"
+    update_interval: 1s
+    lambda: |-
+      auto state = id(alarm_clock_component).alarm_state();
+      switch (state) {
+        case alarm_clock::AlarmState::kFiring:
+          return std::string("firing");
+        case alarm_clock::AlarmState::kSnoozed:
+          return std::string("snoozed");
+        default:
+          return std::string("idle");
+      }
+
+# --- Binary Sensor: Is alarm currently firing? ---
+binary_sensor:
+  - platform: template
+    name: "Alarm Firing"
+    id: alarm_firing_sensor
+    icon: "mdi:alarm-light"
+    lambda: 'return id(alarm_clock_component).is_firing();'
