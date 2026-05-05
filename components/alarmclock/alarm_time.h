@@ -4,8 +4,12 @@
 #define ALARM_TIME_H
 
 #include <cstdint>
+#include <cstring>
 
 namespace alarm_clock {
+
+// Maximum length of an alarm label (including null terminator).
+static constexpr uint8_t kAlarmLabelMaxLen = 16;
 
 // Days of the week as bit flags.
 enum DayOfWeek : uint8_t {
@@ -29,6 +33,17 @@ struct AlarmTime {
   uint8_t minute = 0;      // 0–59
   uint8_t days_of_week = 0; // bitmask of DayOfWeek
   bool enabled = false;
+  char label[kAlarmLabelMaxLen] = "";  // User-defined label (e.g. "Work")
+};
+
+// Set the label on an alarm, safely truncating to kAlarmLabelMaxLen-1 chars.
+inline void alarm_set_label(AlarmTime &alarm, const char *text) {
+  if (text == nullptr) {
+    alarm.label[0] = '\0';
+    return;
+  }
+  std::strncpy(alarm.label, text, kAlarmLabelMaxLen - 1);
+  alarm.label[kAlarmLabelMaxLen - 1] = '\0';
 };
 
 // Convert a day-of-week index (0 = Sunday … 6 = Saturday) to its flag bit.

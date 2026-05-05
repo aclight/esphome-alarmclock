@@ -168,6 +168,7 @@ interval:
 alarmclock:
   id: alarm_clock_component
   address: 0x30
+  rtttl_id: alarm_rtttl
 
 # --- I2S audio output (MAX98357A) ---
 i2s_audio:
@@ -190,9 +191,7 @@ rtttl:
   id: alarm_rtttl
   gain: 50%
   on_finished_playback:
-    - logger.log:
-        level: WARN
-        format: "RTTTL playback finished"
+    - lambda: 'id(alarm_clock_component).on_rtttl_finished();'
 
 # --- Light sensor ---
 # BH1750 I²C light sensor. Feeds brightness data to the alarm clock component.
@@ -205,10 +204,8 @@ sensor:
     on_value:
       then:
         - lambda: |-
-            // Let the component handle sensor → brightness mapping.
-            // TODO: Wire sensor_factor_ into the component from here.
             float sf = alarmclock::lux_to_sensor_factor(x, 10.0f, 500.0f);
-            (void)sf;
+            id(alarm_clock_component).set_sensor_factor(sf);
 
 # ---------------------------------------------------------------------------
 # Home Assistant control entities.

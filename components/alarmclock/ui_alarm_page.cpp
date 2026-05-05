@@ -21,6 +21,7 @@ static constexpr int16_t kAlarmListStartY = 60;
 struct AlarmRow {
   lv_obj_t *container = nullptr;
   lv_obj_t *time_label = nullptr;
+  lv_obj_t *alarm_label = nullptr;
   lv_obj_t *days_label = nullptr;
   lv_obj_t *toggle = nullptr;
 };
@@ -80,14 +81,21 @@ void ui_build_alarm_page(lv_obj_t *parent) {
 
     // Time label (e.g. "7:00 AM").
     row.time_label = lv_label_create(row.container);
-    lv_obj_align(row.time_label, LV_ALIGN_LEFT_MID, 15, -10);
+    lv_obj_align(row.time_label, LV_ALIGN_LEFT_MID, 15, -15);
     lv_obj_set_style_text_font(row.time_label, &lv_font_montserrat_28, 0);
     lv_obj_set_style_text_color(row.time_label, lv_color_hex(theme::kColorPrimary), 0);
     lv_label_set_text(row.time_label, "--:--");
 
+    // Alarm label (e.g. "Work").
+    row.alarm_label = lv_label_create(row.container);
+    lv_obj_align(row.alarm_label, LV_ALIGN_LEFT_MID, 15, 15);
+    lv_obj_set_style_text_font(row.alarm_label, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(row.alarm_label, lv_color_hex(theme::kColorAccent), 0);
+    lv_label_set_text(row.alarm_label, "");
+
     // Days label (e.g. "Mon Tue Wed Thu Fri").
     row.days_label = lv_label_create(row.container);
-    lv_obj_align(row.days_label, LV_ALIGN_LEFT_MID, 15, 15);
+    lv_obj_align(row.days_label, LV_ALIGN_LEFT_MID, 15, 32);
     lv_obj_set_style_text_font(row.days_label, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(row.days_label, lv_color_hex(theme::kColorSecondary), 0);
     lv_label_set_text(row.days_label, "");
@@ -124,7 +132,8 @@ void ui_build_alarm_page(lv_obj_t *parent) {
 // Call this to show/update an alarm in the list.
 // days_mask uses DayOfWeek flags from alarm_time.h.
 void ui_update_alarm_row(uint8_t index, uint8_t hour, uint8_t minute,
-                         uint8_t days_mask, bool enabled) {
+                         uint8_t days_mask, bool enabled,
+                         const char *label) {
   if (index >= kMaxAlarms) {
     return;
   }
@@ -140,6 +149,13 @@ void ui_update_alarm_row(uint8_t index, uint8_t hour, uint8_t minute,
   char buf[12];
   snprintf(buf, sizeof(buf), "%d:%02d %s", display_hour, minute, ampm);
   lv_label_set_text(row.time_label, buf);
+
+  // Show alarm label (e.g. "Work").
+  if (label != nullptr && label[0] != '\0') {
+    lv_label_set_text(row.alarm_label, label);
+  } else {
+    lv_label_set_text(row.alarm_label, "");
+  }
 
   // Format days.
   static const char *kShortDays[] = {"Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"};

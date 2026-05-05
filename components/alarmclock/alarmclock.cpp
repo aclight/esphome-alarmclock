@@ -7,6 +7,7 @@
 
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include "esphome/components/rtttl/rtttl.h"
 
 namespace alarmclock {
 
@@ -100,9 +101,14 @@ void AlarmClockComponent::setup() {
 }
 
 void AlarmClockComponent::loop() {
-  // TODO: Get actual time from ESPHome time component.
-  // For now this is a skeleton — the YAML interval will still update the clock
-  // display until we wire the time source directly here.
+  // Handle alarm sound pause between RTTTL loops.
+  if (alarm_sound_active_ && alarm_pause_active_) {
+    uint32_t now_ms = millis();
+    if (now_ms - alarm_pause_start_ms_ >= kAlarmPauseDurationMs) {
+      alarm_pause_active_ = false;
+      play_alarm_melody_();
+    }
+  }
 
   // Tick the snooze timer once per minute.
   uint32_t now_ms = millis();
@@ -122,6 +128,12 @@ void AlarmClockComponent::loop() {
 
 void AlarmClockComponent::set_alarm(uint8_t index, uint8_t hour, uint8_t minute,
                                     uint8_t days_mask, bool enabled) {
+  set_alarm(index, hour, minute, days_mask, enabled, nullptr);
+}
+
+void AlarmClockComponent::set_alarm(uint8_t index, uint8_t hour, uint8_t minute,
+                                    uint8_t days_mask, bool enabled,
+                                    const char *label) {
   if (index >= kMaxAlarms) {
     return;
   }
@@ -129,12 +141,14 @@ void AlarmClockComponent::set_alarm(uint8_t index, uint8_t hour, uint8_t minute,
   alarms_[index].minute = minute;
   alarms_[index].days_of_week = days_mask;
   alarms_[index].enabled = enabled;
+  alarm_clock::alarm_set_label(alarms_[index], label);
 
   // Update the UI alarm list.
-  ui_update_alarm_row(index, hour, minute, days_mask, enabled);
+  ui_update_alarm_row(index, hour, minute, days_mask, enabled,
+                      alarms_[index].label);
 
-  ESP_LOGI(TAG, "Alarm %d set: %02d:%02d days=0x%02X enabled=%d",
-           index, hour, minute, days_mask, enabled);
+  ESP_LOGI(TAG, "Alarm %d set: %02d:%02d days=0x%02X enabled=%d label='%s'",
+           index, hour, minute, days_mask, enabled, alarms_[index].label);
 }
 
 void AlarmClockComponent::enable_alarm(uint8_t index, bool enabled) {
@@ -143,7 +157,8 @@ void AlarmClockComponent::enable_alarm(uint8_t index, bool enabled) {
   }
   alarms_[index].enabled = enabled;
   ui_update_alarm_row(index, alarms_[index].hour, alarms_[index].minute,
-                      alarms_[index].days_of_week, enabled);
+                      alarms_[index].days_of_week, enabled,
+                      alarms_[index].label);
 }
 
 void AlarmClockComponent::dismiss_alarm() {
@@ -189,6 +204,13 @@ void AlarmClockComponent::set_brightness(float brightness) {
   ui_update_brightness(brightness);
 }
 
+void AlarmClockComponent::set_sensor_factor(float sensor_factor) {
+  if (sensor_factor < 0.0f) { sensor_factor = 0.0f; }
+  if (sensor_factor > 1.0f) { sensor_factor = 1.0f; }
+  sensor_factor_ = sensor_factor;
+  update_backlight_();
+}
+
 // ---------------------------------------------------------------------------
 // Internal helpers.
 // ---------------------------------------------------------------------------
@@ -206,6 +228,7 @@ void AlarmClockComponent::check_alarms_(uint8_t hour, uint8_t minute,
       ui_show_firing_overlay();
       ui_firing_start_animation();
       ui_firing_update_time(hour, minute);
+      ui_firing_update_label(alarms_[i].label);
       break;
     }
   }
@@ -218,14 +241,43 @@ void AlarmClockComponent::update_backlight_() {
 }
 
 void AlarmClockComponent::start_alarm_sound_() {
-  // TODO: Trigger RTTTL or media player playback.
-  // From YAML you can call this via a template switch or the component API.
   ESP_LOGI(TAG, "Starting alarm sound (volume=%.0f%%)", volume_ * 100);
+  alarm_sound_active_ = true;
+  alarm_pause_active_ = false;
+  alarm_sound_start_ms_ = millis();
+  play_alarm_melody_();
 }
 
 void AlarmClockComponent::stop_alarm_sound_() {
-  // TODO: Stop RTTTL or media player.
   ESP_LOGI(TAG, "Stopping alarm sound");
+  alarm_sound_active_ = false;
+  alarm_pause_active_ = false;
+  if (rtttl_ != nullptr) {
+    rtttl_->stop();
+  }
+}
+
+void AlarmClockComponent::play_alarm_melody_() {
+  if (rtttl_ == nullptr) {
+    return;
+  }
+  uint32_t elapsed = millis() - alarm_sound_start_ms_;
+  float gain = compute_ramp_volume(volume_, elapsed);
+  rtttl_->set_gain(gain);
+  rtttl_->play(kDefaultAlarmMelody);
+  ESP_LOGD(TAG, "Playing alarm melody (gain=%.2f, elapsed=%ums)", gain,
+           elapsed);
+}
+
+void AlarmClockComponent::on_rtttl_finished() {
+  if (!alarm_sound_active_) {
+    return;
+  }
+  // Start a pause before the next melody loop.
+  alarm_pause_active_ = true;
+  alarm_pause_start_ms_ = millis();
+  ESP_LOGD(TAG, "RTTTL finished, pausing %ums before next loop",
+           kAlarmPauseDurationMs);
 }
 
 void AlarmClockComponent::sync_ui_() {
@@ -233,7 +285,8 @@ void AlarmClockComponent::sync_ui_() {
   for (uint8_t i = 0; i < kMaxAlarms; i++) {
     if (alarms_[i].days_of_week != 0) {
       ui_update_alarm_row(i, alarms_[i].hour, alarms_[i].minute,
-                          alarms_[i].days_of_week, alarms_[i].enabled);
+                          alarms_[i].days_of_week, alarms_[i].enabled,
+                          alarms_[i].label);
     }
   }
   ui_update_volume(volume_);

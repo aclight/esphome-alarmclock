@@ -126,6 +126,22 @@ void ui_firing_update_time(uint8_t hour, uint8_t minute) {
   lv_label_set_text(firing_time_label_, buf);
 }
 
+// ---------------------------------------------------------------------------
+// Public: update the firing overlay label (e.g. "ALARM — Work").
+// ---------------------------------------------------------------------------
+void ui_firing_update_label(const char *label) {
+  if (!firing_message_label_) {
+    return;
+  }
+  if (label != nullptr && label[0] != '\0') {
+    char buf[40];
+    snprintf(buf, sizeof(buf), "ALARM \xE2\x80\x94 %s", label);
+    lv_label_set_text(firing_message_label_, buf);
+  } else {
+    lv_label_set_text(firing_message_label_, "ALARM");
+  }
+}
+
 // Start/stop the pulse animation.
 void ui_firing_start_animation() {
   lv_anim_start(&pulse_anim_);

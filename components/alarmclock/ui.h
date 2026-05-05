@@ -38,11 +38,13 @@ void ui_update_volume(float volume);
 
 // Alarm list management.
 void ui_update_alarm_row(uint8_t index, uint8_t hour, uint8_t minute,
-                         uint8_t days_mask, bool enabled);
+                         uint8_t days_mask, bool enabled,
+                         const char *label = nullptr);
 void ui_hide_alarm_row(uint8_t index);
 
 // Firing overlay animation.
 void ui_firing_update_time(uint8_t hour, uint8_t minute);
+void ui_firing_update_label(const char *label);
 void ui_firing_start_animation();
 void ui_firing_stop_animation();
 

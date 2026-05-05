@@ -20,6 +20,46 @@
 namespace alarmclock {
 
 // ---------------------------------------------------------------------------
+// Audio playback constants.
+// ---------------------------------------------------------------------------
+
+// Duration of the volume ramp-up when alarm starts (milliseconds).
+static constexpr uint32_t kVolumeRampDurationMs = 30000;
+
+// Starting fraction of configured volume at ramp start.
+static constexpr float kVolumeRampStartFraction = 0.1f;
+
+// Pause duration between RTTTL melody loops (milliseconds).
+static constexpr uint32_t kAlarmPauseDurationMs = 2500;
+
+// Default RTTTL alarm melody (classic beep pattern).
+static constexpr const char *kDefaultAlarmMelody =
+    "Alarm:d=8,o=6,b=400:c,p,c,p,c,4p,c,p,c,p,c";
+
+// ---------------------------------------------------------------------------
+// Volume ramp pure function — testable on the host without ESPHome.
+// ---------------------------------------------------------------------------
+
+// Compute the ramped volume at a given elapsed time.
+//   configured_volume: target volume (0.0–1.0)
+//   elapsed_ms:        time since alarm started sounding
+//   ramp_duration_ms:  total ramp-up duration
+// Returns: current volume, linearly ramped from
+//   (kVolumeRampStartFraction * configured_volume) at t=0
+//   to configured_volume at t=ramp_duration_ms.
+inline float compute_ramp_volume(float configured_volume, uint32_t elapsed_ms,
+                                 uint32_t ramp_duration_ms = kVolumeRampDurationMs) {
+  if (configured_volume <= 0.0f) {
+    return 0.0f;
+  }
+  if (ramp_duration_ms == 0 || elapsed_ms >= ramp_duration_ms) {
+    return configured_volume;
+  }
+  float t = static_cast<float>(elapsed_ms) / static_cast<float>(ramp_duration_ms);
+  return configured_volume * (kVolumeRampStartFraction + (1.0f - kVolumeRampStartFraction) * t);
+}
+
+// ---------------------------------------------------------------------------
 // I2C register / value constants for the backlight controller.
 // ---------------------------------------------------------------------------
 static constexpr uint8_t kBacklightMax = 0;    // PWM duty for maximum brightness.
@@ -192,6 +232,13 @@ inline std::pair<uint8_t, uint8_t> compute_snooze_time(uint8_t h, uint8_t m,
 // ---------------------------------------------------------------------------
 #ifndef UNIT_TEST
 
+// Forward-declare RTTTL component (avoid pulling its full header into ours).
+namespace esphome {
+namespace rtttl {
+class Rtttl;
+}  // namespace rtttl
+}  // namespace esphome
+
 // Maximum number of configurable alarms.
 static constexpr uint8_t kMaxAlarms = 4;
 
@@ -207,6 +254,8 @@ class AlarmClockComponent : public esphome::Component,
   // --- Alarm management (called from HA or UI) ---
   void set_alarm(uint8_t index, uint8_t hour, uint8_t minute,
                  uint8_t days_mask, bool enabled);
+  void set_alarm(uint8_t index, uint8_t hour, uint8_t minute,
+                 uint8_t days_mask, bool enabled, const char *label);
   void enable_alarm(uint8_t index, bool enabled);
   void dismiss_alarm();
   void snooze_alarm();
@@ -214,8 +263,13 @@ class AlarmClockComponent : public esphome::Component,
   // --- Settings ---
   void set_volume(float volume);
   void set_brightness(float brightness);
+  void set_sensor_factor(float sensor_factor);
   float volume() const { return volume_; }
   float brightness() const { return brightness_; }
+
+  // --- RTTTL audio ---
+  void set_rtttl(esphome::rtttl::Rtttl *rtttl) { rtttl_ = rtttl; }
+  void on_rtttl_finished();
 
   // --- State queries (for HA sensors) ---
   alarm_clock::AlarmState alarm_state() const { return state_machine_.state(); }
@@ -236,6 +290,13 @@ class AlarmClockComponent : public esphome::Component,
   float brightness_ = 0.5f;
   float sensor_factor_ = 1.0f;
 
+  // RTTTL audio.
+  esphome::rtttl::Rtttl *rtttl_ = nullptr;
+  bool alarm_sound_active_ = false;
+  bool alarm_pause_active_ = false;
+  uint32_t alarm_sound_start_ms_ = 0;
+  uint32_t alarm_pause_start_ms_ = 0;
+
   // Timing.
   uint32_t last_minute_check_ms_ = 0;
   uint8_t last_checked_minute_ = 0xFF;
@@ -244,6 +305,7 @@ class AlarmClockComponent : public esphome::Component,
   void update_backlight_();
   void start_alarm_sound_();
   void stop_alarm_sound_();
+  void play_alarm_melody_();
   void sync_ui_();
 };
 

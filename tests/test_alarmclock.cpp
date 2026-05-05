@@ -3,6 +3,7 @@
 
 #include "tests/test_framework.h"
 #include "components/alarmclock/alarmclock.h"
+#include <cstring>
 
 using namespace alarmclock;
 using namespace alarm_clock;
@@ -426,6 +427,61 @@ TEST(constants_every_day) {
 }
 
 // ===========================================================================
+// AlarmTime label tests
+// ===========================================================================
+
+TEST(alarm_label_default_empty) {
+    AlarmTime at{};
+    ASSERT_EQ(at.label[0], '\0');
+    PASS();
+}
+
+TEST(alarm_set_label_basic) {
+    AlarmTime at{};
+    alarm_set_label(at, "Work");
+    ASSERT_TRUE(strcmp(at.label, "Work") == 0);
+    PASS();
+}
+
+TEST(alarm_set_label_truncates) {
+    AlarmTime at{};
+    // 15 chars max (+ null), so a 20-char string gets truncated.
+    alarm_set_label(at, "VeryLongLabelName!!");
+    ASSERT_EQ(strlen(at.label), alarm_clock::kAlarmLabelMaxLen - 1);
+    ASSERT_EQ(at.label[alarm_clock::kAlarmLabelMaxLen - 1], '\0');
+    PASS();
+}
+
+TEST(alarm_set_label_null) {
+    AlarmTime at{};
+    alarm_set_label(at, "Work");
+    alarm_set_label(at, nullptr);
+    ASSERT_EQ(at.label[0], '\0');
+    PASS();
+}
+
+TEST(alarm_set_label_empty_string) {
+    AlarmTime at{};
+    alarm_set_label(at, "Work");
+    alarm_set_label(at, "");
+    ASSERT_EQ(at.label[0], '\0');
+    PASS();
+}
+
+TEST(alarm_set_label_exact_max) {
+    AlarmTime at{};
+    // Exactly 15 chars — should fit with null terminator.
+    alarm_set_label(at, "123456789012345");
+    ASSERT_EQ(strlen(at.label), alarm_clock::kAlarmLabelMaxLen - 1);
+    PASS();
+}
+
+TEST(alarm_label_max_len_constant) {
+    ASSERT_EQ(alarm_clock::kAlarmLabelMaxLen, 16);
+    PASS();
+}
+
+// ===========================================================================
 // AlarmStateMachine tests (from alarm_state.h)
 // ===========================================================================
 
@@ -531,6 +587,83 @@ TEST(state_machine_custom_snooze_duration) {
     PASS();
 }
 
+// ===========================================================================
+// Volume ramp tests (compute_ramp_volume from alarmclock.h)
+// ===========================================================================
+
+TEST(ramp_volume_at_start) {
+    // At t=0, volume should be 10% of configured volume.
+    float v = compute_ramp_volume(1.0f, 0);
+    ASSERT_TRUE(v > 0.09f && v < 0.11f);
+    PASS();
+}
+
+TEST(ramp_volume_at_end) {
+    // At t=ramp_duration, volume should be configured volume.
+    float v = compute_ramp_volume(0.8f, kVolumeRampDurationMs);
+    ASSERT_TRUE(v > 0.79f && v < 0.81f);
+    PASS();
+}
+
+TEST(ramp_volume_past_end) {
+    // Past ramp duration, volume should be configured volume.
+    float v = compute_ramp_volume(0.6f, kVolumeRampDurationMs + 10000);
+    ASSERT_TRUE(v > 0.59f && v < 0.61f);
+    PASS();
+}
+
+TEST(ramp_volume_midpoint) {
+    // At t=half, volume should be ~55% of configured (0.1 + 0.9*0.5 = 0.55).
+    float v = compute_ramp_volume(1.0f, kVolumeRampDurationMs / 2);
+    ASSERT_TRUE(v > 0.54f && v < 0.56f);
+    PASS();
+}
+
+TEST(ramp_volume_zero_configured) {
+    // Zero configured volume → always zero.
+    ASSERT_TRUE(compute_ramp_volume(0.0f, 0) == 0.0f);
+    ASSERT_TRUE(compute_ramp_volume(0.0f, 15000) == 0.0f);
+    ASSERT_TRUE(compute_ramp_volume(0.0f, kVolumeRampDurationMs) == 0.0f);
+    PASS();
+}
+
+TEST(ramp_volume_negative_configured) {
+    ASSERT_TRUE(compute_ramp_volume(-0.5f, 15000) == 0.0f);
+    PASS();
+}
+
+TEST(ramp_volume_zero_duration) {
+    // Zero ramp duration → immediate full volume.
+    float v = compute_ramp_volume(0.7f, 0, 0);
+    ASSERT_TRUE(v > 0.69f && v < 0.71f);
+    PASS();
+}
+
+TEST(ramp_volume_custom_duration) {
+    // With a 10-second ramp, at 5 seconds should be ~55% of configured.
+    float v = compute_ramp_volume(1.0f, 5000, 10000);
+    ASSERT_TRUE(v > 0.54f && v < 0.56f);
+    PASS();
+}
+
+TEST(ramp_volume_increases_monotonically) {
+    // Volume should always increase or stay the same as time progresses.
+    float prev = 0.0f;
+    for (uint32_t ms = 0; ms <= kVolumeRampDurationMs; ms += 1000) {
+        float v = compute_ramp_volume(1.0f, ms);
+        ASSERT_TRUE(v >= prev);
+        prev = v;
+    }
+    PASS();
+}
+
+TEST(ramp_constants_sanity) {
+    ASSERT_EQ(kVolumeRampDurationMs, (uint32_t)30000);
+    ASSERT_TRUE(kVolumeRampStartFraction > 0.0f && kVolumeRampStartFraction < 1.0f);
+    ASSERT_TRUE(kAlarmPauseDurationMs > 0);
+    PASS();
+}
+
 // ---------------------------------------------------------------------------
 // main — register every TEST here.
 // ---------------------------------------------------------------------------
@@ -610,6 +743,15 @@ int main() {
     RUN(constants_weekends);
     RUN(constants_every_day);
 
+    // AlarmTime labels
+    RUN(alarm_label_default_empty);
+    RUN(alarm_set_label_basic);
+    RUN(alarm_set_label_truncates);
+    RUN(alarm_set_label_null);
+    RUN(alarm_set_label_empty_string);
+    RUN(alarm_set_label_exact_max);
+    RUN(alarm_label_max_len_constant);
+
     // AlarmStateMachine
     RUN(state_machine_initial_state);
     RUN(state_machine_trigger);
@@ -621,6 +763,18 @@ int main() {
     RUN(state_machine_tick_snooze_noop_when_not_snoozed);
     RUN(state_machine_reset);
     RUN(state_machine_custom_snooze_duration);
+
+    // Volume ramp
+    RUN(ramp_volume_at_start);
+    RUN(ramp_volume_at_end);
+    RUN(ramp_volume_past_end);
+    RUN(ramp_volume_midpoint);
+    RUN(ramp_volume_zero_configured);
+    RUN(ramp_volume_negative_configured);
+    RUN(ramp_volume_zero_duration);
+    RUN(ramp_volume_custom_duration);
+    RUN(ramp_volume_increases_monotonically);
+    RUN(ramp_constants_sanity);
 
     printf("\n%d test(s) run, %d failed.\n", tests_run, tests_failed);
     return tests_failed == 0 ? 0 : 1;
