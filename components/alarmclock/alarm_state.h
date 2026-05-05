@@ -19,6 +19,9 @@ static constexpr uint8_t kDefaultSnoozeDurationMinutes = 9;
 // Maximum number of snoozes before auto-dismiss.
 static constexpr uint8_t kMaxSnoozeCount = 3;
 
+// Auto-dismiss the alarm after this many minutes of continuous firing.
+static constexpr uint16_t kAutoDismissMinutes = 30;
+
 // Manages the runtime state of a single alarm.
 class AlarmStateMachine {
  public:
@@ -27,6 +30,9 @@ class AlarmStateMachine {
   uint8_t snooze_duration_minutes() const { return snooze_duration_minutes_; }
   uint16_t snooze_remaining_minutes() const {
     return snooze_remaining_minutes_;
+  }
+  uint16_t firing_elapsed_minutes() const {
+    return firing_elapsed_minutes_;
   }
 
   void set_snooze_duration(uint8_t minutes) {
@@ -40,6 +46,7 @@ class AlarmStateMachine {
       return false;  // Already firing.
     }
     state_ = AlarmState::kFiring;
+    firing_elapsed_minutes_ = 0;
     return true;
   }
 
@@ -64,6 +71,7 @@ class AlarmStateMachine {
     state_ = AlarmState::kIdle;
     snooze_count_ = 0;
     snooze_remaining_minutes_ = 0;
+    firing_elapsed_minutes_ = 0;
   }
 
   // Called once per minute while snoozed to tick down the snooze timer.
@@ -77,6 +85,21 @@ class AlarmStateMachine {
     }
     if (snooze_remaining_minutes_ == 0) {
       state_ = AlarmState::kFiring;
+      firing_elapsed_minutes_ = 0;
+      return true;
+    }
+    return false;
+  }
+
+  // Called once per minute while firing to track auto-dismiss.
+  // Returns true if the auto-dismiss threshold has been reached.
+  bool tick_firing() {
+    if (state_ != AlarmState::kFiring) {
+      return false;
+    }
+    firing_elapsed_minutes_++;
+    if (firing_elapsed_minutes_ >= kAutoDismissMinutes) {
+      dismiss();
       return true;
     }
     return false;
@@ -87,6 +110,7 @@ class AlarmStateMachine {
     state_ = AlarmState::kIdle;
     snooze_count_ = 0;
     snooze_remaining_minutes_ = 0;
+    firing_elapsed_minutes_ = 0;
   }
 
  private:
@@ -94,6 +118,7 @@ class AlarmStateMachine {
   uint8_t snooze_count_ = 0;
   uint8_t snooze_duration_minutes_ = kDefaultSnoozeDurationMinutes;
   uint16_t snooze_remaining_minutes_ = 0;
+  uint16_t firing_elapsed_minutes_ = 0;
 };
 
 }  // namespace alarm_clock

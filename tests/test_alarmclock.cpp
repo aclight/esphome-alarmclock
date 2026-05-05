@@ -386,8 +386,10 @@ TEST(minutes_until_alarm_disabled) {
 }
 
 TEST(minutes_until_alarm_no_days) {
+    // With one-shot logic, days_of_week == 0 + enabled is a valid one-shot
+    // alarm. It should return 0 when the time matches.
     AlarmTime at{7, 30, 0, true};
-    ASSERT_EQ(minutes_until_alarm(at, 7, 30, 1), -1);
+    ASSERT_EQ(minutes_until_alarm(at, 7, 30, 1), 0);
     PASS();
 }
 
@@ -664,6 +666,169 @@ TEST(ramp_constants_sanity) {
     PASS();
 }
 
+// ===========================================================================
+// One-shot alarm tests (Task 13)
+// ===========================================================================
+
+TEST(is_one_shot_true) {
+    AlarmTime at{7, 30, 0, true};
+    ASSERT_TRUE(is_one_shot(at));
+    PASS();
+}
+
+TEST(is_one_shot_false_with_days) {
+    AlarmTime at{7, 30, kMonday, true};
+    ASSERT_FALSE(is_one_shot(at));
+    PASS();
+}
+
+TEST(is_one_shot_false_all_days) {
+    AlarmTime at{7, 30, kEveryDay, true};
+    ASSERT_FALSE(is_one_shot(at));
+    PASS();
+}
+
+TEST(one_shot_alarm_matches_any_day) {
+    AlarmTime at{7, 30, 0, true};
+    // One-shot should match on any day of the week.
+    for (uint8_t d = 0; d < 7; ++d) {
+        ASSERT_TRUE(alarm_clock::alarm_matches(at, 7, 30, d));
+    }
+    PASS();
+}
+
+TEST(one_shot_alarm_no_match_wrong_time) {
+    AlarmTime at{7, 30, 0, true};
+    ASSERT_FALSE(alarm_clock::alarm_matches(at, 7, 31, 0));
+    ASSERT_FALSE(alarm_clock::alarm_matches(at, 8, 30, 0));
+    PASS();
+}
+
+TEST(one_shot_alarm_no_match_disabled) {
+    AlarmTime at{7, 30, 0, false};
+    ASSERT_FALSE(alarm_clock::alarm_matches(at, 7, 30, 0));
+    PASS();
+}
+
+TEST(one_shot_minutes_until_fires_now) {
+    AlarmTime at{7, 30, 0, true};
+    ASSERT_EQ(minutes_until_alarm(at, 7, 30, 1), 0);
+    PASS();
+}
+
+TEST(one_shot_minutes_until_later_today) {
+    AlarmTime at{9, 0, 0, true};
+    // 07:30 now, alarm at 09:00 → 90 minutes.
+    ASSERT_EQ(minutes_until_alarm(at, 7, 30, 3), 90);
+    PASS();
+}
+
+TEST(one_shot_minutes_until_tomorrow) {
+    AlarmTime at{6, 0, 0, true};
+    // 22:00 now, alarm at 06:00 → tomorrow.
+    // 24*60 - 22*60 + 6*60 = 1440 - 1320 + 360 = 480
+    int32_t expected = 24 * 60 - time_to_minutes(22, 0) + time_to_minutes(6, 0);
+    ASSERT_EQ(minutes_until_alarm(at, 22, 0, 5), expected);
+    PASS();
+}
+
+TEST(one_shot_minutes_until_disabled) {
+    AlarmTime at{7, 30, 0, false};
+    ASSERT_EQ(minutes_until_alarm(at, 7, 30, 1), -1);
+    PASS();
+}
+
+// ===========================================================================
+// Auto-dismiss timer tests (Task 11)
+// ===========================================================================
+
+TEST(auto_dismiss_constant) {
+    ASSERT_EQ(kAutoDismissMinutes, (uint16_t)30);
+    PASS();
+}
+
+TEST(tick_firing_noop_when_idle) {
+    AlarmStateMachine sm;
+    ASSERT_FALSE(sm.tick_firing());
+    ASSERT_EQ(sm.firing_elapsed_minutes(), 0);
+    PASS();
+}
+
+TEST(tick_firing_noop_when_snoozed) {
+    AlarmStateMachine sm;
+    sm.trigger();
+    sm.snooze();
+    ASSERT_FALSE(sm.tick_firing());
+    PASS();
+}
+
+TEST(tick_firing_increments) {
+    AlarmStateMachine sm;
+    sm.trigger();
+    ASSERT_FALSE(sm.tick_firing());
+    ASSERT_EQ(sm.firing_elapsed_minutes(), 1);
+    ASSERT_FALSE(sm.tick_firing());
+    ASSERT_EQ(sm.firing_elapsed_minutes(), 2);
+    PASS();
+}
+
+TEST(tick_firing_auto_dismiss_at_30) {
+    AlarmStateMachine sm;
+    sm.trigger();
+    // Tick 29 times — should not auto-dismiss.
+    for (uint16_t i = 0; i < 29; ++i) {
+        ASSERT_FALSE(sm.tick_firing());
+    }
+    ASSERT_EQ(sm.firing_elapsed_minutes(), 29);
+    ASSERT_EQ(static_cast<uint8_t>(sm.state()), static_cast<uint8_t>(AlarmState::kFiring));
+    // 30th tick — auto-dismiss.
+    ASSERT_TRUE(sm.tick_firing());
+    ASSERT_EQ(static_cast<uint8_t>(sm.state()), static_cast<uint8_t>(AlarmState::kIdle));
+    ASSERT_EQ(sm.firing_elapsed_minutes(), 0);
+    PASS();
+}
+
+TEST(tick_firing_resets_on_trigger) {
+    AlarmStateMachine sm;
+    sm.trigger();
+    sm.tick_firing();
+    sm.tick_firing();
+    ASSERT_EQ(sm.firing_elapsed_minutes(), 2);
+    sm.dismiss();
+    sm.trigger();
+    ASSERT_EQ(sm.firing_elapsed_minutes(), 0);
+    PASS();
+}
+
+TEST(tick_firing_resets_after_snooze_expires) {
+    AlarmStateMachine sm;
+    sm.set_snooze_duration(2);
+    sm.trigger();
+    // Tick firing a few times.
+    sm.tick_firing();
+    sm.tick_firing();
+    ASSERT_EQ(sm.firing_elapsed_minutes(), 2);
+    // Snooze.
+    sm.snooze();
+    // Snooze expires.
+    sm.tick_snooze();
+    sm.tick_snooze();
+    ASSERT_EQ(static_cast<uint8_t>(sm.state()), static_cast<uint8_t>(AlarmState::kFiring));
+    // Firing elapsed should have been reset when snooze expired.
+    ASSERT_EQ(sm.firing_elapsed_minutes(), 0);
+    PASS();
+}
+
+TEST(tick_firing_resets_on_reset) {
+    AlarmStateMachine sm;
+    sm.trigger();
+    sm.tick_firing();
+    sm.tick_firing();
+    sm.reset();
+    ASSERT_EQ(sm.firing_elapsed_minutes(), 0);
+    PASS();
+}
+
 // ---------------------------------------------------------------------------
 // main — register every TEST here.
 // ---------------------------------------------------------------------------
@@ -775,6 +940,28 @@ int main() {
     RUN(ramp_volume_custom_duration);
     RUN(ramp_volume_increases_monotonically);
     RUN(ramp_constants_sanity);
+
+    // One-shot alarm (Task 13)
+    RUN(is_one_shot_true);
+    RUN(is_one_shot_false_with_days);
+    RUN(is_one_shot_false_all_days);
+    RUN(one_shot_alarm_matches_any_day);
+    RUN(one_shot_alarm_no_match_wrong_time);
+    RUN(one_shot_alarm_no_match_disabled);
+    RUN(one_shot_minutes_until_fires_now);
+    RUN(one_shot_minutes_until_later_today);
+    RUN(one_shot_minutes_until_tomorrow);
+    RUN(one_shot_minutes_until_disabled);
+
+    // Auto-dismiss timer (Task 11)
+    RUN(auto_dismiss_constant);
+    RUN(tick_firing_noop_when_idle);
+    RUN(tick_firing_noop_when_snoozed);
+    RUN(tick_firing_increments);
+    RUN(tick_firing_auto_dismiss_at_30);
+    RUN(tick_firing_resets_on_trigger);
+    RUN(tick_firing_resets_after_snooze_expires);
+    RUN(tick_firing_resets_on_reset);
 
     printf("\n%d test(s) run, %d failed.\n", tests_run, tests_failed);
     return tests_failed == 0 ? 0 : 1;

@@ -51,6 +51,12 @@ inline uint8_t day_index_to_flag(uint8_t day_index) {
   return static_cast<uint8_t>(1 << (day_index % 7));
 }
 
+// Return true if the alarm is a one-shot (no days-of-week selected).
+// One-shot alarms fire once at the set time and then auto-disable.
+inline bool is_one_shot(const AlarmTime &alarm) {
+  return alarm.days_of_week == 0;
+}
+
 // Check whether an alarm is active on a given day index (0 = Sun … 6 = Sat).
 inline bool alarm_active_on_day(const AlarmTime &alarm, uint8_t day_index) {
   return alarm.enabled && (alarm.days_of_week & day_index_to_flag(day_index));
@@ -62,10 +68,20 @@ inline uint16_t time_to_minutes(uint8_t hour, uint8_t minute) {
 }
 
 // Check whether the alarm matches a given time exactly (hour, minute, day).
+// One-shot alarms (days_of_week == 0) match on any day.
 inline bool alarm_matches(const AlarmTime &alarm, uint8_t hour, uint8_t minute,
                           uint8_t day_index) {
-  return alarm_active_on_day(alarm, day_index) && alarm.hour == hour &&
-         alarm.minute == minute;
+  if (!alarm.enabled) {
+    return false;
+  }
+  if (alarm.hour != hour || alarm.minute != minute) {
+    return false;
+  }
+  // One-shot: no days set → fires on any day.
+  if (is_one_shot(alarm)) {
+    return true;
+  }
+  return (alarm.days_of_week & day_index_to_flag(day_index)) != 0;
 }
 
 // Compute the number of minutes until the next occurrence of |alarm|.
@@ -75,8 +91,19 @@ inline bool alarm_matches(const AlarmTime &alarm, uint8_t hour, uint8_t minute,
 // Returns -1 if the alarm is disabled or has no active days.
 inline int32_t minutes_until_alarm(const AlarmTime &alarm, uint8_t now_hour,
                                    uint8_t now_minute, uint8_t now_day_index) {
-  if (!alarm.enabled || alarm.days_of_week == 0) {
+  if (!alarm.enabled) {
     return -1;
+  }
+
+  // One-shot alarm: fires at next occurrence regardless of day.
+  if (is_one_shot(alarm)) {
+    const uint16_t now_mins = time_to_minutes(now_hour, now_minute);
+    const uint16_t alarm_mins = time_to_minutes(alarm.hour, alarm.minute);
+    if (alarm_mins >= now_mins) {
+      return static_cast<int32_t>(alarm_mins - now_mins);
+    }
+    // Already passed today — next occurrence is tomorrow.
+    return static_cast<int32_t>(24 * 60 - now_mins + alarm_mins);
   }
 
   const uint16_t now_mins = time_to_minutes(now_hour, now_minute);

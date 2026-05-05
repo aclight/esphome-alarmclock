@@ -8,6 +8,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/components/rtttl/rtttl.h"
+#include "esphome/components/api/api_server.h"
 
 namespace alarmclock {
 
@@ -110,14 +111,28 @@ void AlarmClockComponent::loop() {
     }
   }
 
-  // Tick the snooze timer once per minute.
+  // Tick timers once per minute.
   uint32_t now_ms = millis();
   if (now_ms - last_minute_check_ms_ >= 60000) {
     last_minute_check_ms_ = now_ms;
+
+    // Auto-dismiss after 30 minutes of continuous firing.
+    if (state_machine_.tick_firing()) {
+      ESP_LOGI(TAG, "Alarm auto-dismissed after %d minutes",
+               alarm_clock::kAutoDismissMinutes);
+      stop_alarm_sound_();
+      ui_hide_firing_overlay();
+      ui_firing_stop_animation();
+      auto_disable_one_shot_alarm_();
+      fired_alarm_index_ = 0xFF;
+      fire_ha_event_("esphome.alarm_dismissed");
+    }
+
     if (state_machine_.tick_snooze()) {
       // Snooze expired — alarm fires again.
       start_alarm_sound_();
       ui_show_firing_overlay();
+      fire_ha_event_("esphome.alarm_fired");
     }
   }
 }
@@ -167,6 +182,9 @@ void AlarmClockComponent::dismiss_alarm() {
   stop_alarm_sound_();
   ui_hide_firing_overlay();
   ui_firing_stop_animation();
+  auto_disable_one_shot_alarm_();
+  fired_alarm_index_ = 0xFF;
+  fire_ha_event_("esphome.alarm_dismissed");
 }
 
 void AlarmClockComponent::snooze_alarm() {
@@ -176,11 +194,15 @@ void AlarmClockComponent::snooze_alarm() {
     stop_alarm_sound_();
     ui_hide_firing_overlay();
     ui_firing_stop_animation();
+    fire_ha_event_("esphome.alarm_snoozed");
   } else {
     // Max snoozes reached — auto-dismissed.
     ESP_LOGI(TAG, "Max snoozes reached, dismissed");
     ui_hide_firing_overlay();
     ui_firing_stop_animation();
+    auto_disable_one_shot_alarm_();
+    fired_alarm_index_ = 0xFF;
+    fire_ha_event_("esphome.alarm_dismissed");
   }
 }
 
@@ -223,12 +245,14 @@ void AlarmClockComponent::check_alarms_(uint8_t hour, uint8_t minute,
   for (uint8_t i = 0; i < kMaxAlarms; i++) {
     if (alarm_clock::alarm_matches(alarms_[i], hour, minute, day_of_week)) {
       ESP_LOGW(TAG, "Alarm %d triggered!", i);
+      fired_alarm_index_ = i;
       state_machine_.trigger();
       start_alarm_sound_();
       ui_show_firing_overlay();
       ui_firing_start_animation();
       ui_firing_update_time(hour, minute);
       ui_firing_update_label(alarms_[i].label);
+      fire_ha_event_("esphome.alarm_fired");
       break;
     }
   }
@@ -291,6 +315,36 @@ void AlarmClockComponent::sync_ui_() {
   }
   ui_update_volume(volume_);
   ui_update_brightness(brightness_);
+}
+
+void AlarmClockComponent::fire_ha_event_(const char *event_type) {
+  auto *api = esphome::api::global_api_server;
+  if (api == nullptr) {
+    return;
+  }
+  esphome::api::HomeassistantServiceResponse resp;
+  resp.service = event_type;
+  resp.is_event = true;
+  api->send_homeassistant_service_call(resp);
+  ESP_LOGD(TAG, "Fired HA event: %s", event_type);
+}
+
+void AlarmClockComponent::auto_disable_one_shot_alarm_() {
+  if (fired_alarm_index_ >= kMaxAlarms) {
+    return;
+  }
+  if (!alarm_clock::is_one_shot(alarms_[fired_alarm_index_])) {
+    return;
+  }
+  ESP_LOGI(TAG, "One-shot alarm %d auto-disabled after firing",
+           fired_alarm_index_);
+  alarms_[fired_alarm_index_].enabled = false;
+  ui_update_alarm_row(fired_alarm_index_,
+                      alarms_[fired_alarm_index_].hour,
+                      alarms_[fired_alarm_index_].minute,
+                      alarms_[fired_alarm_index_].days_of_week,
+                      false,
+                      alarms_[fired_alarm_index_].label);
 }
 
 }  // namespace alarmclock

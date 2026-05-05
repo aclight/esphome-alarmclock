@@ -5,7 +5,7 @@ import esphome.config_validation as cv
 from esphome.components import i2c
 from esphome.const import CONF_ID
 
-DEPENDENCIES = ["i2c"]
+DEPENDENCIES = ["i2c", "api"]
 AUTO_LOAD = ["sensor", "switch", "button", "number"]
 
 CONF_RTTTL_ID = "rtttl_id"

@@ -307,6 +307,11 @@ class AlarmClockComponent : public esphome::Component,
   void stop_alarm_sound_();
   void play_alarm_melody_();
   void sync_ui_();
+  void fire_ha_event_(const char *event_type);
+  void auto_disable_one_shot_alarm_();
+
+  // Index of the alarm that is currently firing (0xFF = none).
+  uint8_t fired_alarm_index_ = 0xFF;
 };
 
 #endif  // UNIT_TEST
