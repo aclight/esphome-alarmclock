@@ -30,12 +30,15 @@ void ui_hide_firing_overlay();
 bool ui_is_firing_overlay_visible();
 
 // Update functions (called from loop/interval).
-void ui_update_clock(uint8_t hour, uint8_t minute);
+void ui_update_clock(uint8_t hour, uint8_t minute, bool time_format_24h = false);
 void ui_update_date(uint8_t month, uint8_t day, uint8_t day_of_week);
 void ui_update_next_alarm(const char *text);  // e.g. "Next: 7:00 AM" or ""
 void ui_update_pre_alarm_banner(const char *text);  // e.g. "Alarm in 5 min — Work" or "" to hide
 void ui_update_brightness(float brightness);
 void ui_update_volume(float volume);
+void ui_update_sound_selection(uint8_t sound_index);
+void ui_update_snooze_selection(uint8_t option_index);
+void ui_update_time_format(bool time_format_24h);
 
 // Alarm list management.
 void ui_update_alarm_row(uint8_t index, uint8_t hour, uint8_t minute,
@@ -68,6 +71,9 @@ struct UiCallbacks {
   void (*on_alarm_days_set)(uint8_t index, uint8_t days_mask) = nullptr;
   void (*on_alarm_label_set)(uint8_t index, const char *label) = nullptr;
   void (*on_alarm_delete)(uint8_t index) = nullptr;
+  void (*on_sound_change)(uint8_t sound_index) = nullptr;
+  void (*on_snooze_duration_change)(uint8_t option_index) = nullptr;
+  void (*on_time_format_change)(bool time_format_24h) = nullptr;
 };
 
 void ui_set_callbacks(const UiCallbacks &cb);

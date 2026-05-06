@@ -40,6 +40,69 @@ static constexpr const char *kDefaultAlarmMelody =
     "Alarm:d=8,o=6,b=400:c,p,c,p,c,4p,c,p,c,p,c";
 
 // ---------------------------------------------------------------------------
+// Alarm sound definitions — a menu of built-in RTTTL melodies.
+// ---------------------------------------------------------------------------
+
+struct AlarmSound {
+  const char *name;
+  const char *rtttl;
+};
+
+static constexpr uint8_t kAlarmSoundCount = 5;
+
+static const AlarmSound kAlarmSounds[kAlarmSoundCount] = {
+    {"Classic Beep", "Alarm:d=8,o=6,b=400:c,p,c,p,c,4p,c,p,c,p,c"},
+    {"Morning Rise", "Morning:d=4,o=5,b=160:c,e,g,8a,8g,e,c,2p,c,e,g,a"},
+    {"Gentle Chime", "Chime:d=8,o=6,b=200:e,g,a,g,e,4p,e,g,a,g,e"},
+    {"Digital Buzz", "Buzz:d=16,o=7,b=600:c,p,c,p,c,p,c,8p,c,p,c,p,c,p,c"},
+    {"Melody Wake", "Wake:d=8,o=5,b=180:g,a,b,d6,4b,a,g,4a,2g"},
+};
+
+// Get the RTTTL string for a sound index (clamped to valid range).
+inline const char *get_alarm_sound_rtttl(uint8_t index) {
+  if (index >= kAlarmSoundCount) {
+    index = 0;
+  }
+  return kAlarmSounds[index].rtttl;
+}
+
+// Get the name for a sound index (clamped to valid range).
+inline const char *get_alarm_sound_name(uint8_t index) {
+  if (index >= kAlarmSoundCount) {
+    index = 0;
+  }
+  return kAlarmSounds[index].name;
+}
+
+// ---------------------------------------------------------------------------
+// Snooze duration options.
+// ---------------------------------------------------------------------------
+
+static constexpr uint8_t kSnoozeDurationOptionCount = 4;
+static constexpr uint8_t kSnoozeDurationOptions[kSnoozeDurationOptionCount] = {
+    5, 9, 10, 15};
+
+// Convert a snooze option index (0–3) to duration in minutes.
+// Returns the default (9 min) if index is out of range.
+inline uint8_t snooze_option_to_minutes(uint8_t option_index) {
+  if (option_index >= kSnoozeDurationOptionCount) {
+    return kSnoozeDurationOptions[1];  // default: 9 min
+  }
+  return kSnoozeDurationOptions[option_index];
+}
+
+// Find the option index for a given snooze duration in minutes.
+// Returns the index, or 1 (default = 9 min) if not found.
+inline uint8_t snooze_minutes_to_option(uint8_t minutes) {
+  for (uint8_t i = 0; i < kSnoozeDurationOptionCount; ++i) {
+    if (kSnoozeDurationOptions[i] == minutes) {
+      return i;
+    }
+  }
+  return 1;  // default: index 1 = 9 min
+}
+
+// ---------------------------------------------------------------------------
 // Volume ramp pure function — testable on the host without ESPHome.
 // ---------------------------------------------------------------------------
 
@@ -238,6 +301,34 @@ inline uint8_t hour_12_to_24(uint8_t hour_12, bool is_pm) {
 }
 
 // ---------------------------------------------------------------------------
+// Time format helper — format a clock time string.
+// ---------------------------------------------------------------------------
+
+// Format a clock time into a buffer.
+// In 12-hour mode: "7:00 AM", in 24-hour mode: "07:00".
+// Returns the number of characters written (excluding null terminator).
+inline size_t format_clock_time(uint8_t hour, uint8_t minute,
+                                bool time_format_24h, char *buf,
+                                size_t buf_size) {
+  if (buf == nullptr || buf_size == 0) {
+    return 0;
+  }
+  int written;
+  if (time_format_24h) {
+    written = snprintf(buf, buf_size, "%02d:%02d", hour, minute);
+  } else {
+    auto [h12, is_pm] = hour_24_to_12(hour);
+    const char *ampm = is_pm ? "PM" : "AM";
+    written = snprintf(buf, buf_size, "%d:%02d %s", h12, minute, ampm);
+  }
+  if (written < 0) {
+    buf[0] = '\0';
+    return 0;
+  }
+  return static_cast<size_t>(written);
+}
+
+// ---------------------------------------------------------------------------
 // Pre-alarm notification threshold (minutes before alarm).
 // ---------------------------------------------------------------------------
 static constexpr uint8_t kPreAlarmMinutes = 5;
@@ -396,8 +487,13 @@ class AlarmClockComponent : public ::esphome::Component,
   void set_volume(float volume);
   void set_brightness(float brightness);
   void set_sensor_factor(float sensor_factor);
+  void set_sound_index(uint8_t index);
+  void set_snooze_duration_option(uint8_t option_index);
+  void set_time_format_24h(bool time_format_24h);
   float volume() const { return volume_; }
   float brightness() const { return brightness_; }
+  uint8_t sound_index() const { return selected_sound_index_; }
+  bool time_format_24h() const { return time_format_24h_; }
 
   // --- RTTTL audio ---
   void set_rtttl(::esphome::rtttl::Rtttl *rtttl) { rtttl_ = rtttl; }
@@ -421,6 +517,8 @@ class AlarmClockComponent : public ::esphome::Component,
   float volume_ = 0.5f;
   float brightness_ = 0.5f;
   float sensor_factor_ = 1.0f;
+  uint8_t selected_sound_index_ = 0;
+  bool time_format_24h_ = false;
 
   // RTTTL audio.
   ::esphome::rtttl::Rtttl *rtttl_ = nullptr;
