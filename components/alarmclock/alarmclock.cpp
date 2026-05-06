@@ -294,7 +294,13 @@ void AlarmClockComponent::set_time_format_24h(bool time_format_24h) {
 
 void AlarmClockComponent::check_alarms_(uint8_t hour, uint8_t minute,
                                         uint8_t day_of_week) {
-  // Update the next-alarm display and pre-alarm banner every time we check.
+  // Called every second from the YAML interval; skip if minute hasn't changed.
+  if (minute == last_checked_minute_) {
+    return;
+  }
+  last_checked_minute_ = minute;
+
+  // Update the next-alarm display and pre-alarm banner every minute.
   update_next_alarm_display_(hour, minute, day_of_week);
 
   if (state_machine_.state() != alarm_clock::AlarmState::kIdle) {

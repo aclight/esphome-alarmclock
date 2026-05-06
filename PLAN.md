@@ -251,12 +251,8 @@ Update every minute. Use `minutes_until_alarm()` from `alarm_time.h`.
 13. ~~Task 9~~ — 12/24 hour toggle
 
 ### Phase 4: Polish
-14. **Task 6** — Screen sleep / wake on tap
-15. **Task 8** — Page transition animations
-
-
-16. **Task 16** — Think about whether I need to prevent screen burn in
-17. **Task 17** - How will the clock handle daylight savings time adjustments? Will it periodically sync time so it doesn't gain or lose time?
+14. ~~Task 6~~ — Screen sleep / wake on tap
+15. ~~Task 8~~ — Page transition animations
 
 ### Future (not in this plan)
 - WAV/MP3 alarm sounds with custom partition table
