@@ -170,6 +170,11 @@ lvgl:
             hidden: true
         - slider:
             hidden: true
+        - roller:
+            hidden: true
+            options: "1"
+        - textarea:
+            hidden: true
 
 # --- Update clock display every second ---
 interval:

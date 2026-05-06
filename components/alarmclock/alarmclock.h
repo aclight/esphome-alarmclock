@@ -212,6 +212,29 @@ inline uint32_t compute_content_color(float brightness) {
          static_cast<uint32_t>(ch);
 }
 
+// ---------------------------------------------------------------------------
+// 12-hour / 24-hour time conversion helpers.
+// ---------------------------------------------------------------------------
+
+// Convert a 24-hour hour (0–23) to 12-hour format.
+// Returns {display_hour (1–12), is_pm}.
+inline std::pair<uint8_t, bool> hour_24_to_12(uint8_t hour_24) {
+  bool is_pm = (hour_24 >= 12);
+  uint8_t h12 = hour_24 % 12;
+  if (h12 == 0) {
+    h12 = 12;
+  }
+  return {h12, is_pm};
+}
+
+// Convert a 12-hour hour (1–12) + AM/PM flag to 24-hour format (0–23).
+inline uint8_t hour_12_to_24(uint8_t hour_12, bool is_pm) {
+  if (hour_12 == 12) {
+    return is_pm ? 12 : 0;
+  }
+  return is_pm ? (hour_12 + 12) : hour_12;
+}
+
 // Check whether alarm time matches current time (simple hour/minute check).
 inline bool alarm_matches(uint8_t alarm_h, uint8_t alarm_m, uint8_t now_h,
                           uint8_t now_m) {

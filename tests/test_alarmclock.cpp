@@ -740,6 +740,88 @@ TEST(one_shot_minutes_until_disabled) {
 }
 
 // ===========================================================================
+// 12h/24h time conversion tests (Task 3)
+// ===========================================================================
+
+TEST(hour_24_to_12_midnight) {
+    auto [h, pm] = hour_24_to_12(0);
+    ASSERT_EQ(h, 12);
+    ASSERT_FALSE(pm);
+    PASS();
+}
+
+TEST(hour_24_to_12_noon) {
+    auto [h, pm] = hour_24_to_12(12);
+    ASSERT_EQ(h, 12);
+    ASSERT_TRUE(pm);
+    PASS();
+}
+
+TEST(hour_24_to_12_morning) {
+    auto [h1, pm1] = hour_24_to_12(1);
+    ASSERT_EQ(h1, 1);
+    ASSERT_FALSE(pm1);
+
+    auto [h9, pm9] = hour_24_to_12(9);
+    ASSERT_EQ(h9, 9);
+    ASSERT_FALSE(pm9);
+
+    auto [h11, pm11] = hour_24_to_12(11);
+    ASSERT_EQ(h11, 11);
+    ASSERT_FALSE(pm11);
+    PASS();
+}
+
+TEST(hour_24_to_12_afternoon) {
+    auto [h13, pm13] = hour_24_to_12(13);
+    ASSERT_EQ(h13, 1);
+    ASSERT_TRUE(pm13);
+
+    auto [h17, pm17] = hour_24_to_12(17);
+    ASSERT_EQ(h17, 5);
+    ASSERT_TRUE(pm17);
+
+    auto [h23, pm23] = hour_24_to_12(23);
+    ASSERT_EQ(h23, 11);
+    ASSERT_TRUE(pm23);
+    PASS();
+}
+
+TEST(hour_12_to_24_midnight) {
+    ASSERT_EQ(hour_12_to_24(12, false), 0);
+    PASS();
+}
+
+TEST(hour_12_to_24_noon) {
+    ASSERT_EQ(hour_12_to_24(12, true), 12);
+    PASS();
+}
+
+TEST(hour_12_to_24_am) {
+    ASSERT_EQ(hour_12_to_24(1, false), 1);
+    ASSERT_EQ(hour_12_to_24(6, false), 6);
+    ASSERT_EQ(hour_12_to_24(11, false), 11);
+    PASS();
+}
+
+TEST(hour_12_to_24_pm) {
+    ASSERT_EQ(hour_12_to_24(1, true), 13);
+    ASSERT_EQ(hour_12_to_24(6, true), 18);
+    ASSERT_EQ(hour_12_to_24(11, true), 23);
+    PASS();
+}
+
+TEST(hour_roundtrip_all) {
+    // Converting 24h → 12h → 24h should be identity for all valid hours.
+    for (uint8_t h = 0; h < 24; ++h) {
+        auto [h12, pm] = hour_24_to_12(h);
+        uint8_t back = hour_12_to_24(h12, pm);
+        ASSERT_EQ(back, h);
+    }
+    PASS();
+}
+
+// ===========================================================================
 // Auto-dismiss timer tests (Task 11)
 // ===========================================================================
 
@@ -1200,6 +1282,17 @@ int main() {
     RUN(one_shot_minutes_until_later_today);
     RUN(one_shot_minutes_until_tomorrow);
     RUN(one_shot_minutes_until_disabled);
+
+    // 12h/24h time conversion (Task 3)
+    RUN(hour_24_to_12_midnight);
+    RUN(hour_24_to_12_noon);
+    RUN(hour_24_to_12_morning);
+    RUN(hour_24_to_12_afternoon);
+    RUN(hour_12_to_24_midnight);
+    RUN(hour_12_to_24_noon);
+    RUN(hour_12_to_24_am);
+    RUN(hour_12_to_24_pm);
+    RUN(hour_roundtrip_all);
 
     // Auto-dismiss timer (Task 11)
     RUN(auto_dismiss_constant);
