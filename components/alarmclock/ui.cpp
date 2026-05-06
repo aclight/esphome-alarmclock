@@ -93,6 +93,9 @@ void ui_init() {
   lv_obj_add_flag(firing_overlay_, LV_OBJ_FLAG_HIDDEN);
   ui_build_firing_overlay(firing_overlay_);
 
+  // Create time picker overlay (hidden by default, shown above pages).
+  ui_build_time_picker(scr);
+
   // Show the clock page.
   ui_show_page(theme::kPageClock);
 }

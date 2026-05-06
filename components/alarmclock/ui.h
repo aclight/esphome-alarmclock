@@ -42,6 +42,12 @@ void ui_update_alarm_row(uint8_t index, uint8_t hour, uint8_t minute,
                          const char *label = nullptr);
 void ui_hide_alarm_row(uint8_t index);
 
+// Time picker (alarm edit overlay).
+void ui_build_time_picker(lv_obj_t *parent);
+void ui_show_time_picker(uint8_t alarm_index, uint8_t hour, uint8_t minute,
+                         uint8_t days_mask, const char *label);
+void ui_hide_time_picker();
+
 // Firing overlay animation.
 void ui_firing_update_time(uint8_t hour, uint8_t minute);
 void ui_firing_update_label(const char *label);
@@ -56,8 +62,11 @@ struct UiCallbacks {
   void (*on_volume_change)(float volume) = nullptr;
   void (*on_brightness_change)(float brightness) = nullptr;
   void (*on_alarm_toggle)(uint8_t index, bool enabled) = nullptr;
+  void (*on_alarm_edit)(uint8_t index) = nullptr;
   void (*on_alarm_time_set)(uint8_t index, uint8_t hour, uint8_t minute) = nullptr;
   void (*on_alarm_days_set)(uint8_t index, uint8_t days_mask) = nullptr;
+  void (*on_alarm_label_set)(uint8_t index, const char *label) = nullptr;
+  void (*on_alarm_delete)(uint8_t index) = nullptr;
 };
 
 void ui_set_callbacks(const UiCallbacks &cb);
