@@ -491,6 +491,11 @@ class AlarmClockComponent : public ::esphome::Component,
   void set_alarm(uint8_t index, uint8_t hour, uint8_t minute,
                  uint8_t days_mask, bool enabled, const char *label);
   void enable_alarm(uint8_t index, bool enabled);
+  void update_alarm_time(uint8_t index, uint8_t hour, uint8_t minute);
+  void update_alarm_days(uint8_t index, uint8_t days_mask);
+  void update_alarm_label(uint8_t index, const char *label);
+  void edit_alarm(uint8_t index);
+  void delete_alarm(uint8_t index);
   void dismiss_alarm();
   void snooze_alarm();
 
@@ -565,6 +570,9 @@ class AlarmClockComponent : public ::esphome::Component,
 
   // Index of the alarm that is currently firing (0xFF = none).
   uint8_t fired_alarm_index_ = 0xFF;
+
+  // Index of a queued alarm that was missed while another was firing (0xFF = none).
+  uint8_t pending_alarm_index_ = 0xFF;
 };
 
 #endif  // UNIT_TEST

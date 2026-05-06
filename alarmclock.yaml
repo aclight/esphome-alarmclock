@@ -186,12 +186,15 @@ interval:
             time = id(sntp_time).now();
           }
           if (time.is_valid()) {
+            // ESPTime::day_of_week is 1-based (1=Sun..7=Sat); convert to
+            // 0-based (0=Sun..6=Sat) used by alarm_time.h.
+            uint8_t dow = static_cast<uint8_t>(time.day_of_week - 1);
             alarmclock::ui_update_clock(time.hour, time.minute,
                                        id(alarm_clock_component).time_format_24h());
-            alarmclock::ui_update_date(time.month, time.day_of_month, time.day_of_week);
+            alarmclock::ui_update_date(time.month, time.day_of_month, dow);
             // Check alarms on every tick — the C++ side deduplicates per minute.
             id(alarm_clock_component).check_alarms_(
-                time.hour, time.minute, time.day_of_week);
+                time.hour, time.minute, dow);
           }
 
 # --- Alarm clock custom component (I2C backlight controller + alarm logic) ---
