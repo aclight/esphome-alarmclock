@@ -74,13 +74,13 @@ i2c:
   scan: true
 
 # --- Time source from Home Assistant (with SNTP fallback) ---
+# Timezone is auto-detected from the build machine. Override here if needed,
+# e.g. timezone: America/Los_Angeles
 time:
   - platform: homeassistant
     id: ha_time
-    timezone: America/Chicago
   - platform: sntp
     id: sntp_time
-    timezone: America/Chicago
 
 # --- Display: mipi_rgb 800x480 ---
 display:
@@ -176,7 +176,7 @@ lvgl:
         - textarea:
             hidden: true
 
-# --- Update clock display every second ---
+# --- Update clock display every second, check alarms on minute change ---
 interval:
   - interval: 1s
     then:
@@ -189,16 +189,7 @@ interval:
             alarmclock::ui_update_clock(time.hour, time.minute,
                                        id(alarm_clock_component).time_format_24h());
             alarmclock::ui_update_date(time.month, time.day_of_month, time.day_of_week);
-          }
-  # Check alarms once per minute.
-  - interval: 60s
-    then:
-      - lambda: |-
-          auto time = id(ha_time).now();
-          if (!time.is_valid()) {
-            time = id(sntp_time).now();
-          }
-          if (time.is_valid()) {
+            // Check alarms on every tick — the C++ side deduplicates per minute.
             id(alarm_clock_component).check_alarms_(
                 time.hour, time.minute, time.day_of_week);
           }
