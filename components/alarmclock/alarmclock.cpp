@@ -123,6 +123,9 @@ void AlarmClockComponent::setup() {
 }
 
 void AlarmClockComponent::loop() {
+  // Check screen sleep/wake state based on LVGL inactivity.
+  check_screen_sleep_();
+
   // Handle alarm sound pause between RTTTL loops.
   if (alarm_sound_active_ && alarm_pause_active_) {
     uint32_t now_ms = ::esphome::millis();
@@ -314,9 +317,34 @@ void AlarmClockComponent::check_alarms_(uint8_t hour, uint8_t minute,
 }
 
 void AlarmClockComponent::update_backlight_() {
-  float bright = compute_brightness(brightness_, sensor_factor_);
+  float user_level = screen_asleep_ ? kSleepUserLevel : brightness_;
+  float bright = compute_brightness(user_level, sensor_factor_);
   uint8_t pwm = brightness_to_pwm(bright);
   this->write(&pwm, 1);
+}
+
+void AlarmClockComponent::check_screen_sleep_() {
+  // Don't sleep while the alarm is firing — keep screen bright.
+  if (state_machine_.state() != alarm_clock::AlarmState::kIdle) {
+    if (screen_asleep_) {
+      screen_asleep_ = false;
+      update_backlight_();
+    }
+    return;
+  }
+
+  uint32_t idle_ms = lv_disp_get_inactive_time(nullptr);
+  bool should_sleep = (idle_ms >= kScreenIdleTimeoutMs);
+
+  if (should_sleep && !screen_asleep_) {
+    // Transition to sleep — dim to sensor-based minimum.
+    screen_asleep_ = true;
+    update_backlight_();
+  } else if (!should_sleep && screen_asleep_) {
+    // Wake on tap — boost back to user-configured brightness.
+    screen_asleep_ = false;
+    update_backlight_();
+  }
 }
 
 void AlarmClockComponent::start_alarm_sound_() {
