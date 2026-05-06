@@ -74,6 +74,11 @@ void ui_set_callbacks(const UiCallbacks &cb) {
 void ui_init() {
   // Get the active screen (already created by ESPHome's LVGL component).
   lv_obj_t *scr = lv_scr_act();
+
+  // Remove any objects ESPHome's LVGL component created (e.g. boot_page)
+  // so they don't cover our C++ UI with their default theme background.
+  lv_obj_clean(scr);
+
   lv_obj_set_style_bg_color(scr, lv_color_hex(theme::kColorBackground), 0);
   lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
 

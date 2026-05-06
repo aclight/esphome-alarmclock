@@ -482,7 +482,7 @@ class AlarmClockComponent : public ::esphome::Component,
   void setup() override;
   void loop() override;
   float get_setup_priority() const override {
-    return ::esphome::setup_priority::HARDWARE;
+    return ::esphome::setup_priority::LATE;
   }
 
   // --- Alarm management (called from HA or UI) ---
