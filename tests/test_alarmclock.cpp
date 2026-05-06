@@ -740,6 +740,194 @@ TEST(one_shot_minutes_until_disabled) {
 }
 
 // ===========================================================================
+// find_next_alarm_index tests (Task 15)
+// ===========================================================================
+
+TEST(find_next_alarm_none_enabled) {
+    AlarmTime alarms[4] = {};
+    // All disabled.
+    int32_t minutes = 0;
+    ASSERT_EQ(find_next_alarm_index(alarms, 4, 7, 0, 1, &minutes), -1);
+    PASS();
+}
+
+TEST(find_next_alarm_single_enabled) {
+    AlarmTime alarms[4] = {};
+    alarms[0] = {7, 30, kWeekdays, true};
+    int32_t minutes = 0;
+    int8_t idx = find_next_alarm_index(alarms, 4, 7, 0, 1, &minutes);
+    ASSERT_EQ(idx, 0);
+    ASSERT_EQ(minutes, 30);
+    PASS();
+}
+
+TEST(find_next_alarm_picks_nearest) {
+    AlarmTime alarms[4] = {};
+    alarms[0] = {9, 0, kWeekdays, true};
+    alarms[1] = {7, 30, kWeekdays, true};
+    alarms[2] = {12, 0, kWeekdays, true};
+    int32_t minutes = 0;
+    int8_t idx = find_next_alarm_index(alarms, 4, 7, 0, 1, &minutes);
+    ASSERT_EQ(idx, 1);
+    ASSERT_EQ(minutes, 30);
+    PASS();
+}
+
+TEST(find_next_alarm_skips_disabled) {
+    AlarmTime alarms[4] = {};
+    alarms[0] = {7, 30, kWeekdays, false};  // disabled
+    alarms[1] = {9, 0, kWeekdays, true};
+    int32_t minutes = 0;
+    int8_t idx = find_next_alarm_index(alarms, 4, 7, 0, 1, &minutes);
+    ASSERT_EQ(idx, 1);
+    ASSERT_EQ(minutes, 120);
+    PASS();
+}
+
+TEST(find_next_alarm_one_shot) {
+    AlarmTime alarms[4] = {};
+    alarms[0] = {8, 0, 0, true};  // one-shot
+    int32_t minutes = 0;
+    int8_t idx = find_next_alarm_index(alarms, 4, 7, 30, 3, &minutes);
+    ASSERT_EQ(idx, 0);
+    ASSERT_EQ(minutes, 30);
+    PASS();
+}
+
+TEST(find_next_alarm_null_minutes) {
+    AlarmTime alarms[4] = {};
+    alarms[0] = {8, 0, kEveryDay, true};
+    int8_t idx = find_next_alarm_index(alarms, 4, 7, 0, 1, nullptr);
+    ASSERT_EQ(idx, 0);
+    PASS();
+}
+
+TEST(find_next_alarm_fires_now_is_zero) {
+    AlarmTime alarms[4] = {};
+    alarms[0] = {7, 30, kMonday, true};
+    int32_t minutes = -1;
+    int8_t idx = find_next_alarm_index(alarms, 4, 7, 30, 1, &minutes);
+    ASSERT_EQ(idx, 0);
+    ASSERT_EQ(minutes, 0);
+    PASS();
+}
+
+// ===========================================================================
+// format_next_alarm_text tests (Task 15)
+// ===========================================================================
+
+TEST(format_next_alarm_with_label_hours) {
+    AlarmTime at{7, 0, kWeekdays, true};
+    alarm_set_label(at, "Work");
+    char buf[64];
+    format_next_alarm_text(at, 390, buf, sizeof(buf));
+    // 390 min = 6h 30m → "7:00 AM — Work (in 6h 30m)"
+    ASSERT_TRUE(strstr(buf, "7:00 AM") != nullptr);
+    ASSERT_TRUE(strstr(buf, "Work") != nullptr);
+    ASSERT_TRUE(strstr(buf, "6h 30m") != nullptr);
+    PASS();
+}
+
+TEST(format_next_alarm_with_label_minutes_only) {
+    AlarmTime at{7, 30, kWeekdays, true};
+    alarm_set_label(at, "Work");
+    char buf[64];
+    format_next_alarm_text(at, 45, buf, sizeof(buf));
+    // 45 min → "7:30 AM — Work (in 45m)"
+    ASSERT_TRUE(strstr(buf, "7:30 AM") != nullptr);
+    ASSERT_TRUE(strstr(buf, "Work") != nullptr);
+    ASSERT_TRUE(strstr(buf, "45m") != nullptr);
+    // Should NOT have "h" in it.
+    ASSERT_TRUE(strstr(buf, "h ") == nullptr);
+    PASS();
+}
+
+TEST(format_next_alarm_no_label_hours) {
+    AlarmTime at{14, 0, kEveryDay, true};
+    char buf[64];
+    format_next_alarm_text(at, 120, buf, sizeof(buf));
+    // 14:00 → 2:00 PM; 120 min = 2h 0m
+    ASSERT_TRUE(strstr(buf, "2:00 PM") != nullptr);
+    ASSERT_TRUE(strstr(buf, "2h 0m") != nullptr);
+    PASS();
+}
+
+TEST(format_next_alarm_no_label_minutes_only) {
+    AlarmTime at{0, 30, kEveryDay, true};
+    char buf[64];
+    format_next_alarm_text(at, 15, buf, sizeof(buf));
+    // 0:30 → 12:30 AM; 15 min
+    ASSERT_TRUE(strstr(buf, "12:30 AM") != nullptr);
+    ASSERT_TRUE(strstr(buf, "15m") != nullptr);
+    PASS();
+}
+
+TEST(format_next_alarm_null_buf) {
+    AlarmTime at{7, 0, kWeekdays, true};
+    ASSERT_EQ(format_next_alarm_text(at, 60, nullptr, 64), (size_t)0);
+    PASS();
+}
+
+TEST(format_next_alarm_zero_buf_size) {
+    AlarmTime at{7, 0, kWeekdays, true};
+    char buf[1];
+    ASSERT_EQ(format_next_alarm_text(at, 60, buf, 0), (size_t)0);
+    PASS();
+}
+
+TEST(format_next_alarm_pm_time) {
+    AlarmTime at{23, 45, kWeekends, true};
+    alarm_set_label(at, "Late");
+    char buf[64];
+    format_next_alarm_text(at, 60, buf, sizeof(buf));
+    ASSERT_TRUE(strstr(buf, "11:45 PM") != nullptr);
+    ASSERT_TRUE(strstr(buf, "Late") != nullptr);
+    PASS();
+}
+
+// ===========================================================================
+// format_pre_alarm_text tests (Task 10)
+// ===========================================================================
+
+TEST(format_pre_alarm_with_label) {
+    char buf[48];
+    format_pre_alarm_text(5, "Work", buf, sizeof(buf));
+    ASSERT_TRUE(strstr(buf, "Alarm in 5 min") != nullptr);
+    ASSERT_TRUE(strstr(buf, "Work") != nullptr);
+    PASS();
+}
+
+TEST(format_pre_alarm_no_label) {
+    char buf[48];
+    format_pre_alarm_text(3, nullptr, buf, sizeof(buf));
+    ASSERT_TRUE(strstr(buf, "Alarm in 3 min") != nullptr);
+    PASS();
+}
+
+TEST(format_pre_alarm_empty_label) {
+    char buf[48];
+    format_pre_alarm_text(1, "", buf, sizeof(buf));
+    ASSERT_TRUE(strstr(buf, "Alarm in 1 min") != nullptr);
+    PASS();
+}
+
+TEST(format_pre_alarm_null_buf) {
+    ASSERT_EQ(format_pre_alarm_text(5, "Work", nullptr, 48), (size_t)0);
+    PASS();
+}
+
+TEST(format_pre_alarm_zero_buf_size) {
+    char buf[1];
+    ASSERT_EQ(format_pre_alarm_text(5, "Work", buf, 0), (size_t)0);
+    PASS();
+}
+
+TEST(pre_alarm_constant) {
+    ASSERT_EQ(kPreAlarmMinutes, 5);
+    PASS();
+}
+
+// ===========================================================================
 // 12h/24h time conversion tests (Task 3)
 // ===========================================================================
 
@@ -1282,6 +1470,32 @@ int main() {
     RUN(one_shot_minutes_until_later_today);
     RUN(one_shot_minutes_until_tomorrow);
     RUN(one_shot_minutes_until_disabled);
+
+    // find_next_alarm_index (Task 15)
+    RUN(find_next_alarm_none_enabled);
+    RUN(find_next_alarm_single_enabled);
+    RUN(find_next_alarm_picks_nearest);
+    RUN(find_next_alarm_skips_disabled);
+    RUN(find_next_alarm_one_shot);
+    RUN(find_next_alarm_null_minutes);
+    RUN(find_next_alarm_fires_now_is_zero);
+
+    // format_next_alarm_text (Task 15)
+    RUN(format_next_alarm_with_label_hours);
+    RUN(format_next_alarm_with_label_minutes_only);
+    RUN(format_next_alarm_no_label_hours);
+    RUN(format_next_alarm_no_label_minutes_only);
+    RUN(format_next_alarm_null_buf);
+    RUN(format_next_alarm_zero_buf_size);
+    RUN(format_next_alarm_pm_time);
+
+    // format_pre_alarm_text (Task 10)
+    RUN(format_pre_alarm_with_label);
+    RUN(format_pre_alarm_no_label);
+    RUN(format_pre_alarm_empty_label);
+    RUN(format_pre_alarm_null_buf);
+    RUN(format_pre_alarm_zero_buf_size);
+    RUN(pre_alarm_constant);
 
     // 12h/24h time conversion (Task 3)
     RUN(hour_24_to_12_midnight);

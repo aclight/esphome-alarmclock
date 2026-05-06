@@ -33,6 +33,7 @@ bool ui_is_firing_overlay_visible();
 void ui_update_clock(uint8_t hour, uint8_t minute);
 void ui_update_date(uint8_t month, uint8_t day, uint8_t day_of_week);
 void ui_update_next_alarm(const char *text);  // e.g. "Next: 7:00 AM" or ""
+void ui_update_pre_alarm_banner(const char *text);  // e.g. "Alarm in 5 min — Work" or "" to hide
 void ui_update_brightness(float brightness);
 void ui_update_volume(float volume);
 
