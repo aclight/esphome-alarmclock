@@ -139,6 +139,17 @@ static constexpr uint8_t kBuzzerOff = 247;     // Command to deactivate buzzer.
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
+// Screen sleep / wake constants.
+// ---------------------------------------------------------------------------
+
+// Idle timeout before dimming the screen (milliseconds).
+static constexpr uint32_t kScreenIdleTimeoutMs = 30000;
+
+// When asleep, use this user_level to compute a dim backlight.
+// This results in a sensor-based minimum brightness.
+static constexpr float kSleepUserLevel = 0.0f;
+
+// ---------------------------------------------------------------------------
 // Brightness control constants.
 // ---------------------------------------------------------------------------
 
@@ -499,6 +510,9 @@ class AlarmClockComponent : public ::esphome::Component,
   void set_rtttl(::esphome::rtttl::Rtttl *rtttl) { rtttl_ = rtttl; }
   void on_rtttl_finished();
 
+  // --- Screen sleep/wake ---
+  bool is_screen_asleep() const { return screen_asleep_; }
+
   // --- State queries (for HA sensors) ---
   alarm_clock::AlarmState alarm_state() const { return state_machine_.state(); }
   bool is_firing() const {
@@ -531,8 +545,12 @@ class AlarmClockComponent : public ::esphome::Component,
   uint32_t last_minute_check_ms_ = 0;
   uint8_t last_checked_minute_ = 0xFF;
 
+  // Screen sleep state.
+  bool screen_asleep_ = false;
+
   // Internal helpers.
   void update_backlight_();
+  void check_screen_sleep_();
   void start_alarm_sound_();
   void stop_alarm_sound_();
   void play_alarm_melody_();
