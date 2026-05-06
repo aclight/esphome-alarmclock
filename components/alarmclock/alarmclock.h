@@ -4,7 +4,9 @@
 #ifndef ALARMCLOCK_H
 #define ALARMCLOCK_H
 
+#include <climits>
 #include <cstdint>
+#include <cstdio>
 #include <utility>
 
 #include "alarm_time.h"
@@ -235,6 +237,108 @@ inline uint8_t hour_12_to_24(uint8_t hour_12, bool is_pm) {
   return is_pm ? (hour_12 + 12) : hour_12;
 }
 
+// ---------------------------------------------------------------------------
+// Pre-alarm notification threshold (minutes before alarm).
+// ---------------------------------------------------------------------------
+static constexpr uint8_t kPreAlarmMinutes = 5;
+
+// Maximum number of configurable alarms (used by pure functions too).
+static constexpr uint8_t kMaxAlarmsCount = 4;
+
+// ---------------------------------------------------------------------------
+// Next alarm computation — finds nearest upcoming alarm.
+// ---------------------------------------------------------------------------
+
+// Find the index of the nearest upcoming alarm from an array.
+// Returns the index (0-based), or -1 if no alarm is upcoming.
+// |minutes_out| receives the minutes until that alarm (if not nullptr).
+inline int8_t find_next_alarm_index(const alarm_clock::AlarmTime *alarms,
+                                    uint8_t count, uint8_t now_hour,
+                                    uint8_t now_minute, uint8_t now_day_index,
+                                    int32_t *minutes_out = nullptr) {
+  int8_t best_index = -1;
+  int32_t best_minutes = INT32_MAX;
+
+  for (uint8_t i = 0; i < count; ++i) {
+    int32_t mins = alarm_clock::minutes_until_alarm(
+        alarms[i], now_hour, now_minute, now_day_index);
+    if (mins >= 0 && mins < best_minutes) {
+      best_minutes = mins;
+      best_index = static_cast<int8_t>(i);
+    }
+  }
+
+  if (minutes_out != nullptr && best_index >= 0) {
+    *minutes_out = best_minutes;
+  }
+  return best_index;
+}
+
+// Format the "next alarm" display string.
+// Output example: "7:00 AM — Work (in 6h 30m)" or "7:00 AM (in 6h 30m)"
+// Returns the number of characters written (excluding null terminator).
+inline size_t format_next_alarm_text(const alarm_clock::AlarmTime &alarm,
+                                     int32_t minutes_until, char *buf,
+                                     size_t buf_size) {
+  if (buf == nullptr || buf_size == 0) {
+    return 0;
+  }
+
+  auto [h12, is_pm] = hour_24_to_12(alarm.hour);
+  const char *ampm = is_pm ? "PM" : "AM";
+
+  uint16_t hours = static_cast<uint16_t>(minutes_until / 60);
+  uint16_t mins = static_cast<uint16_t>(minutes_until % 60);
+
+  int written;
+  if (alarm.label[0] != '\0') {
+    if (hours > 0) {
+      written = snprintf(buf, buf_size, "%d:%02d %s \xe2\x80\x94 %s (in %uh %um)",
+                         h12, alarm.minute, ampm, alarm.label, hours, mins);
+    } else {
+      written = snprintf(buf, buf_size, "%d:%02d %s \xe2\x80\x94 %s (in %um)",
+                         h12, alarm.minute, ampm, alarm.label, mins);
+    }
+  } else {
+    if (hours > 0) {
+      written = snprintf(buf, buf_size, "%d:%02d %s (in %uh %um)",
+                         h12, alarm.minute, ampm, hours, mins);
+    } else {
+      written = snprintf(buf, buf_size, "%d:%02d %s (in %um)",
+                         h12, alarm.minute, ampm, mins);
+    }
+  }
+  if (written < 0) {
+    buf[0] = '\0';
+    return 0;
+  }
+  return static_cast<size_t>(written);
+}
+
+// Format the pre-alarm banner text.
+// Output example: "Alarm in 5 min \xe2\x80\x94 Work" or "Alarm in 5 min"
+// Returns the number of characters written (excluding null terminator).
+inline size_t format_pre_alarm_text(uint16_t minutes_remaining,
+                                    const char *label, char *buf,
+                                    size_t buf_size) {
+  if (buf == nullptr || buf_size == 0) {
+    return 0;
+  }
+
+  int written;
+  if (label != nullptr && label[0] != '\0') {
+    written = snprintf(buf, buf_size, "Alarm in %u min \xe2\x80\x94 %s",
+                       minutes_remaining, label);
+  } else {
+    written = snprintf(buf, buf_size, "Alarm in %u min", minutes_remaining);
+  }
+  if (written < 0) {
+    buf[0] = '\0';
+    return 0;
+  }
+  return static_cast<size_t>(written);
+}
+
 // Check whether alarm time matches current time (simple hour/minute check).
 inline bool alarm_matches(uint8_t alarm_h, uint8_t alarm_m, uint8_t now_h,
                           uint8_t now_m) {
@@ -268,7 +372,7 @@ class Rtttl;
 namespace alarmclock {
 
 // Maximum number of configurable alarms.
-static constexpr uint8_t kMaxAlarms = 4;
+static constexpr uint8_t kMaxAlarms = kMaxAlarmsCount;
 
 class AlarmClockComponent : public ::esphome::Component,
                             public ::esphome::i2c::I2CDevice {
@@ -340,6 +444,8 @@ class AlarmClockComponent : public ::esphome::Component,
   void save_alarms_to_storage_();
   void save_settings_to_storage_();
   void load_from_storage_();
+  void update_next_alarm_display_(uint8_t hour, uint8_t minute,
+                                  uint8_t day_of_week);
 
   // Index of the alarm that is currently firing (0xFF = none).
   uint8_t fired_alarm_index_ = 0xFF;

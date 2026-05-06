@@ -245,6 +245,9 @@ void AlarmClockComponent::set_sensor_factor(float sensor_factor) {
 
 void AlarmClockComponent::check_alarms_(uint8_t hour, uint8_t minute,
                                         uint8_t day_of_week) {
+  // Update the next-alarm display and pre-alarm banner every time we check.
+  update_next_alarm_display_(hour, minute, day_of_week);
+
   if (state_machine_.state() != alarm_clock::AlarmState::kIdle) {
     return;  // Already firing or snoozed.
   }
@@ -356,6 +359,34 @@ void AlarmClockComponent::auto_disable_one_shot_alarm_() {
                       alarms_[fired_alarm_index_].days_of_week,
                       false,
                       alarms_[fired_alarm_index_].label);
+}
+
+void AlarmClockComponent::update_next_alarm_display_(uint8_t hour,
+                                                     uint8_t minute,
+                                                     uint8_t day_of_week) {
+  int32_t minutes_until = 0;
+  int8_t idx = find_next_alarm_index(alarms_, kMaxAlarms, hour, minute,
+                                     day_of_week, &minutes_until);
+
+  // Update next alarm text.
+  if (idx >= 0 && minutes_until > 0) {
+    char buf[64];
+    format_next_alarm_text(alarms_[idx], minutes_until, buf, sizeof(buf));
+    ui_update_next_alarm(buf);
+  } else {
+    ui_update_next_alarm("");
+  }
+
+  // Update pre-alarm banner (show when within kPreAlarmMinutes).
+  if (idx >= 0 && minutes_until > 0 && minutes_until <= kPreAlarmMinutes &&
+      state_machine_.state() == alarm_clock::AlarmState::kIdle) {
+    char buf[48];
+    format_pre_alarm_text(static_cast<uint16_t>(minutes_until),
+                          alarms_[idx].label, buf, sizeof(buf));
+    ui_update_pre_alarm_banner(buf);
+  } else {
+    ui_update_pre_alarm_banner("");
+  }
 }
 
 void AlarmClockComponent::save_alarms_to_storage_() {

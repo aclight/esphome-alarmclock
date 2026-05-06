@@ -14,6 +14,7 @@ namespace alarmclock {
 static lv_obj_t *time_label_ = nullptr;
 static lv_obj_t *date_label_ = nullptr;
 static lv_obj_t *next_alarm_label_ = nullptr;
+static lv_obj_t *pre_alarm_label_ = nullptr;
 
 // Page indicator dots.
 static lv_obj_t *page_dots_[theme::kPageCount] = {};
@@ -53,6 +54,14 @@ void ui_build_clock_page(lv_obj_t *parent) {
   lv_obj_set_style_text_font(next_alarm_label_, &lv_font_montserrat_16, 0);
   lv_obj_set_style_text_color(next_alarm_label_, lv_color_hex(theme::kColorAccent), 0);
   lv_label_set_text(next_alarm_label_, "");
+
+  // Pre-alarm banner (e.g. "Alarm in 5 min — Work").
+  pre_alarm_label_ = lv_label_create(parent);
+  lv_obj_align(pre_alarm_label_, LV_ALIGN_CENTER, 0, theme::kClockPreAlarmY);
+  lv_obj_set_style_text_font(pre_alarm_label_, &lv_font_montserrat_16, 0);
+  lv_obj_set_style_text_color(pre_alarm_label_, lv_color_hex(theme::kColorSnooze), 0);
+  lv_label_set_text(pre_alarm_label_, "");
+  lv_obj_add_flag(pre_alarm_label_, LV_OBJ_FLAG_HIDDEN);
 
   // Page indicator dots at bottom.
   int16_t dot_spacing = 20;
@@ -107,6 +116,19 @@ void ui_update_next_alarm(const char *text) {
     return;
   }
   lv_label_set_text(next_alarm_label_, text ? text : "");
+}
+
+void ui_update_pre_alarm_banner(const char *text) {
+  if (!pre_alarm_label_) {
+    return;
+  }
+  if (text == nullptr || text[0] == '\0') {
+    lv_obj_add_flag(pre_alarm_label_, LV_OBJ_FLAG_HIDDEN);
+    lv_label_set_text(pre_alarm_label_, "");
+  } else {
+    lv_obj_clear_flag(pre_alarm_label_, LV_OBJ_FLAG_HIDDEN);
+    lv_label_set_text(pre_alarm_label_, text);
+  }
 }
 
 // Update page dots when page changes (called from ui_show_page).
