@@ -1347,6 +1347,150 @@ TEST(serialize_settings_version_byte) {
     PASS();
 }
 
+// ===========================================================================
+// Alarm sound selection tests (Task 4)
+// ===========================================================================
+
+TEST(alarm_sound_count) {
+    ASSERT_EQ(kAlarmSoundCount, (uint8_t)5);
+    PASS();
+}
+
+TEST(get_alarm_sound_rtttl_valid) {
+    // Each valid index should return a non-null, non-empty string.
+    for (uint8_t i = 0; i < kAlarmSoundCount; ++i) {
+        const char *rtttl = get_alarm_sound_rtttl(i);
+        ASSERT_TRUE(rtttl != nullptr);
+        ASSERT_TRUE(strlen(rtttl) > 0);
+    }
+    PASS();
+}
+
+TEST(get_alarm_sound_rtttl_out_of_range) {
+    // Out of range should clamp to index 0.
+    const char *r = get_alarm_sound_rtttl(kAlarmSoundCount);
+    ASSERT_TRUE(r == kAlarmSounds[0].rtttl);
+    const char *r2 = get_alarm_sound_rtttl(255);
+    ASSERT_TRUE(r2 == kAlarmSounds[0].rtttl);
+    PASS();
+}
+
+TEST(get_alarm_sound_name_valid) {
+    for (uint8_t i = 0; i < kAlarmSoundCount; ++i) {
+        const char *name = get_alarm_sound_name(i);
+        ASSERT_TRUE(name != nullptr);
+        ASSERT_TRUE(strlen(name) > 0);
+    }
+    PASS();
+}
+
+TEST(get_alarm_sound_name_out_of_range) {
+    const char *n = get_alarm_sound_name(kAlarmSoundCount);
+    ASSERT_TRUE(n == kAlarmSounds[0].name);
+    PASS();
+}
+
+// ===========================================================================
+// Snooze duration option tests (Task 7)
+// ===========================================================================
+
+TEST(snooze_option_to_minutes_valid) {
+    ASSERT_EQ(snooze_option_to_minutes(0), (uint8_t)5);
+    ASSERT_EQ(snooze_option_to_minutes(1), (uint8_t)9);
+    ASSERT_EQ(snooze_option_to_minutes(2), (uint8_t)10);
+    ASSERT_EQ(snooze_option_to_minutes(3), (uint8_t)15);
+    PASS();
+}
+
+TEST(snooze_option_to_minutes_out_of_range) {
+    // Out of range defaults to 9 min.
+    ASSERT_EQ(snooze_option_to_minutes(4), (uint8_t)9);
+    ASSERT_EQ(snooze_option_to_minutes(255), (uint8_t)9);
+    PASS();
+}
+
+TEST(snooze_minutes_to_option_valid) {
+    ASSERT_EQ(snooze_minutes_to_option(5), (uint8_t)0);
+    ASSERT_EQ(snooze_minutes_to_option(9), (uint8_t)1);
+    ASSERT_EQ(snooze_minutes_to_option(10), (uint8_t)2);
+    ASSERT_EQ(snooze_minutes_to_option(15), (uint8_t)3);
+    PASS();
+}
+
+TEST(snooze_minutes_to_option_not_found) {
+    // Unknown duration defaults to index 1 (9 min).
+    ASSERT_EQ(snooze_minutes_to_option(7), (uint8_t)1);
+    ASSERT_EQ(snooze_minutes_to_option(0), (uint8_t)1);
+    ASSERT_EQ(snooze_minutes_to_option(20), (uint8_t)1);
+    PASS();
+}
+
+TEST(snooze_duration_options_constant) {
+    ASSERT_EQ(kSnoozeDurationOptionCount, (uint8_t)4);
+    ASSERT_EQ(kSnoozeDurationOptions[0], (uint8_t)5);
+    ASSERT_EQ(kSnoozeDurationOptions[1], (uint8_t)9);
+    ASSERT_EQ(kSnoozeDurationOptions[2], (uint8_t)10);
+    ASSERT_EQ(kSnoozeDurationOptions[3], (uint8_t)15);
+    PASS();
+}
+
+// ===========================================================================
+// format_clock_time tests (Task 9)
+// ===========================================================================
+
+TEST(format_clock_time_12h_am) {
+    char buf[16];
+    format_clock_time(7, 30, false, buf, sizeof(buf));
+    ASSERT_TRUE(strstr(buf, "7:30 AM") != nullptr);
+    PASS();
+}
+
+TEST(format_clock_time_12h_pm) {
+    char buf[16];
+    format_clock_time(14, 5, false, buf, sizeof(buf));
+    ASSERT_TRUE(strstr(buf, "2:05 PM") != nullptr);
+    PASS();
+}
+
+TEST(format_clock_time_12h_midnight) {
+    char buf[16];
+    format_clock_time(0, 0, false, buf, sizeof(buf));
+    ASSERT_TRUE(strstr(buf, "12:00 AM") != nullptr);
+    PASS();
+}
+
+TEST(format_clock_time_12h_noon) {
+    char buf[16];
+    format_clock_time(12, 0, false, buf, sizeof(buf));
+    ASSERT_TRUE(strstr(buf, "12:00 PM") != nullptr);
+    PASS();
+}
+
+TEST(format_clock_time_24h) {
+    char buf[16];
+    format_clock_time(14, 5, true, buf, sizeof(buf));
+    ASSERT_TRUE(strcmp(buf, "14:05") == 0);
+    PASS();
+}
+
+TEST(format_clock_time_24h_midnight) {
+    char buf[16];
+    format_clock_time(0, 0, true, buf, sizeof(buf));
+    ASSERT_TRUE(strcmp(buf, "00:00") == 0);
+    PASS();
+}
+
+TEST(format_clock_time_null_buf) {
+    ASSERT_EQ(format_clock_time(7, 30, false, nullptr, 16), (size_t)0);
+    PASS();
+}
+
+TEST(format_clock_time_zero_buf_size) {
+    char buf[1];
+    ASSERT_EQ(format_clock_time(7, 30, false, buf, 0), (size_t)0);
+    PASS();
+}
+
 // ---------------------------------------------------------------------------
 // main — register every TEST here.
 // ---------------------------------------------------------------------------
@@ -1542,6 +1686,30 @@ int main() {
     RUN(deserialize_settings_wrong_version);
     RUN(serialize_alarm_version_byte);
     RUN(serialize_settings_version_byte);
+
+    // Alarm sound selection (Task 4)
+    RUN(alarm_sound_count);
+    RUN(get_alarm_sound_rtttl_valid);
+    RUN(get_alarm_sound_rtttl_out_of_range);
+    RUN(get_alarm_sound_name_valid);
+    RUN(get_alarm_sound_name_out_of_range);
+
+    // Snooze duration options (Task 7)
+    RUN(snooze_option_to_minutes_valid);
+    RUN(snooze_option_to_minutes_out_of_range);
+    RUN(snooze_minutes_to_option_valid);
+    RUN(snooze_minutes_to_option_not_found);
+    RUN(snooze_duration_options_constant);
+
+    // format_clock_time (Task 9)
+    RUN(format_clock_time_12h_am);
+    RUN(format_clock_time_12h_pm);
+    RUN(format_clock_time_12h_midnight);
+    RUN(format_clock_time_12h_noon);
+    RUN(format_clock_time_24h);
+    RUN(format_clock_time_24h_midnight);
+    RUN(format_clock_time_null_buf);
+    RUN(format_clock_time_zero_buf_size);
 
     printf("\n%d test(s) run, %d failed.\n", tests_run, tests_failed);
     return tests_failed == 0 ? 0 : 1;

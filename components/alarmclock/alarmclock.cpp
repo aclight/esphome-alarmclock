@@ -63,6 +63,24 @@ static void on_alarm_days_set(uint8_t index, uint8_t days_mask) {
   // TODO: Implement day mask update.
 }
 
+static void on_sound_change(uint8_t sound_index) {
+  if (instance_) {
+    instance_->set_sound_index(sound_index);
+  }
+}
+
+static void on_snooze_duration_change(uint8_t option_index) {
+  if (instance_) {
+    instance_->set_snooze_duration_option(option_index);
+  }
+}
+
+static void on_time_format_change(bool time_format_24h) {
+  if (instance_) {
+    instance_->set_time_format_24h(time_format_24h);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Component lifecycle.
 // ---------------------------------------------------------------------------
@@ -89,6 +107,9 @@ void AlarmClockComponent::setup() {
   cb.on_alarm_toggle = on_alarm_toggle;
   cb.on_alarm_time_set = on_alarm_time_set;
   cb.on_alarm_days_set = on_alarm_days_set;
+  cb.on_sound_change = on_sound_change;
+  cb.on_snooze_duration_change = on_snooze_duration_change;
+  cb.on_time_format_change = on_time_format_change;
   ui_set_callbacks(cb);
 
   // Build the UI (LVGL must already be initialized by the lvgl: component).
@@ -239,6 +260,31 @@ void AlarmClockComponent::set_sensor_factor(float sensor_factor) {
   update_backlight_();
 }
 
+void AlarmClockComponent::set_sound_index(uint8_t index) {
+  if (index >= kAlarmSoundCount) {
+    index = 0;
+  }
+  selected_sound_index_ = index;
+  save_settings_to_storage_();
+  ui_update_sound_selection(index);
+  ESP_LOGI(TAG, "Alarm sound set to: %s", get_alarm_sound_name(index));
+}
+
+void AlarmClockComponent::set_snooze_duration_option(uint8_t option_index) {
+  uint8_t minutes = snooze_option_to_minutes(option_index);
+  state_machine_.set_snooze_duration(minutes);
+  save_settings_to_storage_();
+  ui_update_snooze_selection(option_index);
+  ESP_LOGI(TAG, "Snooze duration set to %d minutes", minutes);
+}
+
+void AlarmClockComponent::set_time_format_24h(bool time_format_24h) {
+  time_format_24h_ = time_format_24h;
+  save_settings_to_storage_();
+  ui_update_time_format(time_format_24h);
+  ESP_LOGI(TAG, "Time format set to %s", time_format_24h ? "24h" : "12h");
+}
+
 // ---------------------------------------------------------------------------
 // Internal helpers.
 // ---------------------------------------------------------------------------
@@ -297,9 +343,10 @@ void AlarmClockComponent::play_alarm_melody_() {
   uint32_t elapsed = ::esphome::millis() - alarm_sound_start_ms_;
   float gain = compute_ramp_volume(volume_, elapsed);
   rtttl_->set_gain(gain);
-  rtttl_->play(kDefaultAlarmMelody);
-  ESP_LOGD(TAG, "Playing alarm melody (gain=%.2f, elapsed=%ums)", gain,
-           elapsed);
+  const char *melody = get_alarm_sound_rtttl(selected_sound_index_);
+  rtttl_->play(melody);
+  ESP_LOGD(TAG, "Playing alarm melody '%s' (gain=%.2f, elapsed=%ums)",
+           get_alarm_sound_name(selected_sound_index_), gain, elapsed);
 }
 
 void AlarmClockComponent::on_rtttl_finished() {
@@ -324,6 +371,10 @@ void AlarmClockComponent::sync_ui_() {
   }
   ui_update_volume(volume_);
   ui_update_brightness(brightness_);
+  ui_update_sound_selection(selected_sound_index_);
+  ui_update_snooze_selection(
+      snooze_minutes_to_option(state_machine_.snooze_duration_minutes()));
+  ui_update_time_format(time_format_24h_);
 }
 
 void AlarmClockComponent::fire_ha_event_(const char *event_type) {
@@ -400,9 +451,8 @@ void AlarmClockComponent::save_settings_to_storage_() {
   settings.volume = volume_;
   settings.brightness = brightness_;
   settings.snooze_duration_minutes = state_machine_.snooze_duration_minutes();
-  // TODO: Populate time_format_24h and selected_sound_index when implemented.
-  settings.time_format_24h = false;
-  settings.selected_sound_index = 0;
+  settings.time_format_24h = time_format_24h_;
+  settings.selected_sound_index = selected_sound_index_;
   alarm_clock::storage_save_settings(settings);
 }
 
@@ -434,6 +484,8 @@ void AlarmClockComponent::load_from_storage_() {
     volume_ = settings.volume;
     brightness_ = settings.brightness;
     state_machine_.set_snooze_duration(settings.snooze_duration_minutes);
+    selected_sound_index_ = settings.selected_sound_index;
+    time_format_24h_ = settings.time_format_24h;
     ESP_LOGI(TAG, "Loaded settings from NVS");
   }
 

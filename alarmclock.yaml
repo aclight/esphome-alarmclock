@@ -186,7 +186,8 @@ interval:
             time = id(sntp_time).now();
           }
           if (time.is_valid()) {
-            alarmclock::ui_update_clock(time.hour, time.minute);
+            alarmclock::ui_update_clock(time.hour, time.minute,
+                                       id(alarm_clock_component).time_format_24h());
             alarmclock::ui_update_date(time.month, time.day_of_month, time.day_of_week);
           }
   # Check alarms once per minute.

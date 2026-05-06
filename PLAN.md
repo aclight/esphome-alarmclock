@@ -243,17 +243,20 @@ Update every minute. Use `minutes_until_alarm()` from `alarm_time.h`.
 7. ~~Task 5~~ — NVS persistence
 
 ### Phase 3: UI (make it usable on-device)
-8. **Task 3** — Time picker (biggest UI piece)
-9. **Task 15** — Next alarm display on clock face
-10. **Task 10** — Pre-alarm banner
-11. **Task 4** — Alarm sound selector
-12. **Task 7** — Snooze duration setting
-13. **Task 9** — 12/24 hour toggle
+8. ~~Task 3~~ — Time picker (biggest UI piece)
+9. ~~Task 15~~ — Next alarm display on clock face
+10. ~~Task 10~~ — Pre-alarm banner
+11. ~~Task 4~~ — Alarm sound selector
+12. ~~Task 7~~ — Snooze duration setting
+13. ~~Task 9~~ — 12/24 hour toggle
 
 ### Phase 4: Polish
 14. **Task 6** — Screen sleep / wake on tap
 15. **Task 8** — Page transition animations
+
+
 16. **Task 16** — Think about whether I need to prevent screen burn in
+17. **Task 17** - How will the clock handle daylight savings time adjustments? Will it periodically sync time so it doesn't gain or lose time?
 
 ### Future (not in this plan)
 - WAV/MP3 alarm sounds with custom partition table
