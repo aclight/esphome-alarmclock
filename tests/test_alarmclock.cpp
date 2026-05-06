@@ -1491,6 +1491,89 @@ TEST(format_clock_time_zero_buf_size) {
     PASS();
 }
 
+// ===========================================================================
+// Day-of-week conversion tests (Batch 1, Issue #1/#2)
+// Validates that 0-based day indices (as converted from ESPTime's 1-based
+// day_of_week) produce correct results through the alarm logic.
+// ===========================================================================
+
+TEST(espttime_dow_conversion_sunday) {
+    // ESPTime: day_of_week=1 (Sunday) → 0-based index = 0
+    uint8_t dow = 1 - 1;  // Simulates the YAML fix
+    ASSERT_EQ(dow, 0);
+    ASSERT_EQ(day_index_to_flag(dow), kSunday);
+    PASS();
+}
+
+TEST(espttime_dow_conversion_saturday) {
+    // ESPTime: day_of_week=7 (Saturday) → 0-based index = 6
+    uint8_t dow = 7 - 1;  // Simulates the YAML fix
+    ASSERT_EQ(dow, 6);
+    ASSERT_EQ(day_index_to_flag(dow), kSaturday);
+    PASS();
+}
+
+TEST(espttime_dow_conversion_monday_alarm) {
+    // ESPTime: day_of_week=2 (Monday) → 0-based index = 1
+    uint8_t dow = 2 - 1;
+    AlarmTime at{7, 30, kMonday, true};
+    ASSERT_TRUE(alarm_clock::alarm_matches(at, 7, 30, dow));
+    PASS();
+}
+
+TEST(espttime_dow_alarm_does_not_fire_wrong_day) {
+    // Alarm set for Monday only. ESPTime says Tuesday (day_of_week=3 → index 2).
+    uint8_t dow = 3 - 1;
+    AlarmTime at{7, 30, kMonday, true};
+    ASSERT_FALSE(alarm_clock::alarm_matches(at, 7, 30, dow));
+    PASS();
+}
+
+TEST(espttime_dow_all_days_roundtrip) {
+    // Verify all 7 days convert correctly from ESPTime 1-based to our 0-based.
+    // ESPTime: 1=Sun, 2=Mon, 3=Tue, 4=Wed, 5=Thu, 6=Fri, 7=Sat
+    uint8_t expected_flags[] = {kSunday, kMonday, kTuesday, kWednesday,
+                                kThursday, kFriday, kSaturday};
+    for (uint8_t esp_dow = 1; esp_dow <= 7; ++esp_dow) {
+        uint8_t idx = esp_dow - 1;
+        ASSERT_EQ(day_index_to_flag(idx), expected_flags[idx]);
+    }
+    PASS();
+}
+
+TEST(one_shot_alarm_should_be_visible) {
+    // One-shot alarms (days_of_week==0, enabled) should be shown in UI sync.
+    // This tests the condition: enabled || days_of_week != 0 || hour != 0 || minute != 0
+    AlarmTime at{14, 30, 0, true};
+    ASSERT_TRUE(at.enabled);
+    ASSERT_TRUE(is_one_shot(at));
+    // The sync_ui_ condition should include this alarm.
+    bool should_show = (at.enabled || at.days_of_week != 0 ||
+                        at.hour != 0 || at.minute != 0);
+    ASSERT_TRUE(should_show);
+    PASS();
+}
+
+TEST(default_alarm_not_one_shot) {
+    // Default alarm at 7:00 weekdays should not be one-shot.
+    AlarmTime at{7, 0, kWeekdays, true};
+    ASSERT_FALSE(is_one_shot(at));
+    // Should also be visible.
+    bool should_show = (at.enabled || at.days_of_week != 0 ||
+                        at.hour != 0 || at.minute != 0);
+    ASSERT_TRUE(should_show);
+    PASS();
+}
+
+TEST(empty_alarm_not_shown) {
+    // A completely default alarm slot should not be shown.
+    AlarmTime at{};  // hour=0, minute=0, days=0, enabled=false
+    bool should_show = (at.enabled || at.days_of_week != 0 ||
+                        at.hour != 0 || at.minute != 0);
+    ASSERT_FALSE(should_show);
+    PASS();
+}
+
 // ---------------------------------------------------------------------------
 // main — register every TEST here.
 // ---------------------------------------------------------------------------
@@ -1710,6 +1793,18 @@ int main() {
     RUN(format_clock_time_24h_midnight);
     RUN(format_clock_time_null_buf);
     RUN(format_clock_time_zero_buf_size);
+
+    // Day-of-week conversion (Batch 1, Issue #1/#2)
+    RUN(espttime_dow_conversion_sunday);
+    RUN(espttime_dow_conversion_saturday);
+    RUN(espttime_dow_conversion_monday_alarm);
+    RUN(espttime_dow_alarm_does_not_fire_wrong_day);
+    RUN(espttime_dow_all_days_roundtrip);
+
+    // One-shot alarm visibility (Batch 1, Issue #6)
+    RUN(one_shot_alarm_should_be_visible);
+    RUN(default_alarm_not_one_shot);
+    RUN(empty_alarm_not_shown);
 
     printf("\n%d test(s) run, %d failed.\n", tests_run, tests_failed);
     return tests_failed == 0 ? 0 : 1;

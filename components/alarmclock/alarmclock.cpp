@@ -52,15 +52,14 @@ static void on_alarm_toggle(uint8_t index, bool enabled) {
 
 static void on_alarm_time_set(uint8_t index, uint8_t hour, uint8_t minute) {
   if (instance_) {
-    // Keep existing days_mask, just update time.
-    instance_->set_alarm(index, hour, minute, 0xFF, true);  // TODO: pass actual days
+    instance_->update_alarm_time(index, hour, minute);
   }
 }
 
 static void on_alarm_days_set(uint8_t index, uint8_t days_mask) {
-  (void)index;
-  (void)days_mask;
-  // TODO: Implement day mask update.
+  if (instance_) {
+    instance_->update_alarm_days(index, days_mask);
+  }
 }
 
 static void on_sound_change(uint8_t sound_index) {
@@ -78,6 +77,24 @@ static void on_snooze_duration_change(uint8_t option_index) {
 static void on_time_format_change(bool time_format_24h) {
   if (instance_) {
     instance_->set_time_format_24h(time_format_24h);
+  }
+}
+
+static void on_alarm_edit(uint8_t index) {
+  if (instance_) {
+    instance_->edit_alarm(index);
+  }
+}
+
+static void on_alarm_delete(uint8_t index) {
+  if (instance_) {
+    instance_->delete_alarm(index);
+  }
+}
+
+static void on_alarm_label_set(uint8_t index, const char *label) {
+  if (instance_) {
+    instance_->update_alarm_label(index, label);
   }
 }
 
@@ -107,6 +124,9 @@ void AlarmClockComponent::setup() {
   cb.on_alarm_toggle = on_alarm_toggle;
   cb.on_alarm_time_set = on_alarm_time_set;
   cb.on_alarm_days_set = on_alarm_days_set;
+  cb.on_alarm_edit = on_alarm_edit;
+  cb.on_alarm_delete = on_alarm_delete;
+  cb.on_alarm_label_set = on_alarm_label_set;
   cb.on_sound_change = on_sound_change;
   cb.on_snooze_duration_change = on_snooze_duration_change;
   cb.on_time_format_change = on_time_format_change;
@@ -202,6 +222,62 @@ void AlarmClockComponent::enable_alarm(uint8_t index, bool enabled) {
   ui_update_alarm_row(index, alarms_[index].hour, alarms_[index].minute,
                       alarms_[index].days_of_week, enabled,
                       alarms_[index].label);
+}
+
+void AlarmClockComponent::update_alarm_time(uint8_t index, uint8_t hour,
+                                            uint8_t minute) {
+  if (index >= kMaxAlarms) {
+    return;
+  }
+  alarms_[index].hour = hour;
+  alarms_[index].minute = minute;
+  alarms_[index].enabled = true;
+  alarm_clock::storage_save_alarm(index, alarms_[index]);
+  ui_update_alarm_row(index, hour, minute, alarms_[index].days_of_week,
+                      alarms_[index].enabled, alarms_[index].label);
+  ESP_LOGI(TAG, "Alarm %d time updated: %02d:%02d", index, hour, minute);
+}
+
+void AlarmClockComponent::update_alarm_days(uint8_t index, uint8_t days_mask) {
+  if (index >= kMaxAlarms) {
+    return;
+  }
+  alarms_[index].days_of_week = days_mask;
+  alarm_clock::storage_save_alarm(index, alarms_[index]);
+  ui_update_alarm_row(index, alarms_[index].hour, alarms_[index].minute,
+                      days_mask, alarms_[index].enabled, alarms_[index].label);
+  ESP_LOGI(TAG, "Alarm %d days updated: 0x%02X", index, days_mask);
+}
+
+void AlarmClockComponent::update_alarm_label(uint8_t index, const char *label) {
+  if (index >= kMaxAlarms) {
+    return;
+  }
+  alarm_clock::alarm_set_label(alarms_[index], label);
+  alarm_clock::storage_save_alarm(index, alarms_[index]);
+  ui_update_alarm_row(index, alarms_[index].hour, alarms_[index].minute,
+                      alarms_[index].days_of_week, alarms_[index].enabled,
+                      alarms_[index].label);
+  ESP_LOGI(TAG, "Alarm %d label updated: '%s'", index, alarms_[index].label);
+}
+
+void AlarmClockComponent::edit_alarm(uint8_t index) {
+  if (index >= kMaxAlarms) {
+    return;
+  }
+  ui_show_time_picker(index, alarms_[index].hour, alarms_[index].minute,
+                      alarms_[index].days_of_week, alarms_[index].label);
+  ESP_LOGI(TAG, "Editing alarm %d", index);
+}
+
+void AlarmClockComponent::delete_alarm(uint8_t index) {
+  if (index >= kMaxAlarms) {
+    return;
+  }
+  alarms_[index] = alarm_clock::AlarmTime{};  // Reset to defaults.
+  alarm_clock::storage_save_alarm(index, alarms_[index]);
+  ui_hide_alarm_row(index);
+  ESP_LOGI(TAG, "Alarm %d deleted", index);
 }
 
 void AlarmClockComponent::dismiss_alarm() {
@@ -304,8 +380,38 @@ void AlarmClockComponent::check_alarms_(uint8_t hour, uint8_t minute,
   update_next_alarm_display_(hour, minute, day_of_week);
 
   if (state_machine_.state() != alarm_clock::AlarmState::kIdle) {
-    return;  // Already firing or snoozed.
+    // Already firing or snoozed — queue any matching alarms for later.
+    for (uint8_t i = 0; i < kMaxAlarms; i++) {
+      if (i == fired_alarm_index_) {
+        continue;  // Don't re-queue the currently firing alarm.
+      }
+      if (alarm_clock::alarm_matches(alarms_[i], hour, minute, day_of_week)) {
+        pending_alarm_index_ = i;
+        ESP_LOGI(TAG, "Alarm %d queued (another alarm is active)", i);
+      }
+    }
+    return;
   }
+
+  // Check for pending queued alarm first.
+  if (pending_alarm_index_ < kMaxAlarms) {
+    uint8_t pending = pending_alarm_index_;
+    pending_alarm_index_ = 0xFF;
+    // Fire the pending alarm if it's still enabled.
+    if (alarms_[pending].enabled) {
+      ESP_LOGW(TAG, "Firing queued alarm %d!", pending);
+      fired_alarm_index_ = pending;
+      state_machine_.trigger();
+      start_alarm_sound_();
+      ui_show_firing_overlay();
+      ui_firing_start_animation();
+      ui_firing_update_time(hour, minute);
+      ui_firing_update_label(alarms_[pending].label);
+      fire_ha_event_("esphome.alarm_fired");
+      return;
+    }
+  }
+
   for (uint8_t i = 0; i < kMaxAlarms; i++) {
     if (alarm_clock::alarm_matches(alarms_[i], hour, minute, day_of_week)) {
       ESP_LOGW(TAG, "Alarm %d triggered!", i);
@@ -397,7 +503,8 @@ void AlarmClockComponent::on_rtttl_finished() {
 void AlarmClockComponent::sync_ui_() {
   // Sync UI state with component state (e.g., after loading from NVS).
   for (uint8_t i = 0; i < kMaxAlarms; i++) {
-    if (alarms_[i].days_of_week != 0) {
+    if (alarms_[i].enabled || alarms_[i].days_of_week != 0 ||
+        alarms_[i].hour != 0 || alarms_[i].minute != 0) {
       ui_update_alarm_row(i, alarms_[i].hour, alarms_[i].minute,
                           alarms_[i].days_of_week, alarms_[i].enabled,
                           alarms_[i].label);
@@ -503,13 +610,14 @@ void AlarmClockComponent::load_from_storage_() {
   }
 
   if (!any_loaded) {
-    // First boot — set a default alarm.
+    // First boot — set a default alarm and persist it.
     ESP_LOGI(TAG, "No alarms in NVS, setting default");
     alarms_[0].hour = 7;
     alarms_[0].minute = 0;
     alarms_[0].days_of_week = alarm_clock::kWeekdays;
     alarms_[0].enabled = true;
     alarm_clock::alarm_set_label(alarms_[0], nullptr);
+    alarm_clock::storage_save_alarm(0, alarms_[0]);
   }
 
   // Load settings.
