@@ -603,7 +603,7 @@ void AlarmClockComponent::update_next_alarm_display_(uint8_t hour,
                            buf, sizeof(buf));
     ui_update_next_alarm(buf);
   } else {
-    ui_update_next_alarm(\"\");
+    ui_update_next_alarm("");
   }
 
   // Update pre-alarm banner (show when within pre_alarm_minutes_).
