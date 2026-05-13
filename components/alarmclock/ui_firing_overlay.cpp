@@ -80,7 +80,7 @@ void ui_build_firing_overlay(lv_obj_t *parent) {
 
   lv_obj_t *snooze_label = lv_label_create(snooze_btn_);
   lv_obj_center(snooze_label);
-  lv_obj_set_style_text_font(snooze_label, &lv_font_montserrat_24, 0);
+  lv_obj_set_style_text_font(snooze_label, &lv_font_montserrat_28, 0);
   lv_obj_set_style_text_color(snooze_label, lv_color_hex(0x000000), 0);
   lv_label_set_text(snooze_label, "Snooze");
 
@@ -94,7 +94,7 @@ void ui_build_firing_overlay(lv_obj_t *parent) {
 
   lv_obj_t *dismiss_label = lv_label_create(dismiss_btn_);
   lv_obj_center(dismiss_label);
-  lv_obj_set_style_text_font(dismiss_label, &lv_font_montserrat_24, 0);
+  lv_obj_set_style_text_font(dismiss_label, &lv_font_montserrat_28, 0);
   lv_obj_set_style_text_color(dismiss_label, lv_color_hex(0x000000), 0);
   lv_label_set_text(dismiss_label, "Dismiss");
 

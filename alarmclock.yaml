@@ -175,6 +175,8 @@ lvgl:
             options: "1"
         - textarea:
             hidden: true
+        - keyboard:
+            hidden: true
 
 # --- Update clock display every second, check alarms on minute change ---
 interval:

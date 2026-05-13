@@ -12,8 +12,9 @@ namespace alarmclock {
 // Constants.
 // ---------------------------------------------------------------------------
 static constexpr uint8_t kMaxAlarms = 4;
-static constexpr int16_t kAlarmRowHeight = 90;
-static constexpr int16_t kAlarmListStartY = 60;
+static constexpr int16_t kAlarmRowHeight = 80;
+static constexpr int16_t kAlarmRowGap = 6;
+static constexpr int16_t kAlarmListStartY = 50;
 
 // ---------------------------------------------------------------------------
 // Per-alarm row widgets.
@@ -81,7 +82,7 @@ void ui_build_alarm_page(lv_obj_t *parent) {
     row.container = lv_obj_create(parent);
     lv_obj_set_size(row.container, theme::kScreenWidth - 40, kAlarmRowHeight);
     lv_obj_align(row.container, LV_ALIGN_TOP_MID, 0,
-                 kAlarmListStartY + i * (kAlarmRowHeight + 10));
+                 kAlarmListStartY + i * (kAlarmRowHeight + kAlarmRowGap));
     lv_obj_set_style_bg_color(row.container, lv_color_hex(0x111111), 0);
     lv_obj_set_style_border_width(row.container, 0, 0);
     lv_obj_set_style_radius(row.container, 10, 0);
@@ -127,7 +128,7 @@ void ui_build_alarm_page(lv_obj_t *parent) {
   // "Add alarm" button.
   // TODO: Implement add-alarm flow (time picker + day selector).
   add_btn_ = lv_button_create(parent);
-  lv_obj_align(add_btn_, LV_ALIGN_BOTTOM_MID, 0, -30);
+  lv_obj_align(add_btn_, LV_ALIGN_BOTTOM_MID, 0, -20);
   lv_obj_set_size(add_btn_, 160, 50);
   lv_obj_set_style_radius(add_btn_, theme::kButtonRadius, 0);
   lv_obj_set_style_bg_color(add_btn_, lv_color_hex(theme::kColorAccent), 0);

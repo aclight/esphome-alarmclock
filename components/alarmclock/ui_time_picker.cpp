@@ -17,7 +17,7 @@ static constexpr int16_t kPickerWidth = 700;
 static constexpr int16_t kPickerHeight = 440;
 static constexpr int16_t kRollerWidth = 80;
 static constexpr int16_t kRollerHeight = 150;
-static constexpr int16_t kDayBtnSize = 44;
+static constexpr int16_t kDayBtnSize = 50;
 static constexpr int16_t kLabelInputWidth = 300;
 static constexpr int16_t kLabelInputHeight = 40;
 static constexpr uint8_t kMaxLabelLen = 15;
@@ -35,8 +35,10 @@ static lv_obj_t *ampm_roller_ = nullptr;
 static lv_obj_t *day_btns_[7] = {};
 static lv_obj_t *label_input_ = nullptr;
 static lv_obj_t *confirm_btn_ = nullptr;
+static lv_obj_t *cancel_btn_ = nullptr;
 static lv_obj_t *delete_btn_ = nullptr;
 static lv_obj_t *delete_confirm_overlay_ = nullptr;
+static lv_obj_t *keyboard_ = nullptr;
 
 // Currently editing alarm index.
 static uint8_t editing_index_ = 0;
@@ -159,6 +161,26 @@ static void picker_backdrop_cb(lv_event_t *e) {
   // Only dismiss if clicking the backdrop itself, not child widgets.
   if (target == picker_overlay_) {
     ui_hide_time_picker();
+  }
+}
+
+static void cancel_btn_cb(lv_event_t *e) {
+  (void)e;
+  ui_hide_time_picker();
+}
+
+static void label_focus_cb(lv_event_t *e) {
+  (void)e;
+  if (keyboard_) {
+    lv_keyboard_set_textarea(keyboard_, label_input_);
+    lv_obj_clear_flag(keyboard_, LV_OBJ_FLAG_HIDDEN);
+  }
+}
+
+static void keyboard_ready_cb(lv_event_t *e) {
+  (void)e;
+  if (keyboard_) {
+    lv_obj_add_flag(keyboard_, LV_OBJ_FLAG_HIDDEN);
   }
 }
 
@@ -303,7 +325,7 @@ void ui_build_time_picker(lv_obj_t *parent) {
     day_btns_[d] = lv_button_create(panel);
     lv_obj_set_size(day_btns_[d], kDayBtnSize, kDayBtnSize);
     lv_obj_align(day_btns_[d], LV_ALIGN_TOP_LEFT,
-                 30 + d * (kDayBtnSize + 10), 200);
+                 30 + d * (kDayBtnSize + 8), 200);
     lv_obj_set_style_radius(day_btns_[d], kDayBtnSize / 2, 0);
     lv_obj_set_style_bg_color(day_btns_[d], lv_color_hex(theme::kColorMuted), 0);
     lv_obj_set_style_bg_color(day_btns_[d], lv_color_hex(theme::kColorAccent),
@@ -338,7 +360,7 @@ void ui_build_time_picker(lv_obj_t *parent) {
 
   // --- Confirm button ---
   confirm_btn_ = lv_button_create(panel);
-  lv_obj_set_size(confirm_btn_, 140, 50);
+  lv_obj_set_size(confirm_btn_, 120, 50);
   lv_obj_align(confirm_btn_, LV_ALIGN_BOTTOM_RIGHT, -10, -10);
   lv_obj_set_style_bg_color(confirm_btn_, lv_color_hex(theme::kColorAccent), 0);
   lv_obj_set_style_radius(confirm_btn_, theme::kButtonRadius, 0);
@@ -350,9 +372,23 @@ void ui_build_time_picker(lv_obj_t *parent) {
                               lv_color_hex(theme::kColorPrimary), 0);
   lv_label_set_text(confirm_label, "Save");
 
+  // --- Cancel button ---
+  cancel_btn_ = lv_button_create(panel);
+  lv_obj_set_size(cancel_btn_, 120, 50);
+  lv_obj_align(cancel_btn_, LV_ALIGN_BOTTOM_MID, 0, -10);
+  lv_obj_set_style_bg_color(cancel_btn_, lv_color_hex(theme::kColorMuted), 0);
+  lv_obj_set_style_radius(cancel_btn_, theme::kButtonRadius, 0);
+  lv_obj_add_event_cb(cancel_btn_, cancel_btn_cb, LV_EVENT_CLICKED, nullptr);
+
+  lv_obj_t *cancel_label = lv_label_create(cancel_btn_);
+  lv_obj_center(cancel_label);
+  lv_obj_set_style_text_color(cancel_label,
+                              lv_color_hex(theme::kColorPrimary), 0);
+  lv_label_set_text(cancel_label, "Cancel");
+
   // --- Delete button ---
   delete_btn_ = lv_button_create(panel);
-  lv_obj_set_size(delete_btn_, 140, 50);
+  lv_obj_set_size(delete_btn_, 120, 50);
   lv_obj_align(delete_btn_, LV_ALIGN_BOTTOM_LEFT, 10, -10);
   lv_obj_set_style_bg_color(delete_btn_, lv_color_hex(theme::kColorAlarmFiring), 0);
   lv_obj_set_style_radius(delete_btn_, theme::kButtonRadius, 0);
@@ -365,6 +401,17 @@ void ui_build_time_picker(lv_obj_t *parent) {
 
   // --- Delete confirmation sub-overlay ---
   build_delete_confirm(panel);
+
+  // --- On-screen keyboard for the label textarea ---
+  keyboard_ = lv_keyboard_create(picker_overlay_);
+  lv_obj_set_size(keyboard_, theme::kScreenWidth - 40, theme::kScreenHeight / 2);
+  lv_obj_align(keyboard_, LV_ALIGN_BOTTOM_MID, 0, 0);
+  lv_obj_add_flag(keyboard_, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_add_event_cb(keyboard_, keyboard_ready_cb, LV_EVENT_READY, nullptr);
+  lv_obj_add_event_cb(keyboard_, keyboard_ready_cb, LV_EVENT_CANCEL, nullptr);
+
+  // Show keyboard when label textarea gains focus.
+  lv_obj_add_event_cb(label_input_, label_focus_cb, LV_EVENT_FOCUSED, nullptr);
 }
 
 // ---------------------------------------------------------------------------
@@ -410,6 +457,9 @@ void ui_show_time_picker(uint8_t alarm_index, uint8_t hour, uint8_t minute,
 // Hide the time picker.
 // ---------------------------------------------------------------------------
 void ui_hide_time_picker() {
+  if (keyboard_) {
+    lv_obj_add_flag(keyboard_, LV_OBJ_FLAG_HIDDEN);
+  }
   if (picker_overlay_) {
     lv_obj_add_flag(picker_overlay_, LV_OBJ_FLAG_HIDDEN);
   }

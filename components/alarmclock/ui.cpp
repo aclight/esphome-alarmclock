@@ -18,7 +18,11 @@ static bool animating_ = false;
 
 // Touch tracking for swipe detection.
 static lv_coord_t touch_start_x_ = 0;
+static lv_coord_t touch_start_y_ = 0;
 static bool tracking_swipe_ = false;
+
+// Maximum vertical displacement to still count as a horizontal swipe.
+static constexpr lv_coord_t kSwipeMaxVertical = 40;
 
 // ---------------------------------------------------------------------------
 // Swipe gesture handler (attached to each page).
@@ -30,12 +34,19 @@ static void swipe_event_cb(lv_event_t *e) {
     lv_point_t point;
     lv_indev_get_point(lv_indev_get_act(), &point);
     touch_start_x_ = point.x;
+    touch_start_y_ = point.y;
     tracking_swipe_ = true;
   } else if (code == LV_EVENT_RELEASED && tracking_swipe_) {
     lv_point_t point;
     lv_indev_get_point(lv_indev_get_act(), &point);
     lv_coord_t dx = point.x - touch_start_x_;
+    lv_coord_t dy = point.y - touch_start_y_;
     tracking_swipe_ = false;
+
+    // Only trigger page switch for predominantly horizontal swipes.
+    if (dy < -kSwipeMaxVertical || dy > kSwipeMaxVertical) {
+      return;
+    }
 
     if (dx < -theme::kSwipeThreshold) {
       ui_next_page();
@@ -105,6 +116,9 @@ void ui_init() {
   ui_build_clock_page(pages_[theme::kPageClock]);
   ui_build_alarm_page(pages_[theme::kPageAlarms]);
   ui_build_settings_page(pages_[theme::kPageSettings]);
+
+  // Enable scrolling on the settings page so all controls are reachable.
+  lv_obj_add_flag(pages_[theme::kPageSettings], LV_OBJ_FLAG_SCROLLABLE);
 
   // Create firing overlay (hidden by default, shown above everything).
   firing_overlay_ = lv_obj_create(scr);
