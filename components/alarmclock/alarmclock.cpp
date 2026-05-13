@@ -150,6 +150,15 @@ void AlarmClockComponent::setup() {
 }
 
 void AlarmClockComponent::loop() {
+  // Flush deferred NVS writes (debounce slider drags).
+  if (settings_dirty_) {
+    uint32_t now_ms = ::esphome::millis();
+    if (now_ms - settings_dirty_ms_ >= kSettingsDebouncePeriodMs) {
+      settings_dirty_ = false;
+      save_settings_to_storage_();
+    }
+  }
+
   // Check screen sleep/wake state based on LVGL inactivity.
   check_screen_sleep_();
 
@@ -186,6 +195,12 @@ void AlarmClockComponent::loop() {
       // Snooze expired — alarm fires again.
       start_alarm_sound_();
       ui_show_firing_overlay();
+      ui_firing_start_animation();
+      ui_firing_update_time(last_known_hour_, last_known_minute_,
+                            time_format_24h_);
+      if (fired_alarm_index_ < kMaxAlarms) {
+        ui_firing_update_label(alarms_[fired_alarm_index_].label);
+      }
       fire_ha_event_("esphome.alarm_fired");
     }
   }
@@ -336,7 +351,7 @@ void AlarmClockComponent::set_volume(float volume) {
   if (volume < 0.0f) { volume = 0.0f; }
   if (volume > 1.0f) { volume = 1.0f; }
   volume_ = volume;
-  save_settings_to_storage_();
+  mark_settings_dirty_();
   ui_update_volume(volume);
   // TODO: Apply to speaker/RTTTL gain.
 }
@@ -345,7 +360,7 @@ void AlarmClockComponent::set_brightness(float brightness) {
   if (brightness < 0.0f) { brightness = 0.0f; }
   if (brightness > 1.0f) { brightness = 1.0f; }
   brightness_ = brightness;
-  save_settings_to_storage_();
+  mark_settings_dirty_();
   update_backlight_();
   ui_update_brightness(brightness);
 }
@@ -397,6 +412,10 @@ void AlarmClockComponent::set_pre_alarm_option(uint8_t option_index) {
 
 void AlarmClockComponent::check_alarms_(uint8_t hour, uint8_t minute,
                                         uint8_t day_of_week) {
+  // Store the latest time for use in loop() (e.g., snooze re-fire overlay).
+  last_known_hour_ = hour;
+  last_known_minute_ = minute;
+
   // Called every second from the YAML interval; skip if minute hasn't changed.
   if (minute == last_checked_minute_) {
     return;
@@ -633,6 +652,11 @@ void AlarmClockComponent::save_settings_to_storage_() {
   settings.selected_sound_index = selected_sound_index_;
   settings.pre_alarm_minutes = pre_alarm_minutes_;
   alarm_clock::storage_save_settings(settings);
+}
+
+void AlarmClockComponent::mark_settings_dirty_() {
+  settings_dirty_ = true;
+  settings_dirty_ms_ = ::esphome::millis();
 }
 
 void AlarmClockComponent::load_from_storage_() {

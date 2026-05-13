@@ -150,6 +150,10 @@ static constexpr uint32_t kScreenIdleTimeoutMs = 30000;
 // This results in a sensor-based minimum brightness.
 static constexpr float kSleepUserLevel = 0.0f;
 
+// Minimum delay between NVS settings writes (milliseconds).
+// Prevents flash wear from continuous slider drag events.
+static constexpr uint32_t kSettingsDebouncePeriodMs = 2000;
+
 // ---------------------------------------------------------------------------
 // Brightness control constants.
 // ---------------------------------------------------------------------------
@@ -578,9 +582,15 @@ class AlarmClockComponent : public ::esphome::Component,
   // Timing.
   uint32_t last_minute_check_ms_ = 0;
   uint8_t last_checked_minute_ = 0xFF;
+  uint8_t last_known_hour_ = 0;
+  uint8_t last_known_minute_ = 0;
 
   // Screen sleep state.
   bool screen_asleep_ = false;
+
+  // NVS write debouncing.
+  bool settings_dirty_ = false;
+  uint32_t settings_dirty_ms_ = 0;
 
   // Internal helpers.
   void update_backlight_();
@@ -593,6 +603,7 @@ class AlarmClockComponent : public ::esphome::Component,
   void auto_disable_one_shot_alarm_();
   void save_alarms_to_storage_();
   void save_settings_to_storage_();
+  void mark_settings_dirty_();
   void load_from_storage_();
   void update_next_alarm_display_(uint8_t hour, uint8_t minute,
                                   uint8_t day_of_week);
