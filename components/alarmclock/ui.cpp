@@ -170,6 +170,9 @@ void ui_show_page(uint8_t page_index) {
   current_page_ = page_index;
   animating_ = true;
 
+  // Update page indicator dots.
+  ui_update_page_dots(page_index);
+
   // Position new page at the off-screen start and make visible.
   lv_obj_set_x(new_page, new_start);
   lv_obj_clear_flag(new_page, LV_OBJ_FLAG_HIDDEN);

@@ -3,6 +3,7 @@
 
 #include "ui.h"
 #include "ui_theme.h"
+#include "alarmclock.h"
 #include "lvgl.h"
 #include <cstdio>
 
@@ -112,17 +113,13 @@ void ui_build_firing_overlay(lv_obj_t *parent) {
 // ---------------------------------------------------------------------------
 // Public: update the firing overlay time display.
 // ---------------------------------------------------------------------------
-void ui_firing_update_time(uint8_t hour, uint8_t minute) {
+void ui_firing_update_time(uint8_t hour, uint8_t minute,
+                           bool time_format_24h) {
   if (!firing_time_label_) {
     return;
   }
-  const char *ampm = (hour >= 12) ? "PM" : "AM";
-  uint8_t display_hour = hour % 12;
-  if (display_hour == 0) {
-    display_hour = 12;
-  }
   char buf[12];
-  snprintf(buf, sizeof(buf), "%d:%02d %s", display_hour, minute, ampm);
+  format_clock_time(hour, minute, time_format_24h, buf, sizeof(buf));
   lv_label_set_text(firing_time_label_, buf);
 }
 

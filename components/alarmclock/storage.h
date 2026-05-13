@@ -16,11 +16,11 @@ namespace alarm_clock {
 // ---------------------------------------------------------------------------
 
 // Current format version — bump when the layout changes.
-static constexpr uint8_t kStorageVersion = 1;
+static constexpr uint8_t kStorageVersion = 2;
 
 // Serialized sizes (including the version byte).
 static constexpr size_t kSerializedAlarmSize = 1 + 1 + 1 + 1 + 1 + kAlarmLabelMaxLen;  // 21
-static constexpr size_t kSerializedSettingsSize = 1 + 4 + 4 + 1 + 1 + 1;               // 12
+static constexpr size_t kSerializedSettingsSize = 1 + 4 + 4 + 1 + 1 + 1 + 1;               // 13
 
 // ---------------------------------------------------------------------------
 // Global settings stored in NVS.
@@ -32,6 +32,7 @@ struct StorageSettings {
   uint8_t snooze_duration_minutes = 9;
   bool time_format_24h = false;
   uint8_t selected_sound_index = 0;
+  uint8_t pre_alarm_minutes = 5;
 };
 
 // ---------------------------------------------------------------------------
@@ -91,6 +92,7 @@ inline size_t serialize_settings(const StorageSettings &settings, uint8_t *buf,
   buf[offset++] = settings.snooze_duration_minutes;
   buf[offset++] = settings.time_format_24h ? 1 : 0;
   buf[offset++] = settings.selected_sound_index;
+  buf[offset++] = settings.pre_alarm_minutes;
   return offset;
 }
 
@@ -113,6 +115,7 @@ inline bool deserialize_settings(const uint8_t *buf, size_t buf_size,
   settings->snooze_duration_minutes = buf[offset++];
   settings->time_format_24h = buf[offset++] != 0;
   settings->selected_sound_index = buf[offset++];
+  settings->pre_alarm_minutes = buf[offset++];
   return true;
 }
 

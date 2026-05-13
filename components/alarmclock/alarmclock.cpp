@@ -80,6 +80,12 @@ static void on_time_format_change(bool time_format_24h) {
   }
 }
 
+static void on_pre_alarm_change(uint8_t option_index) {
+  if (instance_) {
+    instance_->set_pre_alarm_option(option_index);
+  }
+}
+
 static void on_alarm_edit(uint8_t index) {
   if (instance_) {
     instance_->edit_alarm(index);
@@ -130,6 +136,7 @@ void AlarmClockComponent::setup() {
   cb.on_sound_change = on_sound_change;
   cb.on_snooze_duration_change = on_snooze_duration_change;
   cb.on_time_format_change = on_time_format_change;
+  cb.on_pre_alarm_change = on_pre_alarm_change;
   ui_set_callbacks(cb);
 
   // Build the UI (LVGL must already be initialized by the lvgl: component).
@@ -167,6 +174,9 @@ void AlarmClockComponent::loop() {
       stop_alarm_sound_();
       ui_hide_firing_overlay();
       ui_firing_stop_animation();
+      if (fired_alarm_index_ < kMaxAlarms) {
+        ui_clear_alarm_row_firing(fired_alarm_index_);
+      }
       auto_disable_one_shot_alarm_();
       fired_alarm_index_ = 0xFF;
       fire_ha_event_("esphome.alarm_dismissed");
@@ -207,7 +217,7 @@ void AlarmClockComponent::set_alarm(uint8_t index, uint8_t hour, uint8_t minute,
 
   // Update the UI alarm list.
   ui_update_alarm_row(index, hour, minute, days_mask, enabled,
-                      alarms_[index].label);
+                      time_format_24h_, alarms_[index].label);
 
   ESP_LOGI(TAG, "Alarm %d set: %02d:%02d days=0x%02X enabled=%d label='%s'",
            index, hour, minute, days_mask, enabled, alarms_[index].label);
@@ -221,7 +231,7 @@ void AlarmClockComponent::enable_alarm(uint8_t index, bool enabled) {
   alarm_clock::storage_save_alarm(index, alarms_[index]);
   ui_update_alarm_row(index, alarms_[index].hour, alarms_[index].minute,
                       alarms_[index].days_of_week, enabled,
-                      alarms_[index].label);
+                      time_format_24h_, alarms_[index].label);
 }
 
 void AlarmClockComponent::update_alarm_time(uint8_t index, uint8_t hour,
@@ -234,7 +244,8 @@ void AlarmClockComponent::update_alarm_time(uint8_t index, uint8_t hour,
   alarms_[index].enabled = true;
   alarm_clock::storage_save_alarm(index, alarms_[index]);
   ui_update_alarm_row(index, hour, minute, alarms_[index].days_of_week,
-                      alarms_[index].enabled, alarms_[index].label);
+                      alarms_[index].enabled, time_format_24h_,
+                      alarms_[index].label);
   ESP_LOGI(TAG, "Alarm %d time updated: %02d:%02d", index, hour, minute);
 }
 
@@ -245,7 +256,8 @@ void AlarmClockComponent::update_alarm_days(uint8_t index, uint8_t days_mask) {
   alarms_[index].days_of_week = days_mask;
   alarm_clock::storage_save_alarm(index, alarms_[index]);
   ui_update_alarm_row(index, alarms_[index].hour, alarms_[index].minute,
-                      days_mask, alarms_[index].enabled, alarms_[index].label);
+                      days_mask, alarms_[index].enabled, time_format_24h_,
+                      alarms_[index].label);
   ESP_LOGI(TAG, "Alarm %d days updated: 0x%02X", index, days_mask);
 }
 
@@ -257,7 +269,7 @@ void AlarmClockComponent::update_alarm_label(uint8_t index, const char *label) {
   alarm_clock::storage_save_alarm(index, alarms_[index]);
   ui_update_alarm_row(index, alarms_[index].hour, alarms_[index].minute,
                       alarms_[index].days_of_week, alarms_[index].enabled,
-                      alarms_[index].label);
+                      time_format_24h_, alarms_[index].label);
   ESP_LOGI(TAG, "Alarm %d label updated: '%s'", index, alarms_[index].label);
 }
 
@@ -286,6 +298,9 @@ void AlarmClockComponent::dismiss_alarm() {
   stop_alarm_sound_();
   ui_hide_firing_overlay();
   ui_firing_stop_animation();
+  if (fired_alarm_index_ < kMaxAlarms) {
+    ui_clear_alarm_row_firing(fired_alarm_index_);
+  }
   auto_disable_one_shot_alarm_();
   fired_alarm_index_ = 0xFF;
   fire_ha_event_("esphome.alarm_dismissed");
@@ -304,6 +319,9 @@ void AlarmClockComponent::snooze_alarm() {
     ESP_LOGI(TAG, "Max snoozes reached, dismissed");
     ui_hide_firing_overlay();
     ui_firing_stop_animation();
+    if (fired_alarm_index_ < kMaxAlarms) {
+      ui_clear_alarm_row_firing(fired_alarm_index_);
+    }
     auto_disable_one_shot_alarm_();
     fired_alarm_index_ = 0xFF;
     fire_ha_event_("esphome.alarm_dismissed");
@@ -361,7 +379,16 @@ void AlarmClockComponent::set_time_format_24h(bool time_format_24h) {
   time_format_24h_ = time_format_24h;
   save_settings_to_storage_();
   ui_update_time_format(time_format_24h);
+  // Re-sync alarm rows and firing overlay with new format.
+  sync_ui_();
   ESP_LOGI(TAG, "Time format set to %s", time_format_24h ? "24h" : "12h");
+}
+
+void AlarmClockComponent::set_pre_alarm_option(uint8_t option_index) {
+  pre_alarm_minutes_ = pre_alarm_option_to_minutes(option_index);
+  save_settings_to_storage_();
+  ui_update_pre_alarm_selection(option_index);
+  ESP_LOGI(TAG, "Pre-alarm set to %d minutes", pre_alarm_minutes_);
 }
 
 // ---------------------------------------------------------------------------
@@ -405,8 +432,9 @@ void AlarmClockComponent::check_alarms_(uint8_t hour, uint8_t minute,
       start_alarm_sound_();
       ui_show_firing_overlay();
       ui_firing_start_animation();
-      ui_firing_update_time(hour, minute);
+      ui_firing_update_time(hour, minute, time_format_24h_);
       ui_firing_update_label(alarms_[pending].label);
+      ui_set_alarm_row_firing(pending);
       fire_ha_event_("esphome.alarm_fired");
       return;
     }
@@ -420,8 +448,9 @@ void AlarmClockComponent::check_alarms_(uint8_t hour, uint8_t minute,
       start_alarm_sound_();
       ui_show_firing_overlay();
       ui_firing_start_animation();
-      ui_firing_update_time(hour, minute);
+      ui_firing_update_time(hour, minute, time_format_24h_);
       ui_firing_update_label(alarms_[i].label);
+      ui_set_alarm_row_firing(i);
       fire_ha_event_("esphome.alarm_fired");
       break;
     }
@@ -463,7 +492,12 @@ void AlarmClockComponent::start_alarm_sound_() {
   ESP_LOGI(TAG, "Starting alarm sound (volume=%.0f%%)", volume_ * 100);
   alarm_sound_active_ = true;
   alarm_pause_active_ = false;
-  alarm_sound_start_ms_ = ::esphome::millis();
+  // On snooze re-fire, skip the volume ramp — user is already aware.
+  if (state_machine_.snooze_count() > 0) {
+    alarm_sound_start_ms_ = ::esphome::millis() - kVolumeRampDurationMs;
+  } else {
+    alarm_sound_start_ms_ = ::esphome::millis();
+  }
   play_alarm_melody_();
 }
 
@@ -507,7 +541,7 @@ void AlarmClockComponent::sync_ui_() {
         alarms_[i].hour != 0 || alarms_[i].minute != 0) {
       ui_update_alarm_row(i, alarms_[i].hour, alarms_[i].minute,
                           alarms_[i].days_of_week, alarms_[i].enabled,
-                          alarms_[i].label);
+                          time_format_24h_, alarms_[i].label);
     }
   }
   ui_update_volume(volume_);
@@ -516,6 +550,7 @@ void AlarmClockComponent::sync_ui_() {
   ui_update_snooze_selection(
       snooze_minutes_to_option(state_machine_.snooze_duration_minutes()));
   ui_update_time_format(time_format_24h_);
+  ui_update_pre_alarm_selection(pre_alarm_minutes_to_option(pre_alarm_minutes_));
 }
 
 void AlarmClockComponent::fire_ha_event_(const char *event_type) {
@@ -550,6 +585,7 @@ void AlarmClockComponent::auto_disable_one_shot_alarm_() {
                       alarms_[fired_alarm_index_].minute,
                       alarms_[fired_alarm_index_].days_of_week,
                       false,
+                      time_format_24h_,
                       alarms_[fired_alarm_index_].label);
 }
 
@@ -563,14 +599,15 @@ void AlarmClockComponent::update_next_alarm_display_(uint8_t hour,
   // Update next alarm text.
   if (idx >= 0 && minutes_until > 0) {
     char buf[64];
-    format_next_alarm_text(alarms_[idx], minutes_until, buf, sizeof(buf));
+    format_next_alarm_text(alarms_[idx], minutes_until, time_format_24h_,
+                           buf, sizeof(buf));
     ui_update_next_alarm(buf);
   } else {
     ui_update_next_alarm("");
   }
 
-  // Update pre-alarm banner (show when within kPreAlarmMinutes).
-  if (idx >= 0 && minutes_until > 0 && minutes_until <= kPreAlarmMinutes &&
+  // Update pre-alarm banner (show when within pre_alarm_minutes_).
+  if (idx >= 0 && minutes_until > 0 && minutes_until <= pre_alarm_minutes_ &&
       state_machine_.state() == alarm_clock::AlarmState::kIdle) {
     char buf[48];
     format_pre_alarm_text(static_cast<uint16_t>(minutes_until),
@@ -594,6 +631,7 @@ void AlarmClockComponent::save_settings_to_storage_() {
   settings.snooze_duration_minutes = state_machine_.snooze_duration_minutes();
   settings.time_format_24h = time_format_24h_;
   settings.selected_sound_index = selected_sound_index_;
+  settings.pre_alarm_minutes = pre_alarm_minutes_;
   alarm_clock::storage_save_settings(settings);
 }
 
@@ -628,6 +666,7 @@ void AlarmClockComponent::load_from_storage_() {
     state_machine_.set_snooze_duration(settings.snooze_duration_minutes);
     selected_sound_index_ = settings.selected_sound_index;
     time_format_24h_ = settings.time_format_24h;
+    pre_alarm_minutes_ = settings.pre_alarm_minutes;
     ESP_LOGI(TAG, "Loaded settings from NVS");
   }
 

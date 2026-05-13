@@ -24,6 +24,7 @@ static lv_obj_t *sound_roller_ = nullptr;
 static lv_obj_t *snooze_roller_ = nullptr;
 static lv_obj_t *time_format_switch_ = nullptr;
 static lv_obj_t *time_format_label_ = nullptr;
+static lv_obj_t *pre_alarm_roller_ = nullptr;
 
 // ---------------------------------------------------------------------------
 // Event handlers.
@@ -92,6 +93,15 @@ static void time_format_switch_cb(lv_event_t *e) {
   }
 }
 
+static void pre_alarm_dropdown_cb(lv_event_t *e) {
+  lv_obj_t *roller = static_cast<lv_obj_t *>(lv_event_get_target(e));
+  uint32_t sel = lv_roller_get_selected(roller);
+  const auto &cb = ui_get_callbacks();
+  if (cb.on_pre_alarm_change) {
+    cb.on_pre_alarm_change(static_cast<uint8_t>(sel));
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Build the settings page.
 // ---------------------------------------------------------------------------
@@ -119,6 +129,7 @@ void ui_build_settings_page(lv_obj_t *parent) {
   lv_obj_set_style_bg_color(volume_slider_, lv_color_hex(theme::kColorAccent), LV_PART_INDICATOR);
   lv_obj_set_style_bg_color(volume_slider_, lv_color_hex(theme::kColorPrimary), LV_PART_KNOB);
   lv_obj_add_event_cb(volume_slider_, volume_slider_cb, LV_EVENT_VALUE_CHANGED, nullptr);
+  lv_obj_set_style_pad_all(volume_slider_, 8, LV_PART_KNOB);
 
   volume_label_ = lv_label_create(parent);
   lv_obj_align(volume_label_, LV_ALIGN_TOP_RIGHT, -30, 98);
@@ -142,6 +153,7 @@ void ui_build_settings_page(lv_obj_t *parent) {
   lv_obj_set_style_bg_color(brightness_slider_, lv_color_hex(theme::kColorAccent), LV_PART_INDICATOR);
   lv_obj_set_style_bg_color(brightness_slider_, lv_color_hex(theme::kColorPrimary), LV_PART_KNOB);
   lv_obj_add_event_cb(brightness_slider_, brightness_slider_cb, LV_EVENT_VALUE_CHANGED, nullptr);
+  lv_obj_set_style_pad_all(brightness_slider_, 8, LV_PART_KNOB);
 
   brightness_label_ = lv_label_create(parent);
   lv_obj_align(brightness_label_, LV_ALIGN_TOP_RIGHT, -30, 188);
@@ -215,6 +227,22 @@ void ui_build_settings_page(lv_obj_t *parent) {
   lv_obj_set_style_text_font(time_format_label_, &lv_font_montserrat_18, 0);
   lv_obj_set_style_text_color(time_format_label_, lv_color_hex(theme::kColorPrimary), 0);
   lv_label_set_text(time_format_label_, "12h");
+
+  // --- Pre-alarm notification section ---
+  lv_obj_t *pre_alarm_title = lv_label_create(parent);
+  lv_obj_align(pre_alarm_title, LV_ALIGN_TOP_LEFT, 30, 500);
+  lv_obj_set_style_text_font(pre_alarm_title, &lv_font_montserrat_18, 0);
+  lv_obj_set_style_text_color(pre_alarm_title, lv_color_hex(theme::kColorSecondary), 0);
+  lv_label_set_text(pre_alarm_title, "Pre-alarm Alert");
+
+  pre_alarm_roller_ = lv_roller_create(parent);
+  lv_roller_set_options(pre_alarm_roller_, "Off\n5 min\n10 min\n15 min", LV_ROLLER_MODE_NORMAL);
+  lv_roller_set_selected(pre_alarm_roller_, 1, LV_ANIM_OFF);  // default: 5 min
+  lv_obj_set_width(pre_alarm_roller_, theme::kScreenWidth - 60);
+  lv_obj_align(pre_alarm_roller_, LV_ALIGN_TOP_LEFT, 30, 530);
+  lv_obj_set_style_text_font(pre_alarm_roller_, &lv_font_montserrat_18, 0);
+  lv_roller_set_visible_row_count(pre_alarm_roller_, 2);
+  lv_obj_add_event_cb(pre_alarm_roller_, pre_alarm_dropdown_cb, LV_EVENT_VALUE_CHANGED, nullptr);
 }
 
 // ---------------------------------------------------------------------------
@@ -270,6 +298,15 @@ void ui_update_time_format(bool time_format_24h) {
   }
   if (time_format_label_) {
     lv_label_set_text(time_format_label_, time_format_24h ? "24h" : "12h");
+  }
+}
+
+void ui_update_pre_alarm_selection(uint8_t option_index) {
+  if (pre_alarm_roller_) {
+    if (option_index >= kPreAlarmOptionCount) {
+      option_index = 1;  // default: 5 min
+    }
+    lv_roller_set_selected(pre_alarm_roller_, option_index, LV_ANIM_OFF);
   }
 }
 
