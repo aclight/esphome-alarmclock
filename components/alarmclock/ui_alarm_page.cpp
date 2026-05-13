@@ -12,7 +12,6 @@ namespace alarmclock {
 // ---------------------------------------------------------------------------
 // Constants.
 // ---------------------------------------------------------------------------
-static constexpr uint8_t kMaxAlarms = 4;
 static constexpr int16_t kAlarmRowHeight = 80;
 static constexpr int16_t kAlarmRowGap = 6;
 static constexpr int16_t kAlarmListStartY = 50;
