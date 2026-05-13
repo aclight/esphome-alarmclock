@@ -3,6 +3,7 @@
 
 #include "ui.h"
 #include "ui_theme.h"
+#include "alarmclock.h"
 #include "lvgl.h"
 #include <cstdio>
 
@@ -103,14 +104,14 @@ void ui_build_alarm_page(lv_obj_t *parent) {
     // Alarm label (e.g. "Work").
     row.alarm_label = lv_label_create(row.container);
     lv_obj_align(row.alarm_label, LV_ALIGN_LEFT_MID, 15, 15);
-    lv_obj_set_style_text_font(row.alarm_label, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(row.alarm_label, &lv_font_montserrat_18, 0);
     lv_obj_set_style_text_color(row.alarm_label, lv_color_hex(theme::kColorAccent), 0);
     lv_label_set_text(row.alarm_label, "");
 
     // Days label (e.g. "Mon Tue Wed Thu Fri").
     row.days_label = lv_label_create(row.container);
     lv_obj_align(row.days_label, LV_ALIGN_LEFT_MID, 15, 32);
-    lv_obj_set_style_text_font(row.days_label, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(row.days_label, &lv_font_montserrat_18, 0);
     lv_obj_set_style_text_color(row.days_label, lv_color_hex(theme::kColorSecondary), 0);
     lv_label_set_text(row.days_label, "");
 
@@ -147,6 +148,7 @@ void ui_build_alarm_page(lv_obj_t *parent) {
 // days_mask uses DayOfWeek flags from alarm_time.h.
 void ui_update_alarm_row(uint8_t index, uint8_t hour, uint8_t minute,
                          uint8_t days_mask, bool enabled,
+                         bool time_format_24h,
                          const char *label) {
   if (index >= kMaxAlarms) {
     return;
@@ -154,14 +156,9 @@ void ui_update_alarm_row(uint8_t index, uint8_t hour, uint8_t minute,
   AlarmRow &row = alarm_rows_[index];
   lv_obj_clear_flag(row.container, LV_OBJ_FLAG_HIDDEN);
 
-  // Format time.
-  const char *ampm = (hour >= 12) ? "PM" : "AM";
-  uint8_t display_hour = hour % 12;
-  if (display_hour == 0) {
-    display_hour = 12;
-  }
+  // Format time using the user's preferred format.
   char buf[12];
-  snprintf(buf, sizeof(buf), "%d:%02d %s", display_hour, minute, ampm);
+  format_clock_time(hour, minute, time_format_24h, buf, sizeof(buf));
   lv_label_set_text(row.time_label, buf);
 
   // Show alarm label (e.g. "Work").
@@ -173,19 +170,24 @@ void ui_update_alarm_row(uint8_t index, uint8_t hour, uint8_t minute,
 
   // Format days.
   static const char *kShortDays[] = {"Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"};
-  char days_buf[22] = "";
-  int pos = 0;
-  for (uint8_t d = 0; d < 7; d++) {
-    if (days_mask & (1 << d)) {
-      if (pos > 0) {
-        days_buf[pos++] = ' ';
+  if (days_mask == 0) {
+    // One-shot alarm — show "Once" indicator.
+    lv_label_set_text(row.days_label, "Once");
+  } else {
+    char days_buf[22] = "";
+    int pos = 0;
+    for (uint8_t d = 0; d < 7; d++) {
+      if (days_mask & (1 << d)) {
+        if (pos > 0) {
+          days_buf[pos++] = ' ';
+        }
+        days_buf[pos++] = kShortDays[d][0];
+        days_buf[pos++] = kShortDays[d][1];
       }
-      days_buf[pos++] = kShortDays[d][0];
-      days_buf[pos++] = kShortDays[d][1];
     }
+    days_buf[pos] = '\0';
+    lv_label_set_text(row.days_label, days_buf);
   }
-  days_buf[pos] = '\0';
-  lv_label_set_text(row.days_label, days_buf);
 
   // Toggle state.
   if (enabled) {
@@ -201,6 +203,28 @@ void ui_hide_alarm_row(uint8_t index) {
     return;
   }
   lv_obj_add_flag(alarm_rows_[index].container, LV_OBJ_FLAG_HIDDEN);
+}
+
+// Highlight an alarm row to indicate it is currently firing.
+void ui_set_alarm_row_firing(uint8_t index) {
+  if (index >= kMaxAlarms) {
+    return;
+  }
+  lv_obj_set_style_bg_color(alarm_rows_[index].container,
+                            lv_color_hex(0x331111), 0);
+  lv_obj_set_style_border_width(alarm_rows_[index].container, 2, 0);
+  lv_obj_set_style_border_color(alarm_rows_[index].container,
+                                lv_color_hex(theme::kColorAlarmFiring), 0);
+}
+
+// Clear the firing highlight on an alarm row.
+void ui_clear_alarm_row_firing(uint8_t index) {
+  if (index >= kMaxAlarms) {
+    return;
+  }
+  lv_obj_set_style_bg_color(alarm_rows_[index].container,
+                            lv_color_hex(0x111111), 0);
+  lv_obj_set_style_border_width(alarm_rows_[index].container, 0, 0);
 }
 
 }  // namespace alarmclock

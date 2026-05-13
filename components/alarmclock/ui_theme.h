@@ -24,10 +24,10 @@ static constexpr int16_t kScreenWidth = 800;
 static constexpr int16_t kScreenHeight = 480;
 
 // Clock page.
-static constexpr int16_t kClockTimeY = -40;    // Time label Y offset from center.
-static constexpr int16_t kClockDateY = 30;     // Date label Y offset from center.
-static constexpr int16_t kClockAlarmY = 70;    // Next-alarm label Y offset.
-static constexpr int16_t kClockPreAlarmY = 110; // Pre-alarm banner Y offset.
+static constexpr int16_t kClockTimeY = -60;    // Time label Y offset from center.
+static constexpr int16_t kClockDateY = 60;     // Date label Y offset from center.
+static constexpr int16_t kClockAlarmY = 100;   // Next-alarm label Y offset.
+static constexpr int16_t kClockPreAlarmY = 140; // Pre-alarm banner Y offset.
 
 // Navigation.
 static constexpr int16_t kSwipeThreshold = 80;  // Pixels to trigger page switch.

@@ -39,12 +39,16 @@ void ui_update_volume(float volume);
 void ui_update_sound_selection(uint8_t sound_index);
 void ui_update_snooze_selection(uint8_t option_index);
 void ui_update_time_format(bool time_format_24h);
+void ui_update_pre_alarm_selection(uint8_t option_index);
 
 // Alarm list management.
 void ui_update_alarm_row(uint8_t index, uint8_t hour, uint8_t minute,
                          uint8_t days_mask, bool enabled,
+                         bool time_format_24h = false,
                          const char *label = nullptr);
 void ui_hide_alarm_row(uint8_t index);
+void ui_set_alarm_row_firing(uint8_t index);
+void ui_clear_alarm_row_firing(uint8_t index);
 
 // Time picker (alarm edit overlay).
 void ui_build_time_picker(lv_obj_t *parent);
@@ -53,7 +57,8 @@ void ui_show_time_picker(uint8_t alarm_index, uint8_t hour, uint8_t minute,
 void ui_hide_time_picker();
 
 // Firing overlay animation.
-void ui_firing_update_time(uint8_t hour, uint8_t minute);
+void ui_firing_update_time(uint8_t hour, uint8_t minute,
+                           bool time_format_24h = false);
 void ui_firing_update_label(const char *label);
 void ui_firing_start_animation();
 void ui_firing_stop_animation();
@@ -74,6 +79,7 @@ struct UiCallbacks {
   void (*on_sound_change)(uint8_t sound_index) = nullptr;
   void (*on_snooze_duration_change)(uint8_t option_index) = nullptr;
   void (*on_time_format_change)(bool time_format_24h) = nullptr;
+  void (*on_pre_alarm_change)(uint8_t option_index) = nullptr;
 };
 
 void ui_set_callbacks(const UiCallbacks &cb);

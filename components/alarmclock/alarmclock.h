@@ -5,6 +5,7 @@
 #define ALARMCLOCK_H
 
 #include <climits>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <utility>
@@ -267,10 +268,10 @@ inline uint8_t brightness_to_pwm(float brightness) {
 // fades toward dark gray.  This extends the perceived dynamic range beyond what
 // the backlight PWM alone can achieve.
 //
-// The mapping uses a power curve so that the color stays mostly white in the
+// The mapping uses a sqrt curve so that the color stays mostly white in the
 // upper half and falls off more aggressively in the lower half:
 //   brightness 1.0 → 0xFF (white)
-//   brightness 0.5 → ~0xB4
+//   brightness 0.5 → ~0xBC
 //   brightness 0.0 → 0x1A (very dark gray, not pure black)
 inline uint32_t compute_content_color(float brightness) {
   if (brightness >= 1.0f) {
@@ -281,7 +282,7 @@ inline uint32_t compute_content_color(float brightness) {
   }
   // Map brightness (0–1) to a channel value (26–255).
   // Use sqrt curve so color stays bright longer and drops at low end.
-  float t = brightness * brightness;  // quadratic falloff
+  float t = sqrtf(brightness);
   uint8_t ch = static_cast<uint8_t>(26.0f + t * (255.0f - 26.0f));
   return (static_cast<uint32_t>(ch) << 16) |
          (static_cast<uint32_t>(ch) << 8) |
@@ -342,7 +343,29 @@ inline size_t format_clock_time(uint8_t hour, uint8_t minute,
 // ---------------------------------------------------------------------------
 // Pre-alarm notification threshold (minutes before alarm).
 // ---------------------------------------------------------------------------
-static constexpr uint8_t kPreAlarmMinutes = 5;
+static constexpr uint8_t kDefaultPreAlarmMinutes = 5;
+static constexpr uint8_t kPreAlarmOptionCount = 4;
+static constexpr uint8_t kPreAlarmOptions[kPreAlarmOptionCount] = {0, 5, 10, 15};
+
+// Convert a pre-alarm option index to minutes.
+// Returns the default (5 min) if index is out of range.
+inline uint8_t pre_alarm_option_to_minutes(uint8_t option_index) {
+  if (option_index >= kPreAlarmOptionCount) {
+    return kPreAlarmOptions[1];  // default: 5 min
+  }
+  return kPreAlarmOptions[option_index];
+}
+
+// Find the option index for a given pre-alarm duration in minutes.
+// Returns the index, or 1 (default = 5 min) if not found.
+inline uint8_t pre_alarm_minutes_to_option(uint8_t minutes) {
+  for (uint8_t i = 0; i < kPreAlarmOptionCount; ++i) {
+    if (kPreAlarmOptions[i] == minutes) {
+      return i;
+    }
+  }
+  return 1;  // default: index 1 = 5 min
+}
 
 // Maximum number of configurable alarms (used by pure functions too).
 static constexpr uint8_t kMaxAlarmsCount = 4;
@@ -377,17 +400,20 @@ inline int8_t find_next_alarm_index(const alarm_clock::AlarmTime *alarms,
 }
 
 // Format the "next alarm" display string.
-// Output example: "7:00 AM — Work (in 6h 30m)" or "7:00 AM (in 6h 30m)"
+// Output example: "7:00 AM — Work (in 6h 30m)" or "07:00 — Work (in 6h 30m)"
 // Returns the number of characters written (excluding null terminator).
 inline size_t format_next_alarm_text(const alarm_clock::AlarmTime &alarm,
-                                     int32_t minutes_until, char *buf,
+                                     int32_t minutes_until,
+                                     bool time_format_24h, char *buf,
                                      size_t buf_size) {
   if (buf == nullptr || buf_size == 0) {
     return 0;
   }
 
-  auto [h12, is_pm] = hour_24_to_12(alarm.hour);
-  const char *ampm = is_pm ? "PM" : "AM";
+  // Format the time portion.
+  char time_str[12];
+  format_clock_time(alarm.hour, alarm.minute, time_format_24h, time_str,
+                    sizeof(time_str));
 
   uint16_t hours = static_cast<uint16_t>(minutes_until / 60);
   uint16_t mins = static_cast<uint16_t>(minutes_until % 60);
@@ -395,19 +421,19 @@ inline size_t format_next_alarm_text(const alarm_clock::AlarmTime &alarm,
   int written;
   if (alarm.label[0] != '\0') {
     if (hours > 0) {
-      written = snprintf(buf, buf_size, "%d:%02d %s \xe2\x80\x94 %s (in %uh %um)",
-                         h12, alarm.minute, ampm, alarm.label, hours, mins);
+      written = snprintf(buf, buf_size, "%s \xe2\x80\x94 %s (in %uh %um)",
+                         time_str, alarm.label, hours, mins);
     } else {
-      written = snprintf(buf, buf_size, "%d:%02d %s \xe2\x80\x94 %s (in %um)",
-                         h12, alarm.minute, ampm, alarm.label, mins);
+      written = snprintf(buf, buf_size, "%s \xe2\x80\x94 %s (in %um)",
+                         time_str, alarm.label, mins);
     }
   } else {
     if (hours > 0) {
-      written = snprintf(buf, buf_size, "%d:%02d %s (in %uh %um)",
-                         h12, alarm.minute, ampm, hours, mins);
+      written = snprintf(buf, buf_size, "%s (in %uh %um)",
+                         time_str, hours, mins);
     } else {
-      written = snprintf(buf, buf_size, "%d:%02d %s (in %um)",
-                         h12, alarm.minute, ampm, mins);
+      written = snprintf(buf, buf_size, "%s (in %um)",
+                         time_str, mins);
     }
   }
   if (written < 0) {
@@ -506,10 +532,12 @@ class AlarmClockComponent : public ::esphome::Component,
   void set_sound_index(uint8_t index);
   void set_snooze_duration_option(uint8_t option_index);
   void set_time_format_24h(bool time_format_24h);
+  void set_pre_alarm_option(uint8_t option_index);
   float volume() const { return volume_; }
   float brightness() const { return brightness_; }
   uint8_t sound_index() const { return selected_sound_index_; }
   bool time_format_24h() const { return time_format_24h_; }
+  uint8_t pre_alarm_minutes() const { return pre_alarm_minutes_; }
 
   // --- RTTTL audio ---
   void set_rtttl(::esphome::rtttl::Rtttl *rtttl) { rtttl_ = rtttl; }
@@ -538,6 +566,7 @@ class AlarmClockComponent : public ::esphome::Component,
   float sensor_factor_ = 1.0f;
   uint8_t selected_sound_index_ = 0;
   bool time_format_24h_ = false;
+  uint8_t pre_alarm_minutes_ = kDefaultPreAlarmMinutes;
 
   // RTTTL audio.
   ::esphome::rtttl::Rtttl *rtttl_ = nullptr;

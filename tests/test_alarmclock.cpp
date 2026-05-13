@@ -820,7 +820,7 @@ TEST(format_next_alarm_with_label_hours) {
     AlarmTime at{7, 0, kWeekdays, true};
     alarm_set_label(at, "Work");
     char buf[64];
-    format_next_alarm_text(at, 390, buf, sizeof(buf));
+    format_next_alarm_text(at, 390, false, buf, sizeof(buf));
     // 390 min = 6h 30m → "7:00 AM — Work (in 6h 30m)"
     ASSERT_TRUE(strstr(buf, "7:00 AM") != nullptr);
     ASSERT_TRUE(strstr(buf, "Work") != nullptr);
@@ -832,7 +832,7 @@ TEST(format_next_alarm_with_label_minutes_only) {
     AlarmTime at{7, 30, kWeekdays, true};
     alarm_set_label(at, "Work");
     char buf[64];
-    format_next_alarm_text(at, 45, buf, sizeof(buf));
+    format_next_alarm_text(at, 45, false, buf, sizeof(buf));
     // 45 min → "7:30 AM — Work (in 45m)"
     ASSERT_TRUE(strstr(buf, "7:30 AM") != nullptr);
     ASSERT_TRUE(strstr(buf, "Work") != nullptr);
@@ -845,7 +845,7 @@ TEST(format_next_alarm_with_label_minutes_only) {
 TEST(format_next_alarm_no_label_hours) {
     AlarmTime at{14, 0, kEveryDay, true};
     char buf[64];
-    format_next_alarm_text(at, 120, buf, sizeof(buf));
+    format_next_alarm_text(at, 120, false, buf, sizeof(buf));
     // 14:00 → 2:00 PM; 120 min = 2h 0m
     ASSERT_TRUE(strstr(buf, "2:00 PM") != nullptr);
     ASSERT_TRUE(strstr(buf, "2h 0m") != nullptr);
@@ -855,7 +855,7 @@ TEST(format_next_alarm_no_label_hours) {
 TEST(format_next_alarm_no_label_minutes_only) {
     AlarmTime at{0, 30, kEveryDay, true};
     char buf[64];
-    format_next_alarm_text(at, 15, buf, sizeof(buf));
+    format_next_alarm_text(at, 15, false, buf, sizeof(buf));
     // 0:30 → 12:30 AM; 15 min
     ASSERT_TRUE(strstr(buf, "12:30 AM") != nullptr);
     ASSERT_TRUE(strstr(buf, "15m") != nullptr);
@@ -864,14 +864,14 @@ TEST(format_next_alarm_no_label_minutes_only) {
 
 TEST(format_next_alarm_null_buf) {
     AlarmTime at{7, 0, kWeekdays, true};
-    ASSERT_EQ(format_next_alarm_text(at, 60, nullptr, 64), (size_t)0);
+    ASSERT_EQ(format_next_alarm_text(at, 60, false, nullptr, 64), (size_t)0);
     PASS();
 }
 
 TEST(format_next_alarm_zero_buf_size) {
     AlarmTime at{7, 0, kWeekdays, true};
     char buf[1];
-    ASSERT_EQ(format_next_alarm_text(at, 60, buf, 0), (size_t)0);
+    ASSERT_EQ(format_next_alarm_text(at, 60, false, buf, 0), (size_t)0);
     PASS();
 }
 
@@ -879,7 +879,7 @@ TEST(format_next_alarm_pm_time) {
     AlarmTime at{23, 45, kWeekends, true};
     alarm_set_label(at, "Late");
     char buf[64];
-    format_next_alarm_text(at, 60, buf, sizeof(buf));
+    format_next_alarm_text(at, 60, false, buf, sizeof(buf));
     ASSERT_TRUE(strstr(buf, "11:45 PM") != nullptr);
     ASSERT_TRUE(strstr(buf, "Late") != nullptr);
     PASS();
@@ -923,7 +923,7 @@ TEST(format_pre_alarm_zero_buf_size) {
 }
 
 TEST(pre_alarm_constant) {
-    ASSERT_EQ(kPreAlarmMinutes, 5);
+    ASSERT_EQ(kDefaultPreAlarmMinutes, 5);
     PASS();
 }
 
@@ -1110,7 +1110,7 @@ TEST(serialized_alarm_size_constant) {
 }
 
 TEST(serialized_settings_size_constant) {
-    ASSERT_EQ(alarm_clock::kSerializedSettingsSize, (size_t)12);
+    ASSERT_EQ(alarm_clock::kSerializedSettingsSize, (size_t)13);
     PASS();
 }
 
@@ -1258,6 +1258,7 @@ TEST(serialize_settings_roundtrip) {
     orig.snooze_duration_minutes = 15;
     orig.time_format_24h = true;
     orig.selected_sound_index = 2;
+    orig.pre_alarm_minutes = 10;
 
     uint8_t buf[alarm_clock::kSerializedSettingsSize];
     size_t written = alarm_clock::serialize_settings(orig, buf, sizeof(buf));
@@ -1270,6 +1271,7 @@ TEST(serialize_settings_roundtrip) {
     ASSERT_EQ(loaded.snooze_duration_minutes, 15);
     ASSERT_TRUE(loaded.time_format_24h);
     ASSERT_EQ(loaded.selected_sound_index, 2);
+    ASSERT_EQ(loaded.pre_alarm_minutes, 10);
     PASS();
 }
 
@@ -1286,6 +1288,7 @@ TEST(serialize_settings_defaults) {
     ASSERT_EQ(loaded.snooze_duration_minutes, 9);
     ASSERT_FALSE(loaded.time_format_24h);
     ASSERT_EQ(loaded.selected_sound_index, 0);
+    ASSERT_EQ(loaded.pre_alarm_minutes, 5);
     PASS();
 }
 
@@ -1574,6 +1577,110 @@ TEST(empty_alarm_not_shown) {
     PASS();
 }
 
+// ===========================================================================
+// format_next_alarm_text 24h format tests (Batch 3, Issue #9)
+// ===========================================================================
+
+TEST(format_next_alarm_24h_with_label) {
+    AlarmTime at{14, 30, kWeekdays, true};
+    alarm_set_label(at, "Work");
+    char buf[64];
+    format_next_alarm_text(at, 90, true, buf, sizeof(buf));
+    // 24h format: "14:30 — Work (in 1h 30m)"
+    ASSERT_TRUE(strstr(buf, "14:30") != nullptr);
+    ASSERT_TRUE(strstr(buf, "Work") != nullptr);
+    ASSERT_TRUE(strstr(buf, "1h 30m") != nullptr);
+    // Should NOT contain AM/PM.
+    ASSERT_TRUE(strstr(buf, "AM") == nullptr);
+    ASSERT_TRUE(strstr(buf, "PM") == nullptr);
+    PASS();
+}
+
+TEST(format_next_alarm_24h_no_label) {
+    AlarmTime at{7, 0, kEveryDay, true};
+    char buf[64];
+    format_next_alarm_text(at, 30, true, buf, sizeof(buf));
+    // 24h format: "07:00 (in 30m)"
+    ASSERT_TRUE(strstr(buf, "07:00") != nullptr);
+    ASSERT_TRUE(strstr(buf, "30m") != nullptr);
+    ASSERT_TRUE(strstr(buf, "AM") == nullptr);
+    PASS();
+}
+
+TEST(format_next_alarm_24h_midnight) {
+    AlarmTime at{0, 0, kEveryDay, true};
+    char buf[64];
+    format_next_alarm_text(at, 60, true, buf, sizeof(buf));
+    ASSERT_TRUE(strstr(buf, "00:00") != nullptr);
+    PASS();
+}
+
+// ===========================================================================
+// compute_content_color sqrt curve tests (Batch 3, Issue #10)
+// ===========================================================================
+
+TEST(content_color_sqrt_midpoint) {
+    // With sqrt curve: brightness 0.5 → t = sqrt(0.5) ≈ 0.707
+    // ch = 26 + 0.707 * 229 ≈ 188 = 0xBC
+    uint32_t c = compute_content_color(0.5f);
+    uint8_t ch = (c >> 16) & 0xFF;
+    // sqrt(0.5) * 229 + 26 ≈ 188, allow some rounding tolerance.
+    ASSERT_TRUE(ch >= 185 && ch <= 192);
+    PASS();
+}
+
+TEST(content_color_sqrt_quarter) {
+    // brightness 0.25 → t = sqrt(0.25) = 0.5
+    // ch = 26 + 0.5 * 229 = 140 = 0x8C
+    uint32_t c = compute_content_color(0.25f);
+    uint8_t ch = (c >> 16) & 0xFF;
+    ASSERT_TRUE(ch >= 138 && ch <= 143);
+    PASS();
+}
+
+// ===========================================================================
+// Pre-alarm option tests (Batch 3, Issue #25)
+// ===========================================================================
+
+TEST(pre_alarm_option_to_minutes_valid) {
+    ASSERT_EQ(pre_alarm_option_to_minutes(0), (uint8_t)0);
+    ASSERT_EQ(pre_alarm_option_to_minutes(1), (uint8_t)5);
+    ASSERT_EQ(pre_alarm_option_to_minutes(2), (uint8_t)10);
+    ASSERT_EQ(pre_alarm_option_to_minutes(3), (uint8_t)15);
+    PASS();
+}
+
+TEST(pre_alarm_option_to_minutes_out_of_range) {
+    ASSERT_EQ(pre_alarm_option_to_minutes(4), (uint8_t)5);
+    ASSERT_EQ(pre_alarm_option_to_minutes(255), (uint8_t)5);
+    PASS();
+}
+
+TEST(pre_alarm_minutes_to_option_valid) {
+    ASSERT_EQ(pre_alarm_minutes_to_option(0), (uint8_t)0);
+    ASSERT_EQ(pre_alarm_minutes_to_option(5), (uint8_t)1);
+    ASSERT_EQ(pre_alarm_minutes_to_option(10), (uint8_t)2);
+    ASSERT_EQ(pre_alarm_minutes_to_option(15), (uint8_t)3);
+    PASS();
+}
+
+TEST(pre_alarm_minutes_to_option_not_found) {
+    ASSERT_EQ(pre_alarm_minutes_to_option(7), (uint8_t)1);
+    ASSERT_EQ(pre_alarm_minutes_to_option(20), (uint8_t)1);
+    PASS();
+}
+
+TEST(pre_alarm_option_count) {
+    ASSERT_EQ(kPreAlarmOptionCount, (uint8_t)4);
+    PASS();
+}
+
+TEST(pre_alarm_settings_default) {
+    alarm_clock::StorageSettings s{};
+    ASSERT_EQ(s.pre_alarm_minutes, 5);
+    PASS();
+}
+
 // ---------------------------------------------------------------------------
 // main — register every TEST here.
 // ---------------------------------------------------------------------------
@@ -1805,6 +1912,23 @@ int main() {
     RUN(one_shot_alarm_should_be_visible);
     RUN(default_alarm_not_one_shot);
     RUN(empty_alarm_not_shown);
+
+    // format_next_alarm_text 24h format (Batch 3, Issue #9)
+    RUN(format_next_alarm_24h_with_label);
+    RUN(format_next_alarm_24h_no_label);
+    RUN(format_next_alarm_24h_midnight);
+
+    // compute_content_color sqrt curve (Batch 3, Issue #10)
+    RUN(content_color_sqrt_midpoint);
+    RUN(content_color_sqrt_quarter);
+
+    // Pre-alarm options (Batch 3, Issue #25)
+    RUN(pre_alarm_option_to_minutes_valid);
+    RUN(pre_alarm_option_to_minutes_out_of_range);
+    RUN(pre_alarm_minutes_to_option_valid);
+    RUN(pre_alarm_minutes_to_option_not_found);
+    RUN(pre_alarm_option_count);
+    RUN(pre_alarm_settings_default);
 
     printf("\n%d test(s) run, %d failed.\n", tests_run, tests_failed);
     return tests_failed == 0 ? 0 : 1;
