@@ -9,7 +9,7 @@
 
 #include "alarm_time.h"
 
-namespace alarm_clock {
+namespace alarmclock {
 
 // ---------------------------------------------------------------------------
 // Serialization format constants.
@@ -142,6 +142,6 @@ bool storage_load_settings(StorageSettings *settings);
 
 #endif  // UNIT_TEST
 
-}  // namespace alarm_clock
+}  // namespace alarmclock
 
 #endif  // STORAGE_H

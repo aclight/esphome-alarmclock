@@ -9,7 +9,7 @@
 #include <nvs.h>
 #include "esphome/core/log.h"
 
-namespace alarm_clock {
+namespace alarmclock {
 
 static const char *const TAG = "alarm_storage";
 
@@ -174,6 +174,6 @@ bool storage_load_settings(StorageSettings *settings) {
   return true;
 }
 
-}  // namespace alarm_clock
+}  // namespace alarmclock
 
 #endif  // UNIT_TEST

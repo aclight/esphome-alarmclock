@@ -300,9 +300,9 @@ text_sensor:
     lambda: |-
       auto state = id(alarm_clock_component).alarm_state();
       switch (state) {
-        case alarm_clock::AlarmState::kFiring:
+        case alarmclock::AlarmState::kFiring:
           return std::string("firing");
-        case alarm_clock::AlarmState::kSnoozed:
+        case alarmclock::AlarmState::kSnoozed:
           return std::string("snoozed");
         default:
           return std::string("idle");

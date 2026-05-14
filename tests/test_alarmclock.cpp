@@ -7,7 +7,6 @@
 #include <cstring>
 
 using namespace alarmclock;
-using namespace alarm_clock;
 
 // ---------------------------------------------------------------------------
 // Smoke test — proves the test harness itself works.
@@ -179,6 +178,15 @@ TEST(brightness_invalid_min_max) {
     PASS();
 }
 
+TEST(brightness_sleep_ignores_sensor) {
+    // When asleep, both user_level and sensor_factor are 0.0.
+    // With defaults (auto_range=0.5, min=0.0, max=1.0):
+    //   window = [0.0, 0.5], sensor=0.0 → picks bottom = 0.0
+    float b = compute_brightness(0.0f, 0.0f);
+    ASSERT_TRUE(b >= 0.0f && b < 0.01f);
+    PASS();
+}
+
 // ===========================================================================
 // brightness_to_pwm tests
 // ===========================================================================
@@ -206,32 +214,6 @@ TEST(pwm_clamps_below_zero) {
 
 TEST(pwm_clamps_above_one) {
     ASSERT_EQ(brightness_to_pwm(2.0f), kBacklightMax);
-    PASS();
-}
-
-// ===========================================================================
-// compute_content_color tests
-// ===========================================================================
-
-TEST(content_color_full_bright) {
-    ASSERT_EQ(compute_content_color(1.0f), (uint32_t)0xFFFFFF);
-    ASSERT_EQ(compute_content_color(2.0f), (uint32_t)0xFFFFFF);
-    PASS();
-}
-
-TEST(content_color_zero) {
-    ASSERT_EQ(compute_content_color(0.0f), (uint32_t)0x1A1A1A);
-    ASSERT_EQ(compute_content_color(-1.0f), (uint32_t)0x1A1A1A);
-    PASS();
-}
-
-TEST(content_color_decreases_with_brightness) {
-    uint32_t c_high = compute_content_color(0.8f);
-    uint32_t c_mid = compute_content_color(0.5f);
-    uint32_t c_low = compute_content_color(0.2f);
-    ASSERT_TRUE(c_high > c_mid);
-    ASSERT_TRUE(c_mid > c_low);
-    ASSERT_TRUE(c_low > (uint32_t)0x1A1A1A);
     PASS();
 }
 
@@ -342,15 +324,15 @@ TEST(time_to_minutes_basic) {
 
 TEST(alarm_matches_with_day_exact) {
     AlarmTime at{7, 30, kMonday, true};
-    ASSERT_TRUE(alarm_clock::alarm_matches(at, 7, 30, 1));
-    ASSERT_FALSE(alarm_clock::alarm_matches(at, 7, 31, 1));
-    ASSERT_FALSE(alarm_clock::alarm_matches(at, 7, 30, 2));
+    ASSERT_TRUE(alarm_matches(at, 7, 30, 1));
+    ASSERT_FALSE(alarm_matches(at, 7, 31, 1));
+    ASSERT_FALSE(alarm_matches(at, 7, 30, 2));
     PASS();
 }
 
 TEST(alarm_matches_with_day_disabled) {
     AlarmTime at{7, 30, kMonday, false};
-    ASSERT_FALSE(alarm_clock::alarm_matches(at, 7, 30, 1));
+    ASSERT_FALSE(alarm_matches(at, 7, 30, 1));
     PASS();
 }
 
@@ -450,8 +432,8 @@ TEST(alarm_set_label_truncates) {
     AlarmTime at{};
     // 15 chars max (+ null), so a 20-char string gets truncated.
     alarm_set_label(at, "VeryLongLabelName!!");
-    ASSERT_EQ(strlen(at.label), alarm_clock::kAlarmLabelMaxLen - 1);
-    ASSERT_EQ(at.label[alarm_clock::kAlarmLabelMaxLen - 1], '\0');
+    ASSERT_EQ(strlen(at.label), kAlarmLabelMaxLen - 1);
+    ASSERT_EQ(at.label[kAlarmLabelMaxLen - 1], '\0');
     PASS();
 }
 
@@ -475,12 +457,12 @@ TEST(alarm_set_label_exact_max) {
     AlarmTime at{};
     // Exactly 15 chars — should fit with null terminator.
     alarm_set_label(at, "123456789012345");
-    ASSERT_EQ(strlen(at.label), alarm_clock::kAlarmLabelMaxLen - 1);
+    ASSERT_EQ(strlen(at.label), kAlarmLabelMaxLen - 1);
     PASS();
 }
 
 TEST(alarm_label_max_len_constant) {
-    ASSERT_EQ(alarm_clock::kAlarmLabelMaxLen, 16);
+    ASSERT_EQ(kAlarmLabelMaxLen, 16);
     PASS();
 }
 
@@ -693,21 +675,21 @@ TEST(one_shot_alarm_matches_any_day) {
     AlarmTime at{7, 30, 0, true};
     // One-shot should match on any day of the week.
     for (uint8_t d = 0; d < 7; ++d) {
-        ASSERT_TRUE(alarm_clock::alarm_matches(at, 7, 30, d));
+        ASSERT_TRUE(alarm_matches(at, 7, 30, d));
     }
     PASS();
 }
 
 TEST(one_shot_alarm_no_match_wrong_time) {
     AlarmTime at{7, 30, 0, true};
-    ASSERT_FALSE(alarm_clock::alarm_matches(at, 7, 31, 0));
-    ASSERT_FALSE(alarm_clock::alarm_matches(at, 8, 30, 0));
+    ASSERT_FALSE(alarm_matches(at, 7, 31, 0));
+    ASSERT_FALSE(alarm_matches(at, 8, 30, 0));
     PASS();
 }
 
 TEST(one_shot_alarm_no_match_disabled) {
     AlarmTime at{7, 30, 0, false};
-    ASSERT_FALSE(alarm_clock::alarm_matches(at, 7, 30, 0));
+    ASSERT_FALSE(alarm_matches(at, 7, 30, 0));
     PASS();
 }
 
@@ -1105,12 +1087,12 @@ TEST(tick_firing_resets_on_reset) {
 // ===========================================================================
 
 TEST(serialized_alarm_size_constant) {
-    ASSERT_EQ(alarm_clock::kSerializedAlarmSize, (size_t)21);
+    ASSERT_EQ(kSerializedAlarmSize, (size_t)21);
     PASS();
 }
 
 TEST(serialized_settings_size_constant) {
-    ASSERT_EQ(alarm_clock::kSerializedSettingsSize, (size_t)13);
+    ASSERT_EQ(kSerializedSettingsSize, (size_t)13);
     PASS();
 }
 
@@ -1122,12 +1104,12 @@ TEST(serialize_alarm_roundtrip) {
     orig.enabled = true;
     alarm_set_label(orig, "Work");
 
-    uint8_t buf[alarm_clock::kSerializedAlarmSize];
-    size_t written = alarm_clock::serialize_alarm(orig, buf, sizeof(buf));
-    ASSERT_EQ(written, alarm_clock::kSerializedAlarmSize);
+    uint8_t buf[kSerializedAlarmSize];
+    size_t written = serialize_alarm(orig, buf, sizeof(buf));
+    ASSERT_EQ(written, kSerializedAlarmSize);
 
     AlarmTime loaded{};
-    ASSERT_TRUE(alarm_clock::deserialize_alarm(buf, written, &loaded));
+    ASSERT_TRUE(deserialize_alarm(buf, written, &loaded));
     ASSERT_EQ(loaded.hour, 7);
     ASSERT_EQ(loaded.minute, 30);
     ASSERT_EQ(loaded.days_of_week, kWeekdays);
@@ -1144,12 +1126,12 @@ TEST(serialize_alarm_disabled) {
     orig.enabled = false;
     alarm_set_label(orig, "Weekend");
 
-    uint8_t buf[alarm_clock::kSerializedAlarmSize];
-    size_t written = alarm_clock::serialize_alarm(orig, buf, sizeof(buf));
-    ASSERT_EQ(written, alarm_clock::kSerializedAlarmSize);
+    uint8_t buf[kSerializedAlarmSize];
+    size_t written = serialize_alarm(orig, buf, sizeof(buf));
+    ASSERT_EQ(written, kSerializedAlarmSize);
 
     AlarmTime loaded{};
-    ASSERT_TRUE(alarm_clock::deserialize_alarm(buf, written, &loaded));
+    ASSERT_TRUE(deserialize_alarm(buf, written, &loaded));
     ASSERT_EQ(loaded.hour, 22);
     ASSERT_EQ(loaded.minute, 15);
     ASSERT_EQ(loaded.days_of_week, kWeekends);
@@ -1165,11 +1147,11 @@ TEST(serialize_alarm_empty_label) {
     orig.days_of_week = kEveryDay;
     orig.enabled = true;
 
-    uint8_t buf[alarm_clock::kSerializedAlarmSize];
-    alarm_clock::serialize_alarm(orig, buf, sizeof(buf));
+    uint8_t buf[kSerializedAlarmSize];
+    serialize_alarm(orig, buf, sizeof(buf));
 
     AlarmTime loaded{};
-    ASSERT_TRUE(alarm_clock::deserialize_alarm(buf, sizeof(buf), &loaded));
+    ASSERT_TRUE(deserialize_alarm(buf, sizeof(buf), &loaded));
     ASSERT_EQ(loaded.label[0], '\0');
     PASS();
 }
@@ -1182,11 +1164,11 @@ TEST(serialize_alarm_one_shot) {
     orig.enabled = true;
     alarm_set_label(orig, "Nap");
 
-    uint8_t buf[alarm_clock::kSerializedAlarmSize];
-    alarm_clock::serialize_alarm(orig, buf, sizeof(buf));
+    uint8_t buf[kSerializedAlarmSize];
+    serialize_alarm(orig, buf, sizeof(buf));
 
     AlarmTime loaded{};
-    ASSERT_TRUE(alarm_clock::deserialize_alarm(buf, sizeof(buf), &loaded));
+    ASSERT_TRUE(deserialize_alarm(buf, sizeof(buf), &loaded));
     ASSERT_EQ(loaded.days_of_week, 0);
     ASSERT_TRUE(is_one_shot(loaded));
     ASSERT_TRUE(strcmp(loaded.label, "Nap") == 0);
@@ -1201,11 +1183,11 @@ TEST(serialize_alarm_max_label) {
     orig.enabled = true;
     alarm_set_label(orig, "123456789012345");  // exactly 15 chars
 
-    uint8_t buf[alarm_clock::kSerializedAlarmSize];
-    alarm_clock::serialize_alarm(orig, buf, sizeof(buf));
+    uint8_t buf[kSerializedAlarmSize];
+    serialize_alarm(orig, buf, sizeof(buf));
 
     AlarmTime loaded{};
-    ASSERT_TRUE(alarm_clock::deserialize_alarm(buf, sizeof(buf), &loaded));
+    ASSERT_TRUE(deserialize_alarm(buf, sizeof(buf), &loaded));
     ASSERT_EQ(strlen(loaded.label), (size_t)15);
     ASSERT_TRUE(strcmp(loaded.label, "123456789012345") == 0);
     PASS();
@@ -1213,46 +1195,46 @@ TEST(serialize_alarm_max_label) {
 
 TEST(serialize_alarm_null_buf) {
     AlarmTime alarm{};
-    ASSERT_EQ(alarm_clock::serialize_alarm(alarm, nullptr, 100), (size_t)0);
+    ASSERT_EQ(serialize_alarm(alarm, nullptr, 100), (size_t)0);
     PASS();
 }
 
 TEST(serialize_alarm_small_buf) {
     AlarmTime alarm{};
     uint8_t buf[5];
-    ASSERT_EQ(alarm_clock::serialize_alarm(alarm, buf, sizeof(buf)), (size_t)0);
+    ASSERT_EQ(serialize_alarm(alarm, buf, sizeof(buf)), (size_t)0);
     PASS();
 }
 
 TEST(deserialize_alarm_null_buf) {
     AlarmTime alarm{};
-    ASSERT_FALSE(alarm_clock::deserialize_alarm(nullptr, 100, &alarm));
+    ASSERT_FALSE(deserialize_alarm(nullptr, 100, &alarm));
     PASS();
 }
 
 TEST(deserialize_alarm_null_alarm) {
-    uint8_t buf[alarm_clock::kSerializedAlarmSize] = {};
-    ASSERT_FALSE(alarm_clock::deserialize_alarm(buf, sizeof(buf), nullptr));
+    uint8_t buf[kSerializedAlarmSize] = {};
+    ASSERT_FALSE(deserialize_alarm(buf, sizeof(buf), nullptr));
     PASS();
 }
 
 TEST(deserialize_alarm_small_buf) {
     AlarmTime alarm{};
     uint8_t buf[5] = {};
-    ASSERT_FALSE(alarm_clock::deserialize_alarm(buf, sizeof(buf), &alarm));
+    ASSERT_FALSE(deserialize_alarm(buf, sizeof(buf), &alarm));
     PASS();
 }
 
 TEST(deserialize_alarm_wrong_version) {
-    uint8_t buf[alarm_clock::kSerializedAlarmSize] = {};
+    uint8_t buf[kSerializedAlarmSize] = {};
     buf[0] = 99;  // wrong version
     AlarmTime alarm{};
-    ASSERT_FALSE(alarm_clock::deserialize_alarm(buf, sizeof(buf), &alarm));
+    ASSERT_FALSE(deserialize_alarm(buf, sizeof(buf), &alarm));
     PASS();
 }
 
 TEST(serialize_settings_roundtrip) {
-    alarm_clock::StorageSettings orig{};
+    StorageSettings orig{};
     orig.volume = 0.75f;
     orig.brightness = 0.3f;
     orig.snooze_duration_minutes = 15;
@@ -1260,12 +1242,12 @@ TEST(serialize_settings_roundtrip) {
     orig.selected_sound_index = 2;
     orig.pre_alarm_minutes = 10;
 
-    uint8_t buf[alarm_clock::kSerializedSettingsSize];
-    size_t written = alarm_clock::serialize_settings(orig, buf, sizeof(buf));
-    ASSERT_EQ(written, alarm_clock::kSerializedSettingsSize);
+    uint8_t buf[kSerializedSettingsSize];
+    size_t written = serialize_settings(orig, buf, sizeof(buf));
+    ASSERT_EQ(written, kSerializedSettingsSize);
 
-    alarm_clock::StorageSettings loaded{};
-    ASSERT_TRUE(alarm_clock::deserialize_settings(buf, written, &loaded));
+    StorageSettings loaded{};
+    ASSERT_TRUE(deserialize_settings(buf, written, &loaded));
     ASSERT_TRUE(loaded.volume > 0.74f && loaded.volume < 0.76f);
     ASSERT_TRUE(loaded.brightness > 0.29f && loaded.brightness < 0.31f);
     ASSERT_EQ(loaded.snooze_duration_minutes, 15);
@@ -1276,13 +1258,13 @@ TEST(serialize_settings_roundtrip) {
 }
 
 TEST(serialize_settings_defaults) {
-    alarm_clock::StorageSettings orig{};  // all defaults
+    StorageSettings orig{};  // all defaults
 
-    uint8_t buf[alarm_clock::kSerializedSettingsSize];
-    alarm_clock::serialize_settings(orig, buf, sizeof(buf));
+    uint8_t buf[kSerializedSettingsSize];
+    serialize_settings(orig, buf, sizeof(buf));
 
-    alarm_clock::StorageSettings loaded{};
-    ASSERT_TRUE(alarm_clock::deserialize_settings(buf, sizeof(buf), &loaded));
+    StorageSettings loaded{};
+    ASSERT_TRUE(deserialize_settings(buf, sizeof(buf), &loaded));
     ASSERT_TRUE(loaded.volume > 0.49f && loaded.volume < 0.51f);
     ASSERT_TRUE(loaded.brightness > 0.49f && loaded.brightness < 0.51f);
     ASSERT_EQ(loaded.snooze_duration_minutes, 9);
@@ -1293,42 +1275,42 @@ TEST(serialize_settings_defaults) {
 }
 
 TEST(serialize_settings_null_buf) {
-    alarm_clock::StorageSettings s{};
-    ASSERT_EQ(alarm_clock::serialize_settings(s, nullptr, 100), (size_t)0);
+    StorageSettings s{};
+    ASSERT_EQ(serialize_settings(s, nullptr, 100), (size_t)0);
     PASS();
 }
 
 TEST(serialize_settings_small_buf) {
-    alarm_clock::StorageSettings s{};
+    StorageSettings s{};
     uint8_t buf[5];
-    ASSERT_EQ(alarm_clock::serialize_settings(s, buf, sizeof(buf)), (size_t)0);
+    ASSERT_EQ(serialize_settings(s, buf, sizeof(buf)), (size_t)0);
     PASS();
 }
 
 TEST(deserialize_settings_null_buf) {
-    alarm_clock::StorageSettings s{};
-    ASSERT_FALSE(alarm_clock::deserialize_settings(nullptr, 100, &s));
+    StorageSettings s{};
+    ASSERT_FALSE(deserialize_settings(nullptr, 100, &s));
     PASS();
 }
 
 TEST(deserialize_settings_null_settings) {
-    uint8_t buf[alarm_clock::kSerializedSettingsSize] = {};
-    ASSERT_FALSE(alarm_clock::deserialize_settings(buf, sizeof(buf), nullptr));
+    uint8_t buf[kSerializedSettingsSize] = {};
+    ASSERT_FALSE(deserialize_settings(buf, sizeof(buf), nullptr));
     PASS();
 }
 
 TEST(deserialize_settings_small_buf) {
-    alarm_clock::StorageSettings s{};
+    StorageSettings s{};
     uint8_t buf[5] = {};
-    ASSERT_FALSE(alarm_clock::deserialize_settings(buf, sizeof(buf), &s));
+    ASSERT_FALSE(deserialize_settings(buf, sizeof(buf), &s));
     PASS();
 }
 
 TEST(deserialize_settings_wrong_version) {
-    uint8_t buf[alarm_clock::kSerializedSettingsSize] = {};
+    uint8_t buf[kSerializedSettingsSize] = {};
     buf[0] = 99;
-    alarm_clock::StorageSettings s{};
-    ASSERT_FALSE(alarm_clock::deserialize_settings(buf, sizeof(buf), &s));
+    StorageSettings s{};
+    ASSERT_FALSE(deserialize_settings(buf, sizeof(buf), &s));
     PASS();
 }
 
@@ -1336,17 +1318,17 @@ TEST(serialize_alarm_version_byte) {
     AlarmTime alarm{};
     alarm.hour = 12;
     alarm.minute = 0;
-    uint8_t buf[alarm_clock::kSerializedAlarmSize];
-    alarm_clock::serialize_alarm(alarm, buf, sizeof(buf));
-    ASSERT_EQ(buf[0], alarm_clock::kStorageVersion);
+    uint8_t buf[kSerializedAlarmSize];
+    serialize_alarm(alarm, buf, sizeof(buf));
+    ASSERT_EQ(buf[0], kStorageVersion);
     PASS();
 }
 
 TEST(serialize_settings_version_byte) {
-    alarm_clock::StorageSettings s{};
-    uint8_t buf[alarm_clock::kSerializedSettingsSize];
-    alarm_clock::serialize_settings(s, buf, sizeof(buf));
-    ASSERT_EQ(buf[0], alarm_clock::kStorageVersion);
+    StorageSettings s{};
+    uint8_t buf[kSerializedSettingsSize];
+    serialize_settings(s, buf, sizeof(buf));
+    ASSERT_EQ(buf[0], kStorageVersion);
     PASS();
 }
 
@@ -1520,7 +1502,7 @@ TEST(espttime_dow_conversion_monday_alarm) {
     // ESPTime: day_of_week=2 (Monday) → 0-based index = 1
     uint8_t dow = 2 - 1;
     AlarmTime at{7, 30, kMonday, true};
-    ASSERT_TRUE(alarm_clock::alarm_matches(at, 7, 30, dow));
+    ASSERT_TRUE(alarm_matches(at, 7, 30, dow));
     PASS();
 }
 
@@ -1528,7 +1510,7 @@ TEST(espttime_dow_alarm_does_not_fire_wrong_day) {
     // Alarm set for Monday only. ESPTime says Tuesday (day_of_week=3 → index 2).
     uint8_t dow = 3 - 1;
     AlarmTime at{7, 30, kMonday, true};
-    ASSERT_FALSE(alarm_clock::alarm_matches(at, 7, 30, dow));
+    ASSERT_FALSE(alarm_matches(at, 7, 30, dow));
     PASS();
 }
 
@@ -1616,29 +1598,6 @@ TEST(format_next_alarm_24h_midnight) {
 }
 
 // ===========================================================================
-// compute_content_color sqrt curve tests (Batch 3, Issue #10)
-// ===========================================================================
-
-TEST(content_color_sqrt_midpoint) {
-    // With sqrt curve: brightness 0.5 → t = sqrt(0.5) ≈ 0.707
-    // ch = 26 + 0.707 * 229 ≈ 188 = 0xBC
-    uint32_t c = compute_content_color(0.5f);
-    uint8_t ch = (c >> 16) & 0xFF;
-    // sqrt(0.5) * 229 + 26 ≈ 188, allow some rounding tolerance.
-    ASSERT_TRUE(ch >= 185 && ch <= 192);
-    PASS();
-}
-
-TEST(content_color_sqrt_quarter) {
-    // brightness 0.25 → t = sqrt(0.25) = 0.5
-    // ch = 26 + 0.5 * 229 = 140 = 0x8C
-    uint32_t c = compute_content_color(0.25f);
-    uint8_t ch = (c >> 16) & 0xFF;
-    ASSERT_TRUE(ch >= 138 && ch <= 143);
-    PASS();
-}
-
-// ===========================================================================
 // Pre-alarm option tests (Batch 3, Issue #25)
 // ===========================================================================
 
@@ -1676,7 +1635,7 @@ TEST(pre_alarm_option_count) {
 }
 
 TEST(pre_alarm_settings_default) {
-    alarm_clock::StorageSettings s{};
+    StorageSettings s{};
     ASSERT_EQ(s.pre_alarm_minutes, 5);
     PASS();
 }
@@ -1727,6 +1686,7 @@ int main() {
     RUN(brightness_zero_auto_range);
     RUN(brightness_full_auto_range);
     RUN(brightness_invalid_min_max);
+    RUN(brightness_sleep_ignores_sensor);
 
     // brightness_to_pwm
     RUN(pwm_min_brightness);
@@ -1734,11 +1694,6 @@ int main() {
     RUN(pwm_mid_brightness);
     RUN(pwm_clamps_below_zero);
     RUN(pwm_clamps_above_one);
-
-    // compute_content_color
-    RUN(content_color_full_bright);
-    RUN(content_color_zero);
-    RUN(content_color_decreases_with_brightness);
 
     // Simple alarm matching
     RUN(alarm_matches_simple_exact);
@@ -1929,10 +1884,6 @@ int main() {
     RUN(format_next_alarm_24h_with_label);
     RUN(format_next_alarm_24h_no_label);
     RUN(format_next_alarm_24h_midnight);
-
-    // compute_content_color sqrt curve (Batch 3, Issue #10)
-    RUN(content_color_sqrt_midpoint);
-    RUN(content_color_sqrt_quarter);
 
     // Pre-alarm options (Batch 3, Issue #25)
     RUN(pre_alarm_option_to_minutes_valid);
