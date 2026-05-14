@@ -223,10 +223,10 @@ inline float lux_to_sensor_factor(float lux, float min_lux, float max_lux) {
 //   min_brightness: absolute floor
 //   max_brightness: absolute ceiling
 //
-// Examples with defaults (auto_range=0.5, min=0.1, max=1.0):
+// Examples with defaults (auto_range=0.5, min=0.0, max=1.0):
 //   user_level=1.0 → window [0.50, 1.00], sensor picks within
-//   user_level=0.0 → window [0.10, 0.60], sensor picks within
-//   user_level=0.5 → window [0.30, 0.80]
+//   user_level=0.0 → window [0.00, 0.50], sensor picks within
+//   user_level=0.5 → window [0.25, 0.75]
 //
 // Without a sensor, pass sensor_factor=1.0 to get the window's upper bound.
 inline float compute_brightness(float user_level, float sensor_factor,
@@ -265,32 +265,6 @@ inline uint8_t brightness_to_pwm(float brightness) {
   }
   return static_cast<uint8_t>(
       static_cast<float>(kBacklightMin) * (1.0f - brightness));
-}
-
-// Compute a grayscale content color (0x000000–0xFFFFFF) to supplement backlight
-// dimming.  At full brightness the color is white; at low brightness the color
-// fades toward dark gray.  This extends the perceived dynamic range beyond what
-// the backlight PWM alone can achieve.
-//
-// The mapping uses a sqrt curve so that the color stays mostly white in the
-// upper half and falls off more aggressively in the lower half:
-//   brightness 1.0 → 0xFF (white)
-//   brightness 0.5 → ~0xBC
-//   brightness 0.0 → 0x1A (very dark gray, not pure black)
-inline uint32_t compute_content_color(float brightness) {
-  if (brightness >= 1.0f) {
-    return 0xFFFFFF;
-  }
-  if (brightness <= 0.0f) {
-    return 0x1A1A1A;
-  }
-  // Map brightness (0–1) to a channel value (26–255).
-  // Use sqrt curve so color stays bright longer and drops at low end.
-  float t = sqrtf(brightness);
-  uint8_t ch = static_cast<uint8_t>(26.0f + t * (255.0f - 26.0f));
-  return (static_cast<uint32_t>(ch) << 16) |
-         (static_cast<uint32_t>(ch) << 8) |
-         static_cast<uint32_t>(ch);
 }
 
 // ---------------------------------------------------------------------------
@@ -381,7 +355,7 @@ static constexpr uint8_t kMaxAlarmsCount = 4;
 // Find the index of the nearest upcoming alarm from an array.
 // Returns the index (0-based), or -1 if no alarm is upcoming.
 // |minutes_out| receives the minutes until that alarm (if not nullptr).
-inline int8_t find_next_alarm_index(const alarm_clock::AlarmTime *alarms,
+inline int8_t find_next_alarm_index(const AlarmTime *alarms,
                                     uint8_t count, uint8_t now_hour,
                                     uint8_t now_minute, uint8_t now_day_index,
                                     int32_t *minutes_out = nullptr) {
@@ -389,7 +363,7 @@ inline int8_t find_next_alarm_index(const alarm_clock::AlarmTime *alarms,
   int32_t best_minutes = INT32_MAX;
 
   for (uint8_t i = 0; i < count; ++i) {
-    int32_t mins = alarm_clock::minutes_until_alarm(
+    int32_t mins = minutes_until_alarm(
         alarms[i], now_hour, now_minute, now_day_index);
     if (mins >= 0 && mins < best_minutes) {
       best_minutes = mins;
@@ -406,7 +380,7 @@ inline int8_t find_next_alarm_index(const alarm_clock::AlarmTime *alarms,
 // Format the "next alarm" display string.
 // Output example: "7:00 AM — Work (in 6h 30m)" or "07:00 — Work (in 6h 30m)"
 // Returns the number of characters written (excluding null terminator).
-inline size_t format_next_alarm_text(const alarm_clock::AlarmTime &alarm,
+inline size_t format_next_alarm_text(const AlarmTime &alarm,
                                      int32_t minutes_until,
                                      bool time_format_24h, char *buf,
                                      size_t buf_size) {
@@ -551,9 +525,9 @@ class AlarmClockComponent : public ::esphome::Component,
   bool is_screen_asleep() const { return screen_asleep_; }
 
   // --- State queries (for HA sensors) ---
-  alarm_clock::AlarmState alarm_state() const { return state_machine_.state(); }
+  AlarmState alarm_state() const { return state_machine_.state(); }
   bool is_firing() const {
-    return state_machine_.state() == alarm_clock::AlarmState::kFiring;
+    return state_machine_.state() == AlarmState::kFiring;
   }
 
   // Called from YAML interval to check alarms against current time.
@@ -561,8 +535,8 @@ class AlarmClockComponent : public ::esphome::Component,
 
  private:
   // Alarm storage.
-  alarm_clock::AlarmTime alarms_[kMaxAlarms] = {};
-  alarm_clock::AlarmStateMachine state_machine_;
+  AlarmTime alarms_[kMaxAlarms] = {};
+  AlarmStateMachine state_machine_;
 
   // Settings.
   float volume_ = 0.5f;
@@ -611,8 +585,8 @@ class AlarmClockComponent : public ::esphome::Component,
   // Index of the alarm that is currently firing (0xFF = none).
   uint8_t fired_alarm_index_ = 0xFF;
 
-  // Index of a queued alarm that was missed while another was firing (0xFF = none).
-  uint8_t pending_alarm_index_ = 0xFF;
+  // Bitmask of alarms queued while another is firing (bit i = alarm i pending).
+  uint8_t pending_alarm_mask_ = 0;
 };
 
 #endif  // UNIT_TEST

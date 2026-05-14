@@ -2,12 +2,10 @@
 // Build: g++ -std=c++17 -Wall -Wextra -Werror -DUNIT_TEST -I.. test_alarm.cpp -o run_tests && ./run_tests
 
 #include "test_framework.h"
-#include "components/alarm_clock/alarm_time.h"
-#include "components/alarm_clock/alarm_state.h"
+#include "components/alarmclock/alarm_time.h"
+#include "components/alarmclock/alarm_state.h"
 
-using namespace alarm_clock;
-
-// ---------------------------------------------------------------------------
+using namespace alarmclock;// ---------------------------------------------------------------------------
 // Smoke test — proves the test harness itself works.
 // ---------------------------------------------------------------------------
 

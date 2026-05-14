@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <cstring>
 
-namespace alarm_clock {
+namespace alarmclock {
 
 // Maximum length of an alarm label (including null terminator).
 static constexpr uint8_t kAlarmLabelMaxLen = 16;
@@ -134,6 +134,6 @@ inline int32_t minutes_until_alarm(const AlarmTime &alarm, uint8_t now_hour,
   return -1;
 }
 
-}  // namespace alarm_clock
+}  // namespace alarmclock
 
 #endif  // ALARM_TIME_H

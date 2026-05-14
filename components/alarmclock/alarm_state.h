@@ -5,7 +5,7 @@
 
 #include <cstdint>
 
-namespace alarm_clock {
+namespace alarmclock {
 
 enum class AlarmState : uint8_t {
   kIdle,      // Waiting for alarm time.
@@ -121,6 +121,6 @@ class AlarmStateMachine {
   uint16_t firing_elapsed_minutes_ = 0;
 };
 
-}  // namespace alarm_clock
+}  // namespace alarmclock
 
 #endif  // ALARM_STATE_H
