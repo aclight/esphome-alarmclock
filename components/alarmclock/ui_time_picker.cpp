@@ -17,13 +17,13 @@ static constexpr int16_t kPickerWidth = 700;
 static constexpr int16_t kPickerHeight = 440;
 static constexpr int16_t kRollerWidth = 80;
 static constexpr int16_t kRollerHeight = 150;
-static constexpr int16_t kDayBtnSize = 50;
+static constexpr int16_t kDayBtnSize = 56;
 static constexpr int16_t kLabelInputWidth = 300;
 static constexpr int16_t kLabelInputHeight = 40;
 static constexpr uint8_t kMaxLabelLen = 15;
 
-// Day abbreviations.
-static const char *kDayLetters[] = {"S", "M", "T", "W", "T", "F", "S"};
+// Day abbreviations (two-letter to distinguish Su/Sa and Tu/Th).
+static const char *kDayLetters[] = {"Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"};
 
 // ---------------------------------------------------------------------------
 // Static widgets.
@@ -43,6 +43,9 @@ static lv_obj_t *keyboard_ = nullptr;
 // Currently editing alarm index.
 static uint8_t editing_index_ = 0;
 
+// Whether the time picker is currently using 24h format.
+static bool picker_24h_mode_ = false;
+
 // Forward declaration.
 const UiCallbacks &ui_get_callbacks();
 
@@ -51,24 +54,36 @@ const UiCallbacks &ui_get_callbacks();
 // ---------------------------------------------------------------------------
 
 // Hour options: "1\n2\n3\n...\n12"
-static char hour_opts_[36];  // "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12"
+static char hour_opts_12h_[36];  // "1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12"
+static char hour_opts_24h_[72];  // "00\n01\n02\n...\n23"
 static char minute_opts_[180];  // "00\n01\n...\n59"
 
 static void build_roller_options() {
-  // Hours 1-12.
+  // Hours 1-12 (12h mode).
   int pos = 0;
   for (uint8_t h = 1; h <= 12; h++) {
     if (h > 1) {
-      hour_opts_[pos++] = '\n';
+      hour_opts_12h_[pos++] = '\n';
     }
     if (h >= 10) {
-      hour_opts_[pos++] = '1';
-      hour_opts_[pos++] = '0' + (h - 10);
+      hour_opts_12h_[pos++] = '1';
+      hour_opts_12h_[pos++] = '0' + (h - 10);
     } else {
-      hour_opts_[pos++] = '0' + h;
+      hour_opts_12h_[pos++] = '0' + h;
     }
   }
-  hour_opts_[pos] = '\0';
+  hour_opts_12h_[pos] = '\0';
+
+  // Hours 00-23 (24h mode).
+  pos = 0;
+  for (uint8_t h = 0; h < 24; h++) {
+    if (h > 0) {
+      hour_opts_24h_[pos++] = '\n';
+    }
+    hour_opts_24h_[pos++] = '0' + (h / 10);
+    hour_opts_24h_[pos++] = '0' + (h % 10);
+  }
+  hour_opts_24h_[pos] = '\0';
 
   // Minutes 00-59.
   pos = 0;
@@ -90,16 +105,23 @@ static void confirm_btn_cb(lv_event_t *e) {
   (void)e;
   const auto &cb = ui_get_callbacks();
 
-  // Read hour roller (index 0 = hour 1, index 11 = hour 12).
-  uint16_t hour_sel = lv_roller_get_selected(hour_roller_);
-  uint8_t hour_12 = static_cast<uint8_t>(hour_sel + 1);
+  uint8_t hour_24;
+  if (picker_24h_mode_) {
+    // 24h mode: roller index 0 = hour 0, index 23 = hour 23.
+    uint16_t hour_sel = lv_roller_get_selected(hour_roller_);
+    hour_24 = static_cast<uint8_t>(hour_sel);
+  } else {
+    // 12h mode: roller index 0 = hour 1, index 11 = hour 12.
+    uint16_t hour_sel = lv_roller_get_selected(hour_roller_);
+    uint8_t hour_12 = static_cast<uint8_t>(hour_sel + 1);
 
-  // Read AM/PM roller (index 0 = AM, index 1 = PM).
-  uint16_t ampm_sel = lv_roller_get_selected(ampm_roller_);
-  bool is_pm = (ampm_sel == 1);
+    // Read AM/PM roller (index 0 = AM, index 1 = PM).
+    uint16_t ampm_sel = lv_roller_get_selected(ampm_roller_);
+    bool is_pm = (ampm_sel == 1);
 
-  // Convert to 24-hour.
-  uint8_t hour_24 = hour_12_to_24(hour_12, is_pm);
+    // Convert to 24-hour.
+    hour_24 = hour_12_to_24(hour_12, is_pm);
+  }
 
   // Read minute roller.
   uint16_t minute = lv_roller_get_selected(minute_roller_);
@@ -270,7 +292,7 @@ void ui_build_time_picker(lv_obj_t *parent) {
 
   // --- Hour roller ---
   hour_roller_ = lv_roller_create(panel);
-  lv_roller_set_options(hour_roller_, hour_opts_, LV_ROLLER_MODE_INFINITE);
+  lv_roller_set_options(hour_roller_, hour_opts_12h_, LV_ROLLER_MODE_INFINITE);
   lv_roller_set_visible_row_count(hour_roller_, 3);
   lv_obj_set_size(hour_roller_, kRollerWidth, kRollerHeight);
   lv_obj_align(hour_roller_, LV_ALIGN_TOP_LEFT, 30, 10);
@@ -415,18 +437,29 @@ void ui_build_time_picker(lv_obj_t *parent) {
 // Show the time picker for a given alarm.
 // ---------------------------------------------------------------------------
 void ui_show_time_picker(uint8_t alarm_index, uint8_t hour, uint8_t minute,
-                         uint8_t days_mask, const char *label) {
+                         uint8_t days_mask, const char *label,
+                         bool time_format_24h) {
   if (!picker_overlay_) {
     return;
   }
 
   editing_index_ = alarm_index;
+  picker_24h_mode_ = time_format_24h;
 
-  // Set hour/minute rollers from 24h time.
-  auto [h12, is_pm] = hour_24_to_12(hour);
-  lv_roller_set_selected(hour_roller_, h12 - 1, LV_ANIM_OFF);
-  lv_roller_set_selected(minute_roller_, minute, LV_ANIM_OFF);
-  lv_roller_set_selected(ampm_roller_, is_pm ? 1 : 0, LV_ANIM_OFF);
+  // Configure rollers based on time format.
+  if (time_format_24h) {
+    lv_roller_set_options(hour_roller_, hour_opts_24h_, LV_ROLLER_MODE_INFINITE);
+    lv_roller_set_selected(hour_roller_, hour, LV_ANIM_OFF);
+    lv_roller_set_selected(minute_roller_, minute, LV_ANIM_OFF);
+    lv_obj_add_flag(ampm_roller_, LV_OBJ_FLAG_HIDDEN);
+  } else {
+    lv_roller_set_options(hour_roller_, hour_opts_12h_, LV_ROLLER_MODE_INFINITE);
+    auto [h12, is_pm] = hour_24_to_12(hour);
+    lv_roller_set_selected(hour_roller_, h12 - 1, LV_ANIM_OFF);
+    lv_roller_set_selected(minute_roller_, minute, LV_ANIM_OFF);
+    lv_roller_set_selected(ampm_roller_, is_pm ? 1 : 0, LV_ANIM_OFF);
+    lv_obj_clear_flag(ampm_roller_, LV_OBJ_FLAG_HIDDEN);
+  }
 
   // Set day buttons.
   for (uint8_t d = 0; d < 7; d++) {
