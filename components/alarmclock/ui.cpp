@@ -120,6 +120,9 @@ void ui_init() {
   // Enable scrolling on the settings page so all controls are reachable.
   lv_obj_add_flag(pages_[theme::kPageSettings], LV_OBJ_FLAG_SCROLLABLE);
 
+  // Create page indicator dots (screen-root children, visible on all pages).
+  ui_build_page_dots(scr);
+
   // Create firing overlay (hidden by default, shown above everything).
   firing_overlay_ = lv_obj_create(scr);
   lv_obj_set_size(firing_overlay_, theme::kScreenWidth, theme::kScreenHeight);

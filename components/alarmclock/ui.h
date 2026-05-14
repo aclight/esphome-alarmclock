@@ -14,6 +14,7 @@ void ui_build_clock_page(lv_obj_t *parent);
 void ui_build_alarm_page(lv_obj_t *parent);
 void ui_build_settings_page(lv_obj_t *parent);
 void ui_build_firing_overlay(lv_obj_t *parent);
+void ui_build_page_dots(lv_obj_t *parent);
 
 // Called once after LVGL is initialized to build the entire UI.
 void ui_init();
@@ -54,7 +55,8 @@ void ui_clear_alarm_row_firing(uint8_t index);
 // Time picker (alarm edit overlay).
 void ui_build_time_picker(lv_obj_t *parent);
 void ui_show_time_picker(uint8_t alarm_index, uint8_t hour, uint8_t minute,
-                         uint8_t days_mask, const char *label);
+                         uint8_t days_mask, const char *label,
+                         bool time_format_24h = false);
 void ui_hide_time_picker();
 
 // Firing overlay animation.

@@ -293,7 +293,8 @@ void AlarmClockComponent::edit_alarm(uint8_t index) {
     return;
   }
   ui_show_time_picker(index, alarms_[index].hour, alarms_[index].minute,
-                      alarms_[index].days_of_week, alarms_[index].label);
+                      alarms_[index].days_of_week, alarms_[index].label,
+                      time_format_24h_);
   ESP_LOGI(TAG, "Editing alarm %d", index);
 }
 
@@ -415,6 +416,11 @@ void AlarmClockComponent::check_alarms_(uint8_t hour, uint8_t minute,
   // Store the latest time for use in loop() (e.g., snooze re-fire overlay).
   last_known_hour_ = hour;
   last_known_minute_ = minute;
+
+  // Update the firing overlay time every second while visible.
+  if (ui_is_firing_overlay_visible()) {
+    ui_firing_update_time(hour, minute, time_format_24h_);
+  }
 
   // Called every second from the YAML interval; skip if minute hasn't changed.
   if (minute == last_checked_minute_) {

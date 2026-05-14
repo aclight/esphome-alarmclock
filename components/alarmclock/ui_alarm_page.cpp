@@ -12,7 +12,7 @@ namespace alarmclock {
 // ---------------------------------------------------------------------------
 // Constants.
 // ---------------------------------------------------------------------------
-static constexpr int16_t kAlarmRowHeight = 80;
+static constexpr int16_t kAlarmRowHeight = 92;
 static constexpr int16_t kAlarmRowGap = 6;
 static constexpr int16_t kAlarmListStartY = 50;
 
@@ -63,6 +63,22 @@ static void alarm_row_longpress_cb(lv_event_t *e) {
   }
 }
 
+static void add_btn_cb(lv_event_t *e) {
+  (void)e;
+  const auto &cb = ui_get_callbacks();
+  // Find the first unused alarm slot (all fields at default).
+  for (uint8_t i = 0; i < kMaxAlarms; i++) {
+    if (lv_obj_has_flag(alarm_rows_[i].container, LV_OBJ_FLAG_HIDDEN)) {
+      // Open time picker for this empty slot with defaults.
+      if (cb.on_alarm_edit) {
+        cb.on_alarm_edit(i);
+      }
+      return;
+    }
+  }
+  // All slots full — no action (button could be disabled in the future).
+}
+
 // ---------------------------------------------------------------------------
 // Build the alarm page.
 // ---------------------------------------------------------------------------
@@ -95,21 +111,21 @@ void ui_build_alarm_page(lv_obj_t *parent) {
 
     // Time label (e.g. "7:00 AM").
     row.time_label = lv_label_create(row.container);
-    lv_obj_align(row.time_label, LV_ALIGN_LEFT_MID, 15, -15);
+    lv_obj_align(row.time_label, LV_ALIGN_LEFT_MID, 15, -18);
     lv_obj_set_style_text_font(row.time_label, &lv_font_montserrat_28, 0);
     lv_obj_set_style_text_color(row.time_label, lv_color_hex(theme::kColorPrimary), 0);
     lv_label_set_text(row.time_label, "--:--");
 
     // Alarm label (e.g. "Work").
     row.alarm_label = lv_label_create(row.container);
-    lv_obj_align(row.alarm_label, LV_ALIGN_LEFT_MID, 15, 15);
+    lv_obj_align(row.alarm_label, LV_ALIGN_LEFT_MID, 15, 12);
     lv_obj_set_style_text_font(row.alarm_label, &lv_font_montserrat_18, 0);
     lv_obj_set_style_text_color(row.alarm_label, lv_color_hex(theme::kColorAccent), 0);
     lv_label_set_text(row.alarm_label, "");
 
     // Days label (e.g. "Mon Tue Wed Thu Fri").
     row.days_label = lv_label_create(row.container);
-    lv_obj_align(row.days_label, LV_ALIGN_LEFT_MID, 15, 32);
+    lv_obj_align(row.days_label, LV_ALIGN_LEFT_MID, 15, 30);
     lv_obj_set_style_text_font(row.days_label, &lv_font_montserrat_18, 0);
     lv_obj_set_style_text_color(row.days_label, lv_color_hex(theme::kColorSecondary), 0);
     lv_label_set_text(row.days_label, "");
@@ -126,12 +142,12 @@ void ui_build_alarm_page(lv_obj_t *parent) {
   }
 
   // "Add alarm" button.
-  // TODO: Implement add-alarm flow (time picker + day selector).
   add_btn_ = lv_button_create(parent);
   lv_obj_align(add_btn_, LV_ALIGN_BOTTOM_MID, 0, -20);
   lv_obj_set_size(add_btn_, 160, 50);
   lv_obj_set_style_radius(add_btn_, theme::kButtonRadius, 0);
   lv_obj_set_style_bg_color(add_btn_, lv_color_hex(theme::kColorAccent), 0);
+  lv_obj_add_event_cb(add_btn_, add_btn_cb, LV_EVENT_CLICKED, nullptr);
 
   lv_obj_t *add_label = lv_label_create(add_btn_);
   lv_obj_center(add_label);

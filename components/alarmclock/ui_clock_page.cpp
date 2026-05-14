@@ -20,7 +20,7 @@ static lv_obj_t *date_label_ = nullptr;
 static lv_obj_t *next_alarm_label_ = nullptr;
 static lv_obj_t *pre_alarm_label_ = nullptr;
 
-// Page indicator dots.
+// Page indicator dots (created in ui_init as screen-root children).
 static lv_obj_t *page_dots_[theme::kPageCount] = {};
 
 // ---------------------------------------------------------------------------
@@ -67,7 +67,12 @@ void ui_build_clock_page(lv_obj_t *parent) {
   lv_label_set_text(pre_alarm_label_, "");
   lv_obj_add_flag(pre_alarm_label_, LV_OBJ_FLAG_HIDDEN);
 
-  // Page indicator dots at bottom.
+}
+
+// ---------------------------------------------------------------------------
+// Build page indicator dots (called from ui_init, parented to screen root).
+// ---------------------------------------------------------------------------
+void ui_build_page_dots(lv_obj_t *parent) {
   int16_t dot_spacing = 20;
   int16_t dot_start_x = -(dot_spacing * (theme::kPageCount - 1)) / 2;
   for (uint8_t i = 0; i < theme::kPageCount; i++) {
@@ -75,6 +80,7 @@ void ui_build_clock_page(lv_obj_t *parent) {
     lv_obj_set_size(page_dots_[i], 8, 8);
     lv_obj_set_style_radius(page_dots_[i], 4, 0);
     lv_obj_set_style_border_width(page_dots_[i], 0, 0);
+    lv_obj_clear_flag(page_dots_[i], LV_OBJ_FLAG_CLICKABLE);
     lv_obj_align(page_dots_[i], LV_ALIGN_BOTTOM_MID,
                  dot_start_x + i * dot_spacing, -15);
     uint32_t color = (i == theme::kPageClock) ? theme::kColorPrimary : theme::kColorMuted;
