@@ -185,12 +185,9 @@ static void keyboard_ready_cb(lv_event_t *e) {
 }
 
 static void day_btn_cb(lv_event_t *e) {
-  lv_obj_t *btn = static_cast<lv_obj_t *>(lv_event_get_target(e));
-  if (lv_obj_has_state(btn, LV_STATE_CHECKED)) {
-    lv_obj_clear_state(btn, LV_STATE_CHECKED);
-  } else {
-    lv_obj_add_state(btn, LV_STATE_CHECKED);
-  }
+  // LV_OBJ_FLAG_CHECKABLE handles the toggle automatically before this
+  // callback fires.  No manual state manipulation needed.
+  (void)e;
 }
 
 // ---------------------------------------------------------------------------

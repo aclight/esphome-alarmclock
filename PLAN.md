@@ -1,267 +1,202 @@
 # Alarm Clock — Code Review & Fix Plan
 
+> **Previous review (Batch 1–3):** All 18 original issues have been fixed.
+> Day-of-week offset, callback registration, sync_ui\_ visibility, pending alarm
+> queue, default-alarm persistence, 24h format support, clock_font_120,
+> scrollable settings, swipe vertical guard, keyboard, cancel button, day
+> button sizing (50px), "Once" label, and page dot updates are all resolved.
+>
+> This plan covers **new issues** found during a fresh code review (May 2025).
+
+---
+
 ## Critical Logic Bugs
 
-### 1. Day-of-week off-by-one error (alarms fire on wrong day)
-**Files:** `alarmclock.yaml` interval lambda, `alarm_time.h`
+### 1. Day-of-week toggle buttons in time picker are broken (double-toggle)
+**File:** `ui_time_picker.cpp` — `day_btn_cb` + `LV_OBJ_FLAG_CHECKABLE`
 
-ESPHome's `ESPTime::day_of_week` is 1-based (1=Sunday … 7=Saturday), but all alarm logic in `alarm_time.h` expects 0-based (0=Sunday … 6=Saturday). The YAML passes `time.day_of_week` directly to `check_alarms_()` without subtracting 1.
+The day buttons have `LV_OBJ_FLAG_CHECKABLE` (line ~278), which causes LVGL to automatically toggle `LV_STATE_CHECKED` on click *before* the event callback fires. The `day_btn_cb` callback then manually toggles the state again, reverting the change. Net effect: clicking a day button does nothing.
 
-**Effect:** Every alarm fires one day late (a Monday alarm fires on Tuesday). Saturday alarms map to `1 << (7 % 7) = kSunday`, so they fire on Sunday instead.
+**Effect:** Users cannot select or deselect repeat days when editing an alarm. All alarms saved from the time picker retain whatever days were set when the picker opened.
 
-**Fix:** Subtract 1 from `time.day_of_week` before passing to `check_alarms_()` and `ui_update_date()` in the YAML interval lambda, OR adjust the conversion inside `check_alarms_` and `ui_update_date`.
-
----
-
-### 2. `ui_update_date` shows wrong day name and breaks on Saturday
-**File:** `ui_clock_page.cpp`
-
-`kDayNames[]` is 0-indexed (0=Sunday), but receives ESPHome's 1-based `day_of_week`. On Sunday it shows "Monday" (index 1). On Saturday (`day_of_week=7`), the guard `day_of_week > 6` rejects the value, so date display never updates on Saturdays.
-
-**Fix:** Apply the same -1 offset fix from issue #1.
+**Fix:** Remove the manual toggle logic from `day_btn_cb`. Since `LV_OBJ_FLAG_CHECKABLE` handles the state automatically, the callback body should be empty (or removed entirely, and the `lv_obj_add_event_cb` call deleted). Alternatively, remove `LV_OBJ_FLAG_CHECKABLE` and keep the manual toggle.
 
 ---
 
-### 3. `on_alarm_time_set` overwrites days with 0xFF
-**File:** `alarmclock.cpp` (line ~57)
+### 2. Snooze re-fire does not update firing overlay or restart animation
+**File:** `alarmclock.cpp`, `loop()` — snooze tick handler (line ~186)
 
-```cpp
-instance_->set_alarm(index, hour, minute, 0xFF, true);  // TODO: pass actual days
-```
+When a snooze expires, only `start_alarm_sound_()`, `ui_show_firing_overlay()`, and the HA event are called. Missing:
+- `ui_firing_update_time()` — the overlay still shows the original trigger time, not the current time
+- `ui_firing_update_label()` — label is not re-applied
+- `ui_firing_start_animation()` — the pulsing animation is not restarted
 
-When the time picker confirms, this callback overwrites the user's day selection with "every day" (0xFF).
+**Effect:** After a snooze, the firing overlay appears but shows a stale time and has no pulsing animation, making it look broken.
 
-**Fix:** The time picker already fires `on_alarm_time_set`, `on_alarm_days_set`, and `on_alarm_label_set` as separate callbacks. Change `on_alarm_time_set` to only update hour/minute on the existing alarm, preserving the current `days_of_week`. Alternatively, merge into a single callback that accepts all fields.
-
----
-
-### 4. `on_alarm_days_set` callback is unimplemented
-**File:** `alarmclock.cpp` (line ~61)
-
-The callback body is empty (TODO). Days selected in the time picker are silently discarded.
-
-**Fix:** Implement the callback to call `set_alarm()` (or a new setter) with the days_mask while preserving hour/minute/enabled.
+**Fix:** Add the three missing calls to the `tick_snooze()` handler, matching the pattern used in `check_alarms_()` when an alarm first fires. This requires the current hour/minute, which can be obtained from the time source or stored when the alarm first triggered.
 
 ---
 
-### 5. `on_alarm_edit`, `on_alarm_delete`, `on_alarm_label_set` callbacks never registered
-**File:** `alarmclock.cpp` (setup, ~line 107)
+### 3. NVS flash wear from unbounded writes on slider drag
+**Files:** `ui_settings_page.cpp`, `alarmclock.cpp`
 
-These callbacks are left as `nullptr` in the `UiCallbacks` struct. Consequences:
-- Tapping an alarm row does nothing (time picker never opens).
-- Long-pressing an alarm row does nothing (can't delete).
-- Label text from the time picker is discarded.
+Volume and brightness sliders fire `LV_EVENT_VALUE_CHANGED` continuously during drag. Each event calls `set_volume()` / `set_brightness()`, which call `save_settings_to_storage_()`, writing to NVS flash on every pixel of slider movement. ESP-IDF NVS has limited write endurance (~100K cycles per sector).
 
-**Fix:** Implement and register handlers for all three:
-- `on_alarm_edit` → call `ui_show_time_picker(index, ...)`
-- `on_alarm_delete` → clear alarm, hide row, persist
-- `on_alarm_label_set` → update `alarms_[index].label`, persist
+**Effect:** Heavy slider use can prematurely wear out the NVS flash partition, eventually causing `ESP_ERR_NVS_NO_FREE_PAGES` and data loss.
 
----
-
-### 6. `sync_ui_()` hides one-shot alarms after reboot
-**File:** `alarmclock.cpp` (line ~400)
-
-```cpp
-if (alarms_[i].days_of_week != 0) {  // one-shot alarms (==0) never shown!
-    ui_update_alarm_row(i, ...);
-}
-```
-
-One-shot alarms (no days set) are valid enabled alarms, but they're invisible after every boot.
-
-**Fix:** Change condition to `if (alarms_[i].enabled || alarms_[i].days_of_week != 0)` or simply always call `ui_update_alarm_row` for any alarm that has been configured (e.g., check if hour/minute are non-default or `enabled` is true).
+**Fix:** Debounce NVS writes. Options:
+- Only save on `LV_EVENT_RELEASED` (slider release), not `LV_EVENT_VALUE_CHANGED`.
+- Add a timer-based debounce (e.g., save at most once per 2 seconds, with a pending-save flag).
+- Split the apply (immediate backlight/volume change) from the persist (deferred NVS write).
 
 ---
 
-### 7. Other alarms blocked while one alarm is firing/snoozed
-**File:** `alarmclock.cpp`, `check_alarms_()` (line ~298)
+## UI Bugs
 
-```cpp
-if (state_machine_.state() != alarm_clock::AlarmState::kIdle) {
-    return;  // Already firing or snoozed.
-}
-```
+### 4. Page indicator dots only visible on clock page
+**File:** `ui_clock_page.cpp` — `ui_build_clock_page()`
 
-If alarm A is snoozed for 9 minutes and alarm B is due during that window, alarm B is silently skipped and never fires.
+The `page_dots_[]` widgets are created as children of the clock page container (`parent = pages_[kPageClock]`). When the user navigates to the alarm or settings page, the clock page is hidden (`LV_OBJ_FLAG_HIDDEN`), and the dots disappear.
 
-**Fix:** Keep a single state machine but queue missed alarms. When `check_alarms_()` finds a matching alarm while already firing/snoozed, store its index in a "pending" queue. After the current alarm is dismissed, check the pending queue and immediately fire the next queued alarm if still within its trigger window (same minute).
+**Effect:** Page indicator dots are invisible on the alarm and settings pages, providing no navigation context.
+
+**Fix:** Move dot creation out of `ui_build_clock_page()` and into `ui_init()`, creating them as children of the screen root (`lv_scr_act()`) with a high Z-order so they remain visible on all pages. Alternatively, create duplicate dot sets on each page.
 
 ---
 
-### 8. Default first-boot alarm not persisted to NVS
-**File:** `alarmclock.cpp`, `load_from_storage_()` (line ~508)
+### 5. "Add Alarm" button has no click handler
+**File:** `ui_alarm_page.cpp` — `add_btn_` (line ~130)
 
-When no alarms exist in NVS, a default 7:00 AM weekday alarm is created in RAM but never saved. If the device reboots before the user makes a change, the default disappears.
+The button is created and styled but has no `lv_obj_add_event_cb` attached. The existing TODO says "Implement add-alarm flow."
 
-**Fix:** Call `storage_save_alarm(0, alarms_[0])` after creating the default.
+**Effect:** Users cannot create new alarms from the touch UI. They can only edit the default alarm or alarms created via Home Assistant.
 
----
-
-## Time Format Inconsistency
-
-### 9. Multiple UI functions ignore the 24h/12h setting
-**Files:** `alarmclock.h` (`format_next_alarm_text`), `ui_firing_overlay.cpp` (`ui_firing_update_time`), `ui_alarm_page.cpp` (`ui_update_alarm_row`)
-
-These functions hardcode 12-hour format with AM/PM regardless of the user's `time_format_24h_` preference:
-- `format_next_alarm_text()` — always shows "7:00 AM (in 6h 30m)"
-- `ui_firing_update_time()` — always shows "7:00 AM" on the firing overlay
-- `ui_update_alarm_row()` — always shows "7:00 AM" in alarm list
-
-**Fix:** Pass the `time_format_24h` flag to these functions (or use `format_clock_time()` which already handles both formats).
+**Fix:** Add a click handler that finds the first unused alarm slot (hour=0, minute=0, days=0, enabled=false) and opens the time picker for it with defaults. If all slots are full, show a brief message or disable the button.
 
 ---
 
-## Code/Comment Mismatch
+### 6. Time picker always uses 12h roller format
+**File:** `ui_time_picker.cpp`
 
-### 10. `compute_content_color` uses quadratic but comment says "sqrt"
-**File:** `alarmclock.h` (line ~275)
+The hour roller always shows hours 1–12 with a separate AM/PM roller, regardless of the user's `time_format_24h` setting. This is confusing when the rest of the UI shows 24h format.
 
-Comment says "Use sqrt curve so color stays bright longer" but code does `t = brightness * brightness` (quadratic — opposite behavior). The documented example values (brightness 0.5 → ~0xB4) match a sqrt curve, not what's implemented.
+**Effect:** Users in 24h mode see "14:30" on the clock but must select "2 PM" in the picker.
 
-**Fix:** Either change to `t = sqrtf(brightness)` to match the documented behavior, or update the comment and example values to reflect the quadratic curve. The sqrt curve is likely the intended behavior (keep text readable longer as backlight dims).
-
----
-
-## UI Usability Issues
-
-### 11. Clock face time is too small for a bedside clock
-**File:** `ui_clock_page.cpp`
-
-The time uses `lv_font_montserrat_48` (48px ≈ 5.6mm on this 217 PPI display). A bedside clock should have digits at least 20-30mm tall (readable at arm's length in low light without glasses).
-
-**Fix:** Use a much larger font — minimum 100px, ideally 120-140px. This requires adding a custom font or using LVGL's font generation. The date and next-alarm labels can shift down accordingly. Consider making the LVGL `boot_page` reference the larger font so it gets compiled in.
+**Fix:** When `time_format_24h` is true:
+- Change the hour roller options to "00\n01\n...\n23" (24 entries).
+- Hide the AM/PM roller.
+- Adjust the confirm callback to read the hour directly (no 12→24 conversion).
+Pass the `time_format_24h` flag to `ui_show_time_picker()` or store it globally in the UI module.
 
 ---
 
-### 12. Settings page overflows screen and is not scrollable
-**File:** `ui_settings_page.cpp`
+### 7. Day-of-week button labels are ambiguous
+**File:** `ui_time_picker.cpp` — `kDayLetters[]`
 
-Content extends to Y≈470+ (time format toggle at Y=440 + control height) on a 480px screen. The page has scrolling disabled (`LV_OBJ_FLAG_SCROLLABLE` cleared in `ui.cpp`). The bottom controls are unreachable or barely visible.
+Sunday and Saturday both show "S"; Tuesday and Thursday both show "T". Users cannot distinguish them.
+
+**Effect:** Users may select the wrong days, causing alarms to fire on unintended days.
+
+**Fix:** Use two-letter abbreviations: `{"Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"}`. Increase button width from 50px to ~56px to accommodate, or use a slightly smaller font. At 7 × (56 + 8) = 448px, this still fits within the 700px picker.
+
+---
+
+### 8. Alarm row content overflows container at bottom
+**File:** `ui_alarm_page.cpp`
+
+Row height is 80px. Widget positions (from `LV_ALIGN_LEFT_MID`):
+- `time_label`: y=-15 (center at 25, ~28px font → spans 11–39)
+- `alarm_label`: y=15 (center at 55, ~18px font → spans 46–64)  
+- `days_label`: y=32 (center at 72, ~18px font → spans 63–81)
+
+The days label extends 1px past the 80px container, causing clipping. When both a label and days are shown, the vertical space is tight and may overlap.
 
 **Fix:** Either:
-- Enable scrolling on the settings page only (add `LV_OBJ_FLAG_SCROLLABLE` to the settings page), OR
-- Reorganize layout to fit within 480px (consolidate sections, reduce spacing), OR
-- Split into two settings sub-pages
+- Increase `kAlarmRowHeight` to 90–95px (and adjust `kAlarmListStartY` or reduce `kAlarmRowGap`).
+- Move `days_label` up (y=25) and `alarm_label` up (y=10), compacting the layout.
+- Use a two-line layout: time + label on one line, days on the second line.
 
 ---
 
-### 13. Swipe gesture conflicts with sliders and rollers
-**File:** `ui.cpp`
+## Logic / Behavior Issues
 
-The swipe handler captures `LV_EVENT_PRESSED`/`LV_EVENT_RELEASED` on the page container. LVGL events bubble from child to parent, so dragging a horizontal slider can inadvertently trigger a page switch if the drag exceeds 80px.
+### 9. Screen sleep allows up to 50% brightness in bright rooms
+**Files:** `alarmclock.cpp` — `check_screen_sleep_()`, `alarmclock.h` — `compute_brightness()`
 
-**Fix:** Add a vertical displacement check — only trigger page switch if horizontal displacement exceeds threshold AND vertical displacement is small (|dy| < 40px). Alternatively, check if the touch started on an interactive widget and suppress swipe in that case.
+When the screen sleeps, `user_level` is set to `kSleepUserLevel = 0.0`. With default parameters (`auto_range=0.5, min=0.0, max=1.0`), the brightness window is [0.0, 0.5]. In a bright room (`sensor_factor=1.0`), sleep brightness is 0.5 (50%), which is not dim at all.
 
----
+**Effect:** The screen doesn't dim much when sleeping in a well-lit room (e.g., sunset light coming through a window), which is distracting and wastes power.
 
-### 14. No on-screen keyboard for alarm label input
-**File:** `ui_time_picker.cpp`
-
-The label `lv_textarea` has no attached LVGL keyboard. Without a physical keyboard, users cannot type alarm labels.
-
-**Fix:** Create an `lv_keyboard` object in the time picker. Show it when the textarea gains focus, hide it when done. Alternatively, replace the free-text input with a preset label picker (roller or buttons: "Work", "School", "Nap", "Custom").
+**Fix:** When asleep, ignore or attenuate the sensor factor. Options:
+- Use `compute_brightness(0.0, 0.0)` when sleeping (always minimum brightness).
+- Apply a sleep multiplier: `bright = compute_brightness(0.0, sensor_factor) * 0.2f`.
+- Use a separate, lower `auto_range` for sleep mode (e.g., 0.1 instead of 0.5).
 
 ---
 
-### 15. Time picker has no visible Cancel button
-**File:** `ui_time_picker.cpp`
+### 10. Pending alarm queue only stores one alarm
+**File:** `alarmclock.cpp` — `pending_alarm_index_`
 
-The only way to cancel editing is tapping the semi-transparent backdrop. This is not discoverable, especially in low light or for users unfamiliar with the UI pattern.
+If two different alarms match during the same minute while a third is firing/snoozed, only the last matching alarm is stored in `pending_alarm_index_`. The earlier one is silently lost.
 
-**Fix:** Add an explicit "Cancel" button (alongside "Save" and "Delete") that calls `ui_hide_time_picker()`.
+**Effect:** With 4 alarm slots, it's unlikely but possible (e.g., two alarms at the same time on the same day). The second queued alarm would overwrite the first.
 
----
-
-### 16. Day-of-week buttons too small (44px < 48px minimum)
-**File:** `ui_time_picker.cpp`
-
-`kDayBtnSize = 44` is below the recommended 48dp minimum touch target for accessibility. At 217 PPI, 44px ≈ 5.1mm — hard to tap accurately when groggy.
-
-**Fix:** Increase to 48-52px. With 7 buttons at (52+8)px spacing = 420px, this still fits within the 700px picker width.
+**Fix (low priority):** Use a small array/bitmask instead of a single index: `uint8_t pending_alarm_mask_ = 0;` with `pending_alarm_mask_ |= (1 << i)`. When processing pending alarms, find the first set bit, clear it, and fire that alarm.
 
 ---
 
-### 17. One-shot alarms show no indicator in alarm list
-**File:** `ui_alarm_page.cpp`
-
-When `days_of_week == 0`, the days label is empty, giving no visual cue that this is a "fire once" alarm vs. a misconfigured alarm.
-
-**Fix:** When `days_mask == 0`, display "Once" or "One-time" in the days label.
-
----
-
-### 18. Page dots never update on page change
-**File:** `ui_clock_page.cpp`
-
-`ui_update_page_dots()` is defined but never called. The dots always show page 0 (clock) as active regardless of which page is visible.
-
-**Fix:** Call `ui_update_page_dots(page_index)` from `ui_show_page()` in `ui.cpp` after the transition starts.
-
----
-
-### 19. Small fonts on alarm rows hurt readability
-**File:** `ui_alarm_page.cpp`
-
-The alarm label and days use `lv_font_montserrat_14` (14px ≈ 1.6mm). This is very hard to read in low light or without glasses.
-
-**Fix:** Increase to `montserrat_18` or `montserrat_20` for secondary text on alarm rows. Adjust row height if needed to accommodate.
-
----
-
-### 20. Alarm "Add" button may overlap last alarm row
-**File:** `ui_alarm_page.cpp`
-
-Four alarm rows: start Y=60, each row 90px + 10px gap = 400px. Last row ends at Y=460. "Add Alarm" button is at `BOTTOM_MID, 0, -30` = Y=400 (480-30-50=400). The button (50px tall, centered at Y=400) overlaps with the 4th alarm row.
-
-**Fix:** Recalculate layout: reduce row heights, reduce spacing, or position the Add button conditionally (only show when fewer than kMaxAlarms are configured). Alternatively, offset alarm list to start higher or make the page scrollable.
-
----
-
-### 21. Firing overlay buttons could be larger
-**File:** `ui_firing_overlay.cpp`, `ui_theme.h`
-
-Snooze/Dismiss buttons are 200×80px with montserrat_24 text. While acceptable, for a panic-press scenario (alarm blaring, user half-asleep), larger buttons (280×90+) and larger text (montserrat_28 or _32) would significantly improve usability.
-
-**Fix:** Increase `kButtonWidth` to 260-280 and `kButtonHeight` to 90. Increase button label font to `montserrat_28`. Adjust Y positions to maintain spacing.
-
----
-
-### 22. No visual indication of which alarm is currently firing
-**File:** `ui_alarm_page.cpp`
-
-When an alarm is firing or snoozed, its row in the alarm list looks the same as any other enabled alarm. Users navigating to the alarm page can't tell which alarm triggered.
-
-**Fix:** Highlight the firing alarm's row (e.g., change background color to a muted red/orange, or add a pulsing indicator).
-
----
-
-## Lower Priority / Polish
-
-### 23. Slider knob size too small for bedside use
-**File:** `ui_settings_page.cpp`
-
-Default LVGL slider knobs are small. For a groggy user, the knob should be enlarged.
-
-**Fix:** Set `lv_obj_set_style_pad_all(slider, 8, LV_PART_KNOB)` or similar to increase the knob hit area.
-
----
-
-### 24. Volume ramp resets on snooze re-fire
-**File:** `alarmclock.cpp`, `start_alarm_sound_()`
-
-When snooze expires and the alarm re-fires, `alarm_sound_start_ms_` resets, causing the volume ramp to restart from 10%. On subsequent snooze-fires, users may want immediate full volume since they've already been woken.
-
-**Fix:** On snooze re-fire (snooze_count > 0), skip the ramp or use a shorter ramp duration.
-
----
-
-### 25. `kPreAlarmMinutes` should be configurable
+### 11. `compute_content_color` is dead code
 **File:** `alarmclock.h`
 
-The pre-alarm notification threshold is hardcoded to 5 minutes. Some users prefer more warning time.
+The function is defined and tested but never called from any UI or component code. It was likely intended to dynamically adjust UI text color based on brightness (supplement PWM dimming with content dimming), but integration was never completed.
 
-**Fix:** Add to StorageSettings and expose in the settings page (e.g., "0 / 5 / 10 / 15 min" options).
+**Effect:** No functional impact — the function compiles and tests pass, but it has no runtime effect. Text stays white at all brightness levels.
+
+**Fix:** Either:
+- Integrate it: call from `update_backlight_()` and pass the result to a new UI function that sets text colors on clock/date labels.
+- Remove it: delete the function and its tests to reduce dead code.
+
+---
+
+### 12. Firing overlay does not show current time
+**Files:** `alarmclock.cpp` — `check_alarms_()`, `ui_firing_overlay.cpp`
+
+When an alarm fires, `ui_firing_update_time()` is called once with the alarm's hour/minute. The overlay then shows a static time (e.g., "7:00 AM") for the entire firing duration (up to 30 minutes). The main clock face is completely hidden behind the overlay.
+
+**Effect:** Users lose awareness of the current time while the alarm is firing. If they snooze and the alarm re-fires at 7:09, the overlay still shows "7:00 AM" (see also Issue #2).
+
+**Fix:** Update the firing overlay time every second from the YAML interval lambda (alongside the main clock update), or add a secondary "current time" label to the firing overlay.
+
+---
+
+## Documentation / Code Quality
+
+### 13. `compute_brightness` comment examples use wrong default min
+**File:** `alarmclock.h` — comment block above `compute_brightness()`
+
+The comment says:
+```
+// Examples with defaults (auto_range=0.5, min=0.1, max=1.0):
+```
+
+But the actual default is `min_brightness = kMinBrightness = 0.0f`, not 0.1. The example values (user_level=0.0 → window [0.10, 0.60]) are wrong.
+
+**Fix:** Update the comment to use `min=0.0`:
+```
+// Examples with defaults (auto_range=0.5, min=0.0, max=1.0):
+//   user_level=1.0 → window [0.50, 1.00]
+//   user_level=0.0 → window [0.00, 0.50]
+//   user_level=0.5 → window [0.25, 0.75]
+```
+
+---
+
+### 14. Namespace split (`alarm_clock` vs `alarmclock`) is confusing
+**Files:** `alarm_time.h`, `alarm_state.h` (`namespace alarm_clock`), all other files (`namespace alarmclock`)
+
+The pure-logic headers use `alarm_clock` (with underscore), while the component and UI use `alarmclock` (no underscore). This forces qualified access like `alarm_clock::AlarmTime` throughout the component code and makes it easy to accidentally use the wrong namespace.
+
+**Fix (low priority):** Unify to a single namespace. `alarmclock` (no underscore) is already used by the ESPHome component registration. Rename `alarm_clock` → `alarmclock` in `alarm_time.h`, `alarm_state.h`, and `storage.h`, and update all references.
 
 ---
 
@@ -269,78 +204,61 @@ The pre-alarm notification threshold is hardcoded to 5 minutes. Some users prefe
 
 | Priority | Issues |
 |----------|--------|
-| **P0 — Alarms broken** | #1, #2, #3, #4, #5 |
-| **P1 — Data loss / silent failures** | #6, #7, #8 |
-| **P2 — Wrong display info** | #9, #10, #18 |
-| **P3 — Usability (important for bedside clock)** | #11, #12, #13, #14, #15, #16, #20, #21 |
-| **P4 — Polish** | #17, #19, #22, #23, #24, #25 |
+| **P0 — Broken functionality** | #1 (day buttons don't toggle), #2 (snooze re-fire display) |
+| **P1 — Data integrity / hardware** | #3 (NVS flash wear) |
+| **P2 — Missing features** | #5 (add alarm button), #6 (24h time picker) |
+| **P3 — UI correctness** | #4 (page dots), #7 (day labels), #8 (row overflow), #12 (firing time) |
+| **P4 — Behavior / polish** | #9 (sleep brightness), #10 (pending queue), #11 (dead code), #13 (comment), #14 (namespace) |
 
 ---
 
 ## Implementation Batches
 
-### Batch 1 — Core alarm logic (P0 + P1): Issues #1–8
+### Batch 1 — Critical fixes (P0 + P1): Issues #1, #2, #3
 
-Fix all alarm logic bugs so alarms fire correctly and the edit flow works.
-These are interdependent: #1/#2 share a root cause, #3/#4/#5 are the edit flow,
-#6/#7/#8 touch the same `alarmclock.cpp` code paths.
+Fix the broken day-of-week buttons, snooze re-fire display, and NVS wear.
 
 **Files touched:**
-- `alarmclock.yaml` (day_of_week offset in interval lambda)
-- `alarmclock.cpp` (callbacks, sync_ui_, check_alarms_, load_from_storage_)
-- `ui_clock_page.cpp` (day_of_week guard fix)
+- `ui_time_picker.cpp` (remove manual toggle from `day_btn_cb`)
+- `alarmclock.cpp` (add missing calls in snooze re-fire path; debounce NVS writes)
+- `ui_settings_page.cpp` (possibly change slider event from VALUE_CHANGED to RELEASED)
 
-**Test:** Deploy and confirm alarms fire on the correct day. Exercise the
-alarm edit flow end-to-end (tap row → time picker → change time/days/label → save).
-Verify one-shot alarms appear after reboot. Test snooze-during-overlap scenario.
-
-**DONE!!!**
+**Tests:**
+- Verify day buttons toggle correctly in time picker.
+- Verify snooze re-fire shows updated time and restarts pulse animation.
+- Verify settings persist correctly but NVS writes are bounded.
 
 ---
 
-### Batch 2 — UI layout & usability (P3): Issues #12–16, #20, #21
+### Batch 2 — UI fixes (P2 + P3): Issues #4, #5, #6, #7, #8, #12
 
-Rework display sizes and layout for bedside readability. These cascade (bigger
-clock font shifts other elements, settings page overflow requires layout redo).
-
-Issue #11 (larger clock font) deferred to Batch 3 — requires custom font
-generation tooling.
+Fix page dots visibility, implement Add Alarm, add 24h picker mode, improve day labels, fix alarm row layout, and update firing overlay time.
 
 **Files touched:**
-- `ui_theme.h` (button sizes, Y offsets)
-- `ui_clock_page.cpp` (larger font, reposition date/alarm labels)
-- `ui_settings_page.cpp` (scrollable or condensed layout)
-- `ui_time_picker.cpp` (cancel button, larger day buttons, keyboard)
-- `ui_firing_overlay.cpp` (larger buttons/text)
-- `ui_alarm_page.cpp` (fix add-button overlap)
-- `ui.cpp` (swipe vs slider conflict)
-- `alarmclock.yaml` `lvgl:` section (reference keyboard widget so it compiles in)
+- `ui_clock_page.cpp` (move dot creation)
+- `ui.cpp` (dots as screen-root children)
+- `ui_alarm_page.cpp` (add button handler, fix row height/spacing)
+- `ui_time_picker.cpp` (24h roller mode, two-letter day labels)
+- `alarmclock.cpp` / YAML interval (update firing overlay time each second)
 
-**Test:** Visually confirm all pages fit without overlap on 800×480. Test slider
-dragging doesn't trigger page swipe. Verify time picker cancel/keyboard work.
-
-**DONE!!!**
+**Tests:**
+- Page dots visible on all three pages.
+- Add Alarm button opens time picker for empty slot.
+- 24h mode shows 0–23 hour roller without AM/PM.
+- Day labels clearly distinguishable (Su, Mo, Tu, We, Th, Fr, Sa).
+- No clipping on alarm rows with all fields populated.
+- Firing overlay shows current time, not stale trigger time.
 
 ---
 
-### Batch 3 — Display correctness & polish (P2 + P4): Issues #9, #10, #11, #17–19, #22–25
+### Batch 3 — Polish (P4): Issues #9, #10, #11, #13, #14
 
-Safe, isolated improvements. Can be done incrementally.
-Issue #11 (larger clock font) moved here from Batch 2.
+Lower-priority improvements — sleep brightness, pending alarm robustness, dead code cleanup.
 
 **Files touched:**
-- `alarmclock.h` (`format_next_alarm_text` — pass time format flag, fix `compute_content_color` comment/code)
-- `ui_clock_page.cpp` (larger clock font, reposition date/alarm labels, call `ui_update_page_dots`)
-- `ui_firing_overlay.cpp` (respect 24h format)
-- `ui_alarm_page.cpp` (respect 24h format, "Once" label, firing highlight, larger fonts)
-- `ui_clock_page.cpp` (call `ui_update_page_dots`)
-- `ui.cpp` (call `ui_update_page_dots` from `ui_show_page`)
-- `ui_settings_page.cpp` (larger slider knobs, pre-alarm option)
-- `alarmclock.cpp` (skip volume ramp on re-fire)
-- `storage.h` (add `pre_alarm_minutes` to StorageSettings)
-
-**Test:** Toggle 12h/24h and confirm all time displays update. Verify page dots
-track current page. Confirm firing alarm row is highlighted.
+- `alarmclock.cpp` (sleep brightness override, pending alarm bitmask)
+- `alarmclock.h` (fix comment, remove or integrate `compute_content_color`)
+- `alarm_time.h`, `alarm_state.h`, `storage.h` (namespace rename, if desired)
 
 ---
 

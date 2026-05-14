@@ -1681,6 +1681,18 @@ TEST(pre_alarm_settings_default) {
     PASS();
 }
 
+// ===========================================================================
+// NVS debounce constant tests (Batch 1, Issue #3)
+// ===========================================================================
+
+TEST(settings_debounce_period_sanity) {
+    // Debounce period should be at least 1 second to prevent NVS wear.
+    ASSERT_TRUE(kSettingsDebouncePeriodMs >= 1000);
+    // Should not be excessively long (> 10 seconds would feel unresponsive).
+    ASSERT_TRUE(kSettingsDebouncePeriodMs <= 10000);
+    PASS();
+}
+
 // ---------------------------------------------------------------------------
 // main — register every TEST here.
 // ---------------------------------------------------------------------------
@@ -1929,6 +1941,9 @@ int main() {
     RUN(pre_alarm_minutes_to_option_not_found);
     RUN(pre_alarm_option_count);
     RUN(pre_alarm_settings_default);
+
+    // NVS debounce constant (Batch 1, Issue #3)
+    RUN(settings_debounce_period_sanity);
 
     printf("\n%d test(s) run, %d failed.\n", tests_run, tests_failed);
     return tests_failed == 0 ? 0 : 1;
