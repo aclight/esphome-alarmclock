@@ -558,6 +558,7 @@ class AlarmClockComponent : public ::esphome::Component,
   uint8_t last_checked_minute_ = 0xFF;
   uint8_t last_known_hour_ = 0;
   uint8_t last_known_minute_ = 0;
+  uint8_t last_known_day_of_week_ = 0;
 
   // Screen sleep state.
   bool screen_asleep_ = false;

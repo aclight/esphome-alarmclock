@@ -139,10 +139,6 @@ void ui_init() {
   ui_build_alarm_page(pages_[theme::kPageAlarms]);
   ui_build_settings_page(pages_[theme::kPageSettings]);
 
-  // Enable scrolling on the settings page so all controls are reachable.
-  lv_obj_add_flag(pages_[theme::kPageSettings], LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_scrollbar_mode(pages_[theme::kPageSettings], LV_SCROLLBAR_MODE_AUTO);
-
   // Create page indicator dots (screen-root children, visible on all pages).
   ui_build_page_dots(scr);
 
