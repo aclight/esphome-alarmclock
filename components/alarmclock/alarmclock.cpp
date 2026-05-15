@@ -170,40 +170,6 @@ void AlarmClockComponent::loop() {
       play_alarm_melody_();
     }
   }
-
-  // Tick timers once per minute.
-  uint32_t now_ms = ::esphome::millis();
-  if (now_ms - last_minute_check_ms_ >= 60000) {
-    last_minute_check_ms_ = now_ms;
-
-    // Auto-dismiss after 30 minutes of continuous firing.
-    if (state_machine_.tick_firing()) {
-      ESP_LOGI(TAG, "Alarm auto-dismissed after %d minutes",
-               kAutoDismissMinutes);
-      stop_alarm_sound_();
-      ui_hide_firing_overlay();
-      ui_firing_stop_animation();
-      if (fired_alarm_index_ < kMaxAlarms) {
-        ui_clear_alarm_row_firing(fired_alarm_index_);
-      }
-      auto_disable_one_shot_alarm_();
-      fired_alarm_index_ = 0xFF;
-      fire_ha_event_("esphome.alarm_dismissed");
-    }
-
-    if (state_machine_.tick_snooze()) {
-      // Snooze expired — alarm fires again.
-      start_alarm_sound_();
-      ui_show_firing_overlay();
-      ui_firing_start_animation();
-      ui_firing_update_time(last_known_hour_, last_known_minute_,
-                            time_format_24h_);
-      if (fired_alarm_index_ < kMaxAlarms) {
-        ui_firing_update_label(alarms_[fired_alarm_index_].label);
-      }
-      fire_ha_event_("esphome.alarm_fired");
-    }
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -256,7 +222,6 @@ void AlarmClockComponent::update_alarm_time(uint8_t index, uint8_t hour,
   }
   alarms_[index].hour = hour;
   alarms_[index].minute = minute;
-  alarms_[index].enabled = true;
   storage_save_alarm(index, alarms_[index]);
   ui_update_alarm_row(index, hour, minute, alarms_[index].days_of_week,
                       alarms_[index].enabled, time_format_24h_,
@@ -428,6 +393,36 @@ void AlarmClockComponent::check_alarms_(uint8_t hour, uint8_t minute,
   }
   last_checked_minute_ = minute;
 
+  // Tick timers once per real-time minute (synchronized with clock source).
+  // Auto-dismiss after 30 minutes of continuous firing.
+  if (state_machine_.tick_firing()) {
+    ESP_LOGI(TAG, "Alarm auto-dismissed after %d minutes",
+             kAutoDismissMinutes);
+    stop_alarm_sound_();
+    ui_hide_firing_overlay();
+    ui_firing_stop_animation();
+    if (fired_alarm_index_ < kMaxAlarms) {
+      ui_clear_alarm_row_firing(fired_alarm_index_);
+    }
+    auto_disable_one_shot_alarm_();
+    fired_alarm_index_ = 0xFF;
+    fire_ha_event_("esphome.alarm_dismissed");
+    return;
+  }
+
+  if (state_machine_.tick_snooze()) {
+    // Snooze expired — alarm fires again.
+    start_alarm_sound_();
+    ui_show_firing_overlay();
+    ui_firing_start_animation();
+    ui_firing_update_time(hour, minute, time_format_24h_);
+    if (fired_alarm_index_ < kMaxAlarms) {
+      ui_firing_update_label(alarms_[fired_alarm_index_].label);
+    }
+    fire_ha_event_("esphome.alarm_fired");
+    return;
+  }
+
   // Update the next-alarm display and pre-alarm banner every minute.
   update_next_alarm_display_(hour, minute, day_of_week);
 
@@ -456,19 +451,31 @@ void AlarmClockComponent::check_alarms_(uint8_t hour, uint8_t minute,
         break;
       }
     }
-    // Fire the pending alarm if it's still enabled.
+    // Fire the pending alarm if it's still enabled and within a
+    // reasonable grace period (same hour as scheduled, i.e., at most
+    // 59 minutes late).  Stale pending alarms are discarded.
     if (pending < kMaxAlarms && alarms_[pending].enabled) {
-      ESP_LOGW(TAG, "Firing queued alarm %d!", pending);
-      fired_alarm_index_ = pending;
-      state_machine_.trigger();
-      start_alarm_sound_();
-      ui_show_firing_overlay();
-      ui_firing_start_animation();
-      ui_firing_update_time(hour, minute, time_format_24h_);
-      ui_firing_update_label(alarms_[pending].label);
-      ui_set_alarm_row_firing(pending);
-      fire_ha_event_("esphome.alarm_fired");
-      return;
+      int32_t mins_until = minutes_until_alarm(
+          alarms_[pending], hour, minute, day_of_week);
+      // mins_until == 0 means it matches now; a large value means it
+      // wrapped around (>= 23*60 means it just passed within the hour).
+      bool is_stale = (mins_until > 60 && mins_until < 23 * 60);
+      if (is_stale) {
+        ESP_LOGW(TAG, "Discarding stale pending alarm %d (next in %d min)",
+                 pending, mins_until);
+      } else {
+        ESP_LOGW(TAG, "Firing queued alarm %d!", pending);
+        fired_alarm_index_ = pending;
+        state_machine_.trigger();
+        start_alarm_sound_();
+        ui_show_firing_overlay();
+        ui_firing_start_animation();
+        ui_firing_update_time(hour, minute, time_format_24h_);
+        ui_firing_update_label(alarms_[pending].label);
+        ui_set_alarm_row_firing(pending);
+        fire_ha_event_("esphome.alarm_fired");
+        return;
+      }
     }
   }
 

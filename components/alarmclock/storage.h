@@ -4,6 +4,7 @@
 #ifndef STORAGE_H
 #define STORAGE_H
 
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 
@@ -17,6 +18,10 @@ namespace alarmclock {
 
 // Current format version — bump when the layout changes.
 static constexpr uint8_t kStorageVersion = 2;
+
+// Maximum valid alarm sound index for storage validation.
+// Must be kept in sync with kAlarmSoundCount in alarmclock.h.
+static constexpr uint8_t kMaxStoredSoundIndex = 5;
 
 // Serialized sizes (including the version byte).
 static constexpr size_t kSerializedAlarmSize = 1 + 1 + 1 + 1 + 1 + kAlarmLabelMaxLen;  // 21
@@ -57,7 +62,7 @@ inline size_t serialize_alarm(const AlarmTime &alarm, uint8_t *buf, size_t buf_s
 }
 
 // Deserialize an AlarmTime from |buf| (must be >= kSerializedAlarmSize bytes).
-// Returns true on success.
+// Returns true on success.  Returns false if any field is out of range.
 inline bool deserialize_alarm(const uint8_t *buf, size_t buf_size, AlarmTime *alarm) {
   if (buf == nullptr || alarm == nullptr || buf_size < kSerializedAlarmSize) {
     return false;
@@ -67,10 +72,20 @@ inline bool deserialize_alarm(const uint8_t *buf, size_t buf_size, AlarmTime *al
   if (version != kStorageVersion) {
     return false;
   }
-  alarm->hour = buf[offset++];
-  alarm->minute = buf[offset++];
-  alarm->days_of_week = buf[offset++];
-  alarm->enabled = buf[offset++] != 0;
+  uint8_t hour = buf[offset++];
+  uint8_t minute = buf[offset++];
+  uint8_t days = buf[offset++];
+  bool enabled = buf[offset++] != 0;
+
+  // Validate fields — reject corrupted data.
+  if (hour > 23 || minute > 59 || (days & 0x80) != 0) {
+    return false;
+  }
+
+  alarm->hour = hour;
+  alarm->minute = minute;
+  alarm->days_of_week = days;
+  alarm->enabled = enabled;
   std::memcpy(alarm->label, &buf[offset], kAlarmLabelMaxLen);
   alarm->label[kAlarmLabelMaxLen - 1] = '\0';  // Ensure null termination.
   return true;
@@ -97,7 +112,7 @@ inline size_t serialize_settings(const StorageSettings &settings, uint8_t *buf,
 }
 
 // Deserialize StorageSettings from |buf| (must be >= kSerializedSettingsSize bytes).
-// Returns true on success.
+// Returns true on success.  Clamps out-of-range values to valid defaults.
 inline bool deserialize_settings(const uint8_t *buf, size_t buf_size,
                                  StorageSettings *settings) {
   if (buf == nullptr || settings == nullptr || buf_size < kSerializedSettingsSize) {
@@ -116,6 +131,20 @@ inline bool deserialize_settings(const uint8_t *buf, size_t buf_size,
   settings->time_format_24h = buf[offset++] != 0;
   settings->selected_sound_index = buf[offset++];
   settings->pre_alarm_minutes = buf[offset++];
+
+  // Clamp volume and brightness to [0.0, 1.0].
+  if (settings->volume < 0.0f || settings->volume > 1.0f ||
+      std::isnan(settings->volume) || std::isinf(settings->volume)) {
+    settings->volume = 0.5f;
+  }
+  if (settings->brightness < 0.0f || settings->brightness > 1.0f ||
+      std::isnan(settings->brightness) || std::isinf(settings->brightness)) {
+    settings->brightness = 0.5f;
+  }
+  // Clamp sound index to valid range.
+  if (settings->selected_sound_index >= kMaxStoredSoundIndex) {
+    settings->selected_sound_index = 0;
+  }
   return true;
 }
 

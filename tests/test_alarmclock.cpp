@@ -1652,6 +1652,125 @@ TEST(settings_debounce_period_sanity) {
     PASS();
 }
 
+// ===========================================================================
+// D1: deserialize_alarm must reject out-of-range fields (PLAN.md A3/D1)
+// ===========================================================================
+
+TEST(deserialize_alarm_invalid_hour) {
+    AlarmTime orig{12, 0, kWeekdays, true};
+    uint8_t buf[kSerializedAlarmSize];
+    serialize_alarm(orig, buf, sizeof(buf));
+    buf[1] = 25;  // corrupt hour field (valid: 0-23)
+    AlarmTime loaded{};
+    ASSERT_FALSE(deserialize_alarm(buf, sizeof(buf), &loaded));
+    PASS();
+}
+
+TEST(deserialize_alarm_invalid_minute) {
+    AlarmTime orig{12, 0, kWeekdays, true};
+    uint8_t buf[kSerializedAlarmSize];
+    serialize_alarm(orig, buf, sizeof(buf));
+    buf[2] = 70;  // corrupt minute field (valid: 0-59)
+    AlarmTime loaded{};
+    ASSERT_FALSE(deserialize_alarm(buf, sizeof(buf), &loaded));
+    PASS();
+}
+
+TEST(deserialize_alarm_invalid_days) {
+    AlarmTime orig{12, 0, kWeekdays, true};
+    uint8_t buf[kSerializedAlarmSize];
+    serialize_alarm(orig, buf, sizeof(buf));
+    buf[3] = 0xFF;  // bit 7 set — only bits 0-6 are valid days
+    AlarmTime loaded{};
+    ASSERT_FALSE(deserialize_alarm(buf, sizeof(buf), &loaded));
+    PASS();
+}
+
+// ===========================================================================
+// D2: format_clock_time with out-of-range hour/minute (PLAN.md D2)
+// ===========================================================================
+
+TEST(format_clock_time_invalid_hour_24h) {
+    char buf[16];
+    // hour=25 — out of range but format_clock_time is a display function;
+    // it should still produce output without crashing.
+    size_t n = format_clock_time(25, 0, true, buf, sizeof(buf));
+    ASSERT_TRUE(n > 0);
+    PASS();
+}
+
+TEST(format_clock_time_invalid_minute) {
+    char buf[16];
+    // minute=70 — out of range.
+    size_t n = format_clock_time(7, 70, true, buf, sizeof(buf));
+    ASSERT_TRUE(n > 0);
+    PASS();
+}
+
+// ===========================================================================
+// D3: deserialize_settings with out-of-range values (PLAN.md D3)
+// ===========================================================================
+
+TEST(deserialize_settings_invalid_volume) {
+    StorageSettings orig{};
+    orig.volume = 0.5f;
+    uint8_t buf[kSerializedSettingsSize];
+    serialize_settings(orig, buf, sizeof(buf));
+    // Corrupt volume to > 1.0.
+    float bad = 2.0f;
+    memcpy(&buf[1], &bad, sizeof(float));
+    StorageSettings loaded{};
+    bool ok = deserialize_settings(buf, sizeof(buf), &loaded);
+    ASSERT_TRUE(ok);
+    ASSERT_TRUE(loaded.volume >= 0.0f && loaded.volume <= 1.0f);
+    PASS();
+}
+
+TEST(deserialize_settings_invalid_brightness_nan) {
+    StorageSettings orig{};
+    orig.brightness = 0.5f;
+    uint8_t buf[kSerializedSettingsSize];
+    serialize_settings(orig, buf, sizeof(buf));
+    // Corrupt brightness to NaN.
+    uint32_t nan_bits = 0x7FC00000;  // quiet NaN
+    memcpy(&buf[5], &nan_bits, sizeof(uint32_t));
+    StorageSettings loaded{};
+    bool ok = deserialize_settings(buf, sizeof(buf), &loaded);
+    ASSERT_TRUE(ok);
+    ASSERT_TRUE(loaded.brightness >= 0.0f && loaded.brightness <= 1.0f);
+    PASS();
+}
+
+TEST(deserialize_settings_invalid_sound_index) {
+    StorageSettings orig{};
+    uint8_t buf[kSerializedSettingsSize];
+    serialize_settings(orig, buf, sizeof(buf));
+    buf[11] = 99;  // invalid sound index (offset: 1+4+4+1+1 = 11)
+    StorageSettings loaded{};
+    bool ok = deserialize_settings(buf, sizeof(buf), &loaded);
+    ASSERT_TRUE(ok);
+    ASSERT_TRUE(loaded.selected_sound_index < kMaxStoredSoundIndex);
+    PASS();
+}
+
+// ===========================================================================
+// D5: hour_24_to_12 / hour_12_to_24 with out-of-range input (PLAN.md D5)
+// ===========================================================================
+
+TEST(hour_24_to_12_out_of_range) {
+    // hour_24=25 — invalid but should not crash.  Documents behaviour.
+    auto [h, pm] = hour_24_to_12(25);
+    ASSERT_TRUE(h >= 1 && h <= 12);
+    PASS();
+}
+
+TEST(hour_12_to_24_out_of_range) {
+    // hour_12=0 — invalid (valid range 1-12) but should not crash.
+    uint8_t h = hour_12_to_24(0, false);
+    ASSERT_TRUE(h < 24);
+    PASS();
+}
+
 // ---------------------------------------------------------------------------
 // main — register every TEST here.
 // ---------------------------------------------------------------------------
@@ -1895,6 +2014,24 @@ int main() {
 
     // NVS debounce constant (Batch 1, Issue #3)
     RUN(settings_debounce_period_sanity);
+
+    // D1: deserialize_alarm rejects out-of-range fields (PLAN.md A3/D1)
+    RUN(deserialize_alarm_invalid_hour);
+    RUN(deserialize_alarm_invalid_minute);
+    RUN(deserialize_alarm_invalid_days);
+
+    // D2: format_clock_time with out-of-range values (PLAN.md D2)
+    RUN(format_clock_time_invalid_hour_24h);
+    RUN(format_clock_time_invalid_minute);
+
+    // D3: deserialize_settings rejects out-of-range values (PLAN.md D3)
+    RUN(deserialize_settings_invalid_volume);
+    RUN(deserialize_settings_invalid_brightness_nan);
+    RUN(deserialize_settings_invalid_sound_index);
+
+    // D5: hour_24_to_12 / hour_12_to_24 out-of-range (PLAN.md D5)
+    RUN(hour_24_to_12_out_of_range);
+    RUN(hour_12_to_24_out_of_range);
 
     printf("\n%d test(s) run, %d failed.\n", tests_run, tests_failed);
     return tests_failed == 0 ? 0 : 1;
