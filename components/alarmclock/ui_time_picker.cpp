@@ -29,6 +29,7 @@ static const char *kDayLetters[] = {"Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"};
 // Static widgets.
 // ---------------------------------------------------------------------------
 static lv_obj_t *picker_overlay_ = nullptr;
+static lv_obj_t *picker_panel_ = nullptr;
 static lv_obj_t *hour_roller_ = nullptr;
 static lv_obj_t *minute_roller_ = nullptr;
 static lv_obj_t *ampm_roller_ = nullptr;
@@ -197,6 +198,23 @@ static void label_focus_cb(lv_event_t *e) {
     lv_keyboard_set_textarea(keyboard_, label_input_);
     lv_obj_clear_flag(keyboard_, LV_OBJ_FLAG_HIDDEN);
   }
+  // Shift the picker panel upward so the label field remains visible above
+  // the on-screen keyboard.
+  if (picker_panel_) {
+    lv_obj_align(picker_panel_, LV_ALIGN_TOP_MID, 0, 10);
+  }
+}
+
+static void label_defocus_cb(lv_event_t *e) {
+  (void)e;
+  // Dismiss keyboard when the textarea loses focus (e.g., tap outside).
+  if (keyboard_) {
+    lv_obj_add_flag(keyboard_, LV_OBJ_FLAG_HIDDEN);
+  }
+  // Restore the picker panel to center position.
+  if (picker_panel_) {
+    lv_obj_center(picker_panel_);
+  }
 }
 
 static void keyboard_ready_cb(lv_event_t *e) {
@@ -280,18 +298,18 @@ void ui_build_time_picker(lv_obj_t *parent) {
                       LV_EVENT_CLICKED, nullptr);
 
   // Inner panel (the actual picker card).
-  lv_obj_t *panel = lv_obj_create(picker_overlay_);
-  lv_obj_set_size(panel, kPickerWidth, kPickerHeight);
-  lv_obj_center(panel);
-  lv_obj_set_style_bg_color(panel, lv_color_hex(0x1A1A1A), 0);
-  lv_obj_set_style_border_width(panel, 1, 0);
-  lv_obj_set_style_border_color(panel, lv_color_hex(theme::kColorDivider), 0);
-  lv_obj_set_style_radius(panel, 16, 0);
-  lv_obj_set_style_pad_all(panel, 20, 0);
-  lv_obj_clear_flag(panel, LV_OBJ_FLAG_SCROLLABLE);
+  picker_panel_ = lv_obj_create(picker_overlay_);
+  lv_obj_set_size(picker_panel_, kPickerWidth, kPickerHeight);
+  lv_obj_center(picker_panel_);
+  lv_obj_set_style_bg_color(picker_panel_, lv_color_hex(0x1A1A1A), 0);
+  lv_obj_set_style_border_width(picker_panel_, 1, 0);
+  lv_obj_set_style_border_color(picker_panel_, lv_color_hex(theme::kColorDivider), 0);
+  lv_obj_set_style_radius(picker_panel_, 16, 0);
+  lv_obj_set_style_pad_all(picker_panel_, 20, 0);
+  lv_obj_clear_flag(picker_panel_, LV_OBJ_FLAG_SCROLLABLE);
 
   // --- Hour roller ---
-  hour_roller_ = lv_roller_create(panel);
+  hour_roller_ = lv_roller_create(picker_panel_);
   lv_roller_set_options(hour_roller_, hour_opts_12h_, LV_ROLLER_MODE_INFINITE);
   lv_roller_set_visible_row_count(hour_roller_, 3);
   lv_obj_set_size(hour_roller_, kRollerWidth, kRollerHeight);
@@ -303,14 +321,14 @@ void ui_build_time_picker(lv_obj_t *parent) {
                             LV_PART_SELECTED);
 
   // Colon label between hour and minute.
-  lv_obj_t *colon = lv_label_create(panel);
+  lv_obj_t *colon = lv_label_create(picker_panel_);
   lv_obj_align(colon, LV_ALIGN_TOP_LEFT, 120, 65);
   lv_obj_set_style_text_font(colon, &lv_font_montserrat_28, 0);
   lv_obj_set_style_text_color(colon, lv_color_hex(theme::kColorPrimary), 0);
   lv_label_set_text(colon, ":");
 
   // --- Minute roller ---
-  minute_roller_ = lv_roller_create(panel);
+  minute_roller_ = lv_roller_create(picker_panel_);
   lv_roller_set_options(minute_roller_, minute_opts_, LV_ROLLER_MODE_INFINITE);
   lv_roller_set_visible_row_count(minute_roller_, 3);
   lv_obj_set_size(minute_roller_, kRollerWidth, kRollerHeight);
@@ -322,7 +340,7 @@ void ui_build_time_picker(lv_obj_t *parent) {
                             LV_PART_SELECTED);
 
   // --- AM/PM roller ---
-  ampm_roller_ = lv_roller_create(panel);
+  ampm_roller_ = lv_roller_create(picker_panel_);
   lv_roller_set_options(ampm_roller_, "AM\nPM", LV_ROLLER_MODE_NORMAL);
   lv_roller_set_visible_row_count(ampm_roller_, 2);
   lv_obj_set_size(ampm_roller_, 70, 80);
@@ -334,14 +352,14 @@ void ui_build_time_picker(lv_obj_t *parent) {
                             LV_PART_SELECTED);
 
   // --- Day-of-week toggle buttons ---
-  lv_obj_t *days_label = lv_label_create(panel);
+  lv_obj_t *days_label = lv_label_create(picker_panel_);
   lv_obj_align(days_label, LV_ALIGN_TOP_LEFT, 30, 175);
   lv_obj_set_style_text_font(days_label, &lv_font_montserrat_14, 0);
   lv_obj_set_style_text_color(days_label, lv_color_hex(theme::kColorSecondary), 0);
   lv_label_set_text(days_label, "Repeat:");
 
   for (uint8_t d = 0; d < 7; d++) {
-    day_btns_[d] = lv_button_create(panel);
+    day_btns_[d] = lv_button_create(picker_panel_);
     lv_obj_set_size(day_btns_[d], kDayBtnSize, kDayBtnSize);
     lv_obj_align(day_btns_[d], LV_ALIGN_TOP_LEFT,
                  30 + d * (kDayBtnSize + 8), 200);
@@ -359,13 +377,13 @@ void ui_build_time_picker(lv_obj_t *parent) {
   }
 
   // --- Label input ---
-  lv_obj_t *label_title = lv_label_create(panel);
+  lv_obj_t *label_title = lv_label_create(picker_panel_);
   lv_obj_align(label_title, LV_ALIGN_TOP_LEFT, 30, 260);
   lv_obj_set_style_text_font(label_title, &lv_font_montserrat_14, 0);
   lv_obj_set_style_text_color(label_title, lv_color_hex(theme::kColorSecondary), 0);
   lv_label_set_text(label_title, "Label:");
 
-  label_input_ = lv_textarea_create(panel);
+  label_input_ = lv_textarea_create(picker_panel_);
   lv_obj_set_size(label_input_, kLabelInputWidth, kLabelInputHeight);
   lv_obj_align(label_input_, LV_ALIGN_TOP_LEFT, 30, 282);
   lv_textarea_set_max_length(label_input_, kMaxLabelLen);
@@ -378,7 +396,7 @@ void ui_build_time_picker(lv_obj_t *parent) {
                                 lv_color_hex(theme::kColorAccent), 0);
 
   // --- Confirm button ---
-  confirm_btn_ = lv_button_create(panel);
+  confirm_btn_ = lv_button_create(picker_panel_);
   lv_obj_set_size(confirm_btn_, 120, 50);
   lv_obj_align(confirm_btn_, LV_ALIGN_BOTTOM_RIGHT, -10, -10);
   lv_obj_set_style_bg_color(confirm_btn_, lv_color_hex(theme::kColorAccent), 0);
@@ -392,7 +410,7 @@ void ui_build_time_picker(lv_obj_t *parent) {
   lv_label_set_text(confirm_label, "Save");
 
   // --- Cancel button ---
-  cancel_btn_ = lv_button_create(panel);
+  cancel_btn_ = lv_button_create(picker_panel_);
   lv_obj_set_size(cancel_btn_, 120, 50);
   lv_obj_align(cancel_btn_, LV_ALIGN_BOTTOM_MID, 0, -10);
   lv_obj_set_style_bg_color(cancel_btn_, lv_color_hex(theme::kColorMuted), 0);
@@ -406,7 +424,7 @@ void ui_build_time_picker(lv_obj_t *parent) {
   lv_label_set_text(cancel_label, "Cancel");
 
   // --- Delete button ---
-  delete_btn_ = lv_button_create(panel);
+  delete_btn_ = lv_button_create(picker_panel_);
   lv_obj_set_size(delete_btn_, 120, 50);
   lv_obj_align(delete_btn_, LV_ALIGN_BOTTOM_LEFT, 10, -10);
   lv_obj_set_style_bg_color(delete_btn_, lv_color_hex(theme::kColorAlarmFiring), 0);
@@ -419,7 +437,7 @@ void ui_build_time_picker(lv_obj_t *parent) {
   lv_label_set_text(del_label, "Delete");
 
   // --- Delete confirmation sub-overlay ---
-  build_delete_confirm(panel);
+  build_delete_confirm(picker_panel_);
 
   // --- On-screen keyboard for the label textarea ---
   keyboard_ = lv_keyboard_create(picker_overlay_);
@@ -429,8 +447,9 @@ void ui_build_time_picker(lv_obj_t *parent) {
   lv_obj_add_event_cb(keyboard_, keyboard_ready_cb, LV_EVENT_READY, nullptr);
   lv_obj_add_event_cb(keyboard_, keyboard_ready_cb, LV_EVENT_CANCEL, nullptr);
 
-  // Show keyboard when label textarea gains focus.
+  // Show keyboard when label textarea gains focus; hide on defocus.
   lv_obj_add_event_cb(label_input_, label_focus_cb, LV_EVENT_FOCUSED, nullptr);
+  lv_obj_add_event_cb(label_input_, label_defocus_cb, LV_EVENT_DEFOCUSED, nullptr);
 }
 
 // ---------------------------------------------------------------------------

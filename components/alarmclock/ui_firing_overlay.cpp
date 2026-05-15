@@ -54,13 +54,17 @@ static void dismiss_btn_cb(lv_event_t *e) {
 // Build the firing overlay.
 // ---------------------------------------------------------------------------
 void ui_build_firing_overlay(lv_obj_t *parent) {
-  // Current time (large, pulsing).
+  // Current time (large, pulsing) — use a big font for bedside visibility.
   firing_time_label_ = lv_label_create(parent);
   lv_obj_align(firing_time_label_, LV_ALIGN_CENTER, 0, theme::kFiringTimeY);
   lv_obj_set_style_text_font(firing_time_label_, &lv_font_montserrat_48, 0);
   lv_obj_set_style_text_color(firing_time_label_,
                               lv_color_hex(theme::kColorPrimary), 0);
   lv_label_set_text(firing_time_label_, "7:00 AM");
+
+  // Note: clock_font_120 would be ideal here but its glyph set only covers
+  // digits and colon — no AM/PM or space chars. montserrat_48 is the largest
+  // built-in font that covers the full character set needed.
 
   // "Alarm!" message.
   firing_message_label_ = lv_label_create(parent);

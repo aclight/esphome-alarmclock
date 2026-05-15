@@ -123,9 +123,12 @@ void ui_init() {
     lv_obj_set_style_pad_all(pages_[i], 0, 0);
     lv_obj_clear_flag(pages_[i], LV_OBJ_FLAG_SCROLLABLE);
 
-    // Attach swipe detection to each page.
-    lv_obj_add_event_cb(pages_[i], swipe_event_cb, LV_EVENT_PRESSED, nullptr);
-    lv_obj_add_event_cb(pages_[i], swipe_event_cb, LV_EVENT_RELEASED, nullptr);
+    // Attach swipe detection to each page (except settings, where horizontal
+    // gestures conflict with rollers/switches).
+    if (i != theme::kPageSettings) {
+      lv_obj_add_event_cb(pages_[i], swipe_event_cb, LV_EVENT_PRESSED, nullptr);
+      lv_obj_add_event_cb(pages_[i], swipe_event_cb, LV_EVENT_RELEASED, nullptr);
+    }
 
     // Hide all pages initially.
     lv_obj_add_flag(pages_[i], LV_OBJ_FLAG_HIDDEN);
@@ -138,6 +141,7 @@ void ui_init() {
 
   // Enable scrolling on the settings page so all controls are reachable.
   lv_obj_add_flag(pages_[theme::kPageSettings], LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_scrollbar_mode(pages_[theme::kPageSettings], LV_SCROLLBAR_MODE_AUTO);
 
   // Create page indicator dots (screen-root children, visible on all pages).
   ui_build_page_dots(scr);
