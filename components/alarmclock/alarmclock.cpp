@@ -207,6 +207,10 @@ void AlarmClockComponent::set_alarm(uint8_t index, uint8_t hour, uint8_t minute,
   ui_update_alarm_row(index, hour, minute, days_mask, enabled,
                       time_format_24h_, alarms_[index].label);
 
+  // Immediately refresh the next-alarm countdown on the clock page.
+  update_next_alarm_display_(last_known_hour_, last_known_minute_,
+                             last_known_day_of_week_);
+
   ESP_LOGI(TAG, "Alarm %d set: %02d:%02d days=0x%02X enabled=%d label='%s'",
            index, hour, minute, days_mask, enabled, alarms_[index].label);
 }
@@ -220,6 +224,8 @@ void AlarmClockComponent::enable_alarm(uint8_t index, bool enabled) {
   ui_update_alarm_row(index, alarms_[index].hour, alarms_[index].minute,
                       alarms_[index].days_of_week, enabled,
                       time_format_24h_, alarms_[index].label);
+  update_next_alarm_display_(last_known_hour_, last_known_minute_,
+                             last_known_day_of_week_);
 }
 
 void AlarmClockComponent::update_alarm_time(uint8_t index, uint8_t hour,
@@ -233,6 +239,8 @@ void AlarmClockComponent::update_alarm_time(uint8_t index, uint8_t hour,
   ui_update_alarm_row(index, hour, minute, alarms_[index].days_of_week,
                       alarms_[index].enabled, time_format_24h_,
                       alarms_[index].label);
+  update_next_alarm_display_(last_known_hour_, last_known_minute_,
+                             last_known_day_of_week_);
   ESP_LOGI(TAG, "Alarm %d time updated: %02d:%02d", index, hour, minute);
 }
 
@@ -245,6 +253,8 @@ void AlarmClockComponent::update_alarm_days(uint8_t index, uint8_t days_mask) {
   ui_update_alarm_row(index, alarms_[index].hour, alarms_[index].minute,
                       days_mask, alarms_[index].enabled, time_format_24h_,
                       alarms_[index].label);
+  update_next_alarm_display_(last_known_hour_, last_known_minute_,
+                             last_known_day_of_week_);
   ESP_LOGI(TAG, "Alarm %d days updated: 0x%02X", index, days_mask);
 }
 
@@ -277,6 +287,8 @@ void AlarmClockComponent::delete_alarm(uint8_t index) {
   alarms_[index] = AlarmTime{};  // Reset to defaults.
   storage_save_alarm(index, alarms_[index]);
   ui_hide_alarm_row(index);
+  update_next_alarm_display_(last_known_hour_, last_known_minute_,
+                             last_known_day_of_week_);
   ESP_LOGI(TAG, "Alarm %d deleted", index);
 }
 
@@ -301,6 +313,11 @@ void AlarmClockComponent::snooze_alarm() {
     stop_alarm_sound_();
     ui_hide_firing_overlay();
     ui_firing_stop_animation();
+    // Show snooze indication on the clock page.
+    char buf[48];
+    snprintf(buf, sizeof(buf), "Snoozed \xe2\x80\x94 resumes in %u min",
+             state_machine_.snooze_remaining_minutes());
+    ui_update_pre_alarm_banner(buf);
     fire_ha_event_("esphome.alarm_snoozed");
   } else {
     // Max snoozes reached — auto-dismissed.
@@ -401,6 +418,7 @@ void AlarmClockComponent::check_alarms_(uint8_t hour, uint8_t minute,
   // Store the latest time for use in loop() (e.g., snooze re-fire overlay).
   last_known_hour_ = hour;
   last_known_minute_ = minute;
+  last_known_day_of_week_ = day_of_week;
 
   // Update the firing overlay time every second while visible.
   if (ui_is_firing_overlay_visible()) {
@@ -669,7 +687,13 @@ void AlarmClockComponent::update_next_alarm_display_(uint8_t hour,
   }
 
   // Update pre-alarm banner (show when within pre_alarm_minutes_).
-  if (idx >= 0 && minutes_until > 0 && minutes_until <= pre_alarm_minutes_ &&
+  // Also show snooze countdown when in snoozed state.
+  if (state_machine_.state() == AlarmState::kSnoozed) {
+    char buf[48];
+    snprintf(buf, sizeof(buf), "Snoozed \xe2\x80\x94 resumes in %u min",
+             state_machine_.snooze_remaining_minutes());
+    ui_update_pre_alarm_banner(buf);
+  } else if (idx >= 0 && minutes_until > 0 && minutes_until <= pre_alarm_minutes_ &&
       state_machine_.state() == AlarmState::kIdle) {
     char buf[48];
     format_pre_alarm_text(static_cast<uint16_t>(minutes_until),

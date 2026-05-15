@@ -39,9 +39,9 @@ static constexpr int16_t kButtonHeight = 110;
 static constexpr int16_t kButtonRadius = 12;
 
 // Firing overlay.
-static constexpr int16_t kFiringTimeY = -100;
-static constexpr int16_t kFiringSnoozeY = 40;
-static constexpr int16_t kFiringDismissY = 200;
+static constexpr int16_t kFiringTimeY = -120;
+static constexpr int16_t kFiringSnoozeY = 20;
+static constexpr int16_t kFiringDismissY = 150;
 
 // --- Pages (indices for navigation) ---
 static constexpr uint8_t kPageClock = 0;
