@@ -554,7 +554,6 @@ class AlarmClockComponent : public ::esphome::Component,
   uint32_t alarm_pause_start_ms_ = 0;
 
   // Timing.
-  uint32_t last_minute_check_ms_ = 0;
   uint8_t last_checked_minute_ = 0xFF;
   uint8_t last_known_hour_ = 0;
   uint8_t last_known_minute_ = 0;

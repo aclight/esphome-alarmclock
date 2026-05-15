@@ -55,14 +55,6 @@ static void alarm_row_click_cb(lv_event_t *e) {
   }
 }
 
-static void alarm_row_longpress_cb(lv_event_t *e) {
-  uint8_t index = reinterpret_cast<uintptr_t>(lv_event_get_user_data(e));
-  const auto &cb = ui_get_callbacks();
-  if (cb.on_alarm_delete) {
-    cb.on_alarm_delete(index);
-  }
-}
-
 static void add_btn_cb(lv_event_t *e) {
   (void)e;
   const auto &cb = ui_get_callbacks();
@@ -104,9 +96,6 @@ void ui_build_alarm_page(lv_obj_t *parent) {
     lv_obj_set_style_radius(row.container, 10, 0);
     lv_obj_clear_flag(row.container, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_event_cb(row.container, alarm_row_click_cb, LV_EVENT_CLICKED,
-                        reinterpret_cast<void *>(static_cast<uintptr_t>(i)));
-    lv_obj_add_event_cb(row.container, alarm_row_longpress_cb,
-                        LV_EVENT_LONG_PRESSED,
                         reinterpret_cast<void *>(static_cast<uintptr_t>(i)));
 
     // Time label (e.g. "7:00 AM").
