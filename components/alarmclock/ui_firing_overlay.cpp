@@ -77,6 +77,7 @@ void ui_build_firing_overlay(lv_obj_t *parent) {
   lv_obj_set_size(snooze_btn_, theme::kButtonWidth, theme::kButtonHeight);
   lv_obj_set_style_radius(snooze_btn_, theme::kButtonRadius, 0);
   lv_obj_set_style_bg_color(snooze_btn_, lv_color_hex(theme::kColorSnooze), 0);
+  lv_obj_set_style_bg_color(snooze_btn_, lv_color_hex(0xCC8800), LV_STATE_PRESSED);
   lv_obj_add_event_cb(snooze_btn_, snooze_btn_cb, LV_EVENT_CLICKED, nullptr);
 
   lv_obj_t *snooze_label = lv_label_create(snooze_btn_);
@@ -91,6 +92,7 @@ void ui_build_firing_overlay(lv_obj_t *parent) {
   lv_obj_set_size(dismiss_btn_, theme::kButtonWidth, theme::kButtonHeight);
   lv_obj_set_style_radius(dismiss_btn_, theme::kButtonRadius, 0);
   lv_obj_set_style_bg_color(dismiss_btn_, lv_color_hex(theme::kColorDismiss), 0);
+  lv_obj_set_style_bg_color(dismiss_btn_, lv_color_hex(0x339933), LV_STATE_PRESSED);
   lv_obj_add_event_cb(dismiss_btn_, dismiss_btn_cb, LV_EVENT_CLICKED, nullptr);
 
   lv_obj_t *dismiss_label = lv_label_create(dismiss_btn_);

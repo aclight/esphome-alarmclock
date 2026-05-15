@@ -9,7 +9,7 @@ This is a standalone bedside alarm clock built on the **Elecrow CrowPanel Advanc
 | Component | Detail |
 |---|---|
 | Board | Elecrow CrowPanel Advance 4.3" (ESP32-S3-WROOM-1, 16 MB flash, 8 MB PSRAM) |
-| Display | 4.3" 800×480 IPS with `rpi_dpi_rgb` driver, capacitive touch (GT911 @ 0x5D) |
+| Display | 4.3" 800×480 IPS with `mipi_rgb` driver, capacitive touch (GT911 @ 0x5D) |
 | Audio | MAX98357A I2S amplifier → speaker (DOUT=IO4, BCLK=IO5, LRCLK=IO6) |
 | Sensors | Optional BH1750 I²C light sensor (0x23) |
 | I2C bus | SDA=IO15, SCL=IO16 |
@@ -24,7 +24,7 @@ This is a standalone bedside alarm clock built on the **Elecrow CrowPanel Advanc
 ## ESPHome YAML
 
 - The main config is `alarmclock.yaml` using the `esp-idf` framework (not Arduino).
-- Display uses `rpi_dpi_rgb` platform — exact data pin mapping is board-version-sensitive; verify against Elecrow's GitHub examples.
+- Display uses `mipi_rgb` platform — exact data pin mapping is board-version-sensitive; verify against Elecrow's GitHub examples.
 - `external_components` points to `components/alarmclock/` for the custom component.
 - Secrets (Wi-Fi, API key, OTA password) live in `secrets.yaml` (git-ignored); a template is provided in `secrets.yaml.example`.
 
