@@ -177,6 +177,13 @@ lvgl:
             hidden: true
         - keyboard:
             hidden: true
+        - obj:
+            hidden: true
+            layout:
+              type: flex
+            widgets:
+              - label:
+                  text: ""
 
 # --- Update clock display every second, check alarms on minute change ---
 interval:
