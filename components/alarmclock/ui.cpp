@@ -24,6 +24,14 @@ static bool tracking_swipe_ = false;
 // Maximum vertical displacement to still count as a horizontal swipe.
 static constexpr lv_coord_t kSwipeMaxVertical = 40;
 
+// Width of edge tap zones for page navigation arrows.
+static constexpr lv_coord_t kNavArrowWidth = 40;
+static constexpr lv_coord_t kNavArrowHeight = 80;
+
+// Navigation arrow objects.
+static lv_obj_t *nav_left_ = nullptr;
+static lv_obj_t *nav_right_ = nullptr;
+
 // ---------------------------------------------------------------------------
 // Swipe gesture handler (attached to each page).
 // ---------------------------------------------------------------------------
@@ -74,6 +82,17 @@ static void anim_new_page_done_cb(lv_anim_t * /*a*/) {
   animating_ = false;
 }
 
+// Navigation arrow tap handlers.
+static void nav_left_cb(lv_event_t *e) {
+  (void)e;
+  ui_prev_page();
+}
+
+static void nav_right_cb(lv_event_t *e) {
+  (void)e;
+  ui_next_page();
+}
+
 // ---------------------------------------------------------------------------
 // Public API.
 // ---------------------------------------------------------------------------
@@ -122,6 +141,37 @@ void ui_init() {
 
   // Create page indicator dots (screen-root children, visible on all pages).
   ui_build_page_dots(scr);
+
+  // Create edge navigation arrows (semi-transparent tap zones at screen edges).
+  nav_left_ = lv_obj_create(scr);
+  lv_obj_set_size(nav_left_, kNavArrowWidth, kNavArrowHeight);
+  lv_obj_align(nav_left_, LV_ALIGN_LEFT_MID, 0, 0);
+  lv_obj_set_style_bg_opa(nav_left_, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_border_width(nav_left_, 0, 0);
+  lv_obj_clear_flag(nav_left_, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_add_event_cb(nav_left_, nav_left_cb, LV_EVENT_CLICKED, nullptr);
+
+  lv_obj_t *left_arrow = lv_label_create(nav_left_);
+  lv_obj_center(left_arrow);
+  lv_obj_set_style_text_font(left_arrow, &lv_font_montserrat_18, 0);
+  lv_obj_set_style_text_color(left_arrow, lv_color_hex(theme::kColorSecondary), 0);
+  lv_obj_set_style_opa(left_arrow, LV_OPA_50, 0);
+  lv_label_set_text(left_arrow, "<");
+
+  nav_right_ = lv_obj_create(scr);
+  lv_obj_set_size(nav_right_, kNavArrowWidth, kNavArrowHeight);
+  lv_obj_align(nav_right_, LV_ALIGN_RIGHT_MID, 0, 0);
+  lv_obj_set_style_bg_opa(nav_right_, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_border_width(nav_right_, 0, 0);
+  lv_obj_clear_flag(nav_right_, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_add_event_cb(nav_right_, nav_right_cb, LV_EVENT_CLICKED, nullptr);
+
+  lv_obj_t *right_arrow = lv_label_create(nav_right_);
+  lv_obj_center(right_arrow);
+  lv_obj_set_style_text_font(right_arrow, &lv_font_montserrat_18, 0);
+  lv_obj_set_style_text_color(right_arrow, lv_color_hex(theme::kColorSecondary), 0);
+  lv_obj_set_style_opa(right_arrow, LV_OPA_50, 0);
+  lv_label_set_text(right_arrow, ">");
 
   // Create firing overlay (hidden by default, shown above everything).
   firing_overlay_ = lv_obj_create(scr);
