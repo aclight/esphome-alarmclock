@@ -72,6 +72,18 @@ static void sound_dropdown_cb(lv_event_t *e) {
   }
 }
 
+static void sound_preview_cb(lv_event_t *e) {
+  (void)e;
+  if (!sound_roller_) {
+    return;
+  }
+  uint32_t sel = lv_roller_get_selected(sound_roller_);
+  const auto &cb = ui_get_callbacks();
+  if (cb.on_sound_preview) {
+    cb.on_sound_preview(static_cast<uint8_t>(sel));
+  }
+}
+
 static void snooze_dropdown_cb(lv_event_t *e) {
   lv_obj_t *roller = static_cast<lv_obj_t *>(lv_event_get_target(e));
   uint32_t sel = lv_roller_get_selected(roller);
@@ -147,7 +159,7 @@ void ui_build_settings_page(lv_obj_t *parent) {
   lv_obj_set_style_bg_color(volume_slider_, lv_color_hex(theme::kColorAccent), LV_PART_INDICATOR);
   lv_obj_set_style_bg_color(volume_slider_, lv_color_hex(theme::kColorPrimary), LV_PART_KNOB);
   lv_obj_add_event_cb(volume_slider_, volume_slider_cb, LV_EVENT_VALUE_CHANGED, nullptr);
-  lv_obj_set_style_pad_all(volume_slider_, 8, LV_PART_KNOB);
+  lv_obj_set_style_pad_all(volume_slider_, 14, LV_PART_KNOB);
 
   volume_label_ = lv_label_create(vol_row);
   lv_obj_set_style_text_font(volume_label_, &lv_font_montserrat_18, 0);
@@ -182,7 +194,7 @@ void ui_build_settings_page(lv_obj_t *parent) {
   lv_obj_set_style_bg_color(brightness_slider_, lv_color_hex(theme::kColorAccent), LV_PART_INDICATOR);
   lv_obj_set_style_bg_color(brightness_slider_, lv_color_hex(theme::kColorPrimary), LV_PART_KNOB);
   lv_obj_add_event_cb(brightness_slider_, brightness_slider_cb, LV_EVENT_VALUE_CHANGED, nullptr);
-  lv_obj_set_style_pad_all(brightness_slider_, 8, LV_PART_KNOB);
+  lv_obj_set_style_pad_all(brightness_slider_, 14, LV_PART_KNOB);
 
   brightness_label_ = lv_label_create(bright_row);
   lv_obj_set_style_text_font(brightness_label_, &lv_font_montserrat_18, 0);
@@ -218,6 +230,19 @@ void ui_build_settings_page(lv_obj_t *parent) {
   lv_obj_set_style_text_font(sound_roller_, &lv_font_montserrat_18, 0);
   lv_roller_set_visible_row_count(sound_roller_, 3);
   lv_obj_add_event_cb(sound_roller_, sound_dropdown_cb, LV_EVENT_VALUE_CHANGED, nullptr);
+
+  // Preview button to hear the selected alarm sound.
+  lv_obj_t *preview_btn = lv_button_create(parent);
+  lv_obj_set_size(preview_btn, 120, 40);
+  lv_obj_set_style_bg_color(preview_btn, lv_color_hex(theme::kColorAccent), 0);
+  lv_obj_set_style_radius(preview_btn, theme::kButtonRadius, 0);
+  lv_obj_add_event_cb(preview_btn, sound_preview_cb, LV_EVENT_CLICKED, nullptr);
+
+  lv_obj_t *preview_label = lv_label_create(preview_btn);
+  lv_obj_center(preview_label);
+  lv_obj_set_style_text_color(preview_label, lv_color_hex(theme::kColorPrimary), 0);
+  lv_obj_set_style_text_font(preview_label, &lv_font_montserrat_16, 0);
+  lv_label_set_text(preview_label, "\xE2\x96\xB6 Preview");
 
   // --- Snooze duration section ---
   lv_obj_t *snooze_title = lv_label_create(parent);

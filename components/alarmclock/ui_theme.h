@@ -34,14 +34,14 @@ static constexpr int16_t kSwipeThreshold = 80;  // Pixels to trigger page switch
 static constexpr uint16_t kPageAnimDuration = 300;  // ms for page transition.
 
 // Buttons.
-static constexpr int16_t kButtonWidth = 260;
-static constexpr int16_t kButtonHeight = 90;
+static constexpr int16_t kButtonWidth = 300;
+static constexpr int16_t kButtonHeight = 110;
 static constexpr int16_t kButtonRadius = 12;
 
 // Firing overlay.
-static constexpr int16_t kFiringTimeY = -80;
+static constexpr int16_t kFiringTimeY = -100;
 static constexpr int16_t kFiringSnoozeY = 40;
-static constexpr int16_t kFiringDismissY = 150;
+static constexpr int16_t kFiringDismissY = 200;
 
 // --- Pages (indices for navigation) ---
 static constexpr uint8_t kPageClock = 0;

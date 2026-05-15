@@ -39,3 +39,4 @@ secrets.yaml
 # Python
 __pycache__/
 *.pyc
+run_tests_bin

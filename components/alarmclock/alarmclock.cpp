@@ -68,6 +68,12 @@ static void on_sound_change(uint8_t sound_index) {
   }
 }
 
+static void on_sound_preview(uint8_t sound_index) {
+  if (instance_) {
+    instance_->preview_sound(sound_index);
+  }
+}
+
 static void on_snooze_duration_change(uint8_t option_index) {
   if (instance_) {
     instance_->set_snooze_duration_option(option_index);
@@ -134,6 +140,7 @@ void AlarmClockComponent::setup() {
   cb.on_alarm_delete = on_alarm_delete;
   cb.on_alarm_label_set = on_alarm_label_set;
   cb.on_sound_change = on_sound_change;
+  cb.on_sound_preview = on_sound_preview;
   cb.on_snooze_duration_change = on_snooze_duration_change;
   cb.on_time_format_change = on_time_format_change;
   cb.on_pre_alarm_change = on_pre_alarm_change;
@@ -346,6 +353,19 @@ void AlarmClockComponent::set_sound_index(uint8_t index) {
   save_settings_to_storage_();
   ui_update_sound_selection(index);
   ESP_LOGI(TAG, "Alarm sound set to: %s", get_alarm_sound_name(index));
+}
+
+void AlarmClockComponent::preview_sound(uint8_t sound_index) {
+  if (rtttl_ == nullptr) {
+    return;
+  }
+  if (sound_index >= kAlarmSoundCount) {
+    sound_index = 0;
+  }
+  rtttl_->set_gain(volume_);
+  const char *melody = get_alarm_sound_rtttl(sound_index);
+  rtttl_->play(melody);
+  ESP_LOGI(TAG, "Previewing alarm sound: %s", get_alarm_sound_name(sound_index));
 }
 
 void AlarmClockComponent::set_snooze_duration_option(uint8_t option_index) {

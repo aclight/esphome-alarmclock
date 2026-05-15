@@ -12,7 +12,7 @@ namespace alarmclock {
 // ---------------------------------------------------------------------------
 // Constants.
 // ---------------------------------------------------------------------------
-static constexpr int16_t kAlarmRowHeight = 92;
+static constexpr int16_t kAlarmRowHeight = 110;
 static constexpr int16_t kAlarmRowGap = 6;
 static constexpr int16_t kAlarmListStartY = 50;
 
@@ -122,7 +122,7 @@ void ui_build_alarm_page(lv_obj_t *parent) {
     // Toggle switch.
     row.toggle = lv_switch_create(row.container);
     lv_obj_align(row.toggle, LV_ALIGN_RIGHT_MID, -15, 0);
-    lv_obj_set_size(row.toggle, 50, 26);
+    lv_obj_set_size(row.toggle, 64, 34);
     lv_obj_add_event_cb(row.toggle, alarm_toggle_cb, LV_EVENT_VALUE_CHANGED,
                         reinterpret_cast<void *>(static_cast<uintptr_t>(i)));
 
@@ -132,7 +132,7 @@ void ui_build_alarm_page(lv_obj_t *parent) {
 
   // "Add alarm" button.
   add_btn_ = lv_button_create(parent);
-  lv_obj_align(add_btn_, LV_ALIGN_BOTTOM_MID, 0, -20);
+  lv_obj_align(add_btn_, LV_ALIGN_BOTTOM_MID, 0, -40);
   lv_obj_set_size(add_btn_, 160, 50);
   lv_obj_set_style_radius(add_btn_, theme::kButtonRadius, 0);
   lv_obj_set_style_bg_color(add_btn_, lv_color_hex(theme::kColorAccent), 0);
