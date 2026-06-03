@@ -378,7 +378,7 @@ inline int8_t find_next_alarm_index(const AlarmTime *alarms,
 }
 
 // Format the "next alarm" display string.
-// Output example: "7:00 AM — Work (in 6h 30m)" or "07:00 — Work (in 6h 30m)"
+// Output example: "7:00 AM - Work (in 6h 30m)" or "07:00 - Work (in 6h 30m)"
 // Returns the number of characters written (excluding null terminator).
 inline size_t format_next_alarm_text(const AlarmTime &alarm,
                                      int32_t minutes_until,
@@ -399,10 +399,10 @@ inline size_t format_next_alarm_text(const AlarmTime &alarm,
   int written;
   if (alarm.label[0] != '\0') {
     if (hours > 0) {
-      written = snprintf(buf, buf_size, "%s \xe2\x80\x94 %s (in %uh %um)",
+      written = snprintf(buf, buf_size, "%s - %s (in %uh %um)",
                          time_str, alarm.label, hours, mins);
     } else {
-      written = snprintf(buf, buf_size, "%s \xe2\x80\x94 %s (in %um)",
+      written = snprintf(buf, buf_size, "%s - %s (in %um)",
                          time_str, alarm.label, mins);
     }
   } else {
@@ -422,7 +422,7 @@ inline size_t format_next_alarm_text(const AlarmTime &alarm,
 }
 
 // Format the pre-alarm banner text.
-// Output example: "Alarm in 5 min \xe2\x80\x94 Work" or "Alarm in 5 min"
+// Output example: "Alarm in 5 min - Work" or "Alarm in 5 min"
 // Returns the number of characters written (excluding null terminator).
 inline size_t format_pre_alarm_text(uint16_t minutes_remaining,
                                     const char *label, char *buf,
@@ -433,7 +433,7 @@ inline size_t format_pre_alarm_text(uint16_t minutes_remaining,
 
   int written;
   if (label != nullptr && label[0] != '\0') {
-    written = snprintf(buf, buf_size, "Alarm in %u min \xe2\x80\x94 %s",
+    written = snprintf(buf, buf_size, "Alarm in %u min - %s",
                        minutes_remaining, label);
   } else {
     written = snprintf(buf, buf_size, "Alarm in %u min", minutes_remaining);

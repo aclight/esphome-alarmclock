@@ -12,9 +12,9 @@ namespace alarmclock {
 // ---------------------------------------------------------------------------
 // Constants.
 // ---------------------------------------------------------------------------
-static constexpr int16_t kAlarmRowHeight = 110;
-static constexpr int16_t kAlarmRowGap = 6;
-static constexpr int16_t kAlarmListStartY = 50;
+static constexpr int16_t kAlarmRowHeight = 160;
+static constexpr int16_t kAlarmRowGap = 8;
+static constexpr int16_t kAlarmListStartY = 70;
 
 // ---------------------------------------------------------------------------
 // Per-alarm row widgets.
@@ -75,10 +75,19 @@ static void add_btn_cb(lv_event_t *e) {
 // Build the alarm page.
 // ---------------------------------------------------------------------------
 void ui_build_alarm_page(lv_obj_t *parent) {
+  // Enable vertical scrolling for the alarm list.
+  lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_flex_align(parent, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
+                        LV_FLEX_ALIGN_CENTER);
+  lv_obj_set_style_pad_top(parent, 10, 0);
+  lv_obj_set_style_pad_bottom(parent, 20, 0);
+  lv_obj_set_style_pad_row(parent, kAlarmRowGap, 0);
+  lv_obj_add_flag(parent, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_scroll_dir(parent, LV_DIR_VER);
+
   // Title.
   title_label_ = lv_label_create(parent);
-  lv_obj_align(title_label_, LV_ALIGN_TOP_MID, 0, 15);
-  lv_obj_set_style_text_font(title_label_, &lv_font_montserrat_24, 0);
+  lv_obj_set_style_text_font(title_label_, &lv_font_montserrat_48, 0);
   lv_obj_set_style_text_color(title_label_, lv_color_hex(theme::kColorPrimary), 0);
   lv_label_set_text(title_label_, "Alarms");
 
@@ -89,8 +98,6 @@ void ui_build_alarm_page(lv_obj_t *parent) {
     // Row container.
     row.container = lv_obj_create(parent);
     lv_obj_set_size(row.container, theme::kScreenWidth - 40, kAlarmRowHeight);
-    lv_obj_align(row.container, LV_ALIGN_TOP_MID, 0,
-                 kAlarmListStartY + i * (kAlarmRowHeight + kAlarmRowGap));
     lv_obj_set_style_bg_color(row.container, lv_color_hex(0x111111), 0);
     lv_obj_set_style_border_width(row.container, 0, 0);
     lv_obj_set_style_radius(row.container, 10, 0);
@@ -100,29 +107,29 @@ void ui_build_alarm_page(lv_obj_t *parent) {
 
     // Time label (e.g. "7:00 AM").
     row.time_label = lv_label_create(row.container);
-    lv_obj_align(row.time_label, LV_ALIGN_LEFT_MID, 15, -18);
-    lv_obj_set_style_text_font(row.time_label, &lv_font_montserrat_28, 0);
+    lv_obj_align(row.time_label, LV_ALIGN_LEFT_MID, 20, -28);
+    lv_obj_set_style_text_font(row.time_label, &lv_font_montserrat_48, 0);
     lv_obj_set_style_text_color(row.time_label, lv_color_hex(theme::kColorPrimary), 0);
     lv_label_set_text(row.time_label, "--:--");
 
     // Alarm label (e.g. "Work").
     row.alarm_label = lv_label_create(row.container);
-    lv_obj_align(row.alarm_label, LV_ALIGN_LEFT_MID, 15, 12);
-    lv_obj_set_style_text_font(row.alarm_label, &lv_font_montserrat_18, 0);
+    lv_obj_align(row.alarm_label, LV_ALIGN_LEFT_MID, 20, 18);
+    lv_obj_set_style_text_font(row.alarm_label, &lv_font_montserrat_28, 0);
     lv_obj_set_style_text_color(row.alarm_label, lv_color_hex(theme::kColorAccent), 0);
     lv_label_set_text(row.alarm_label, "");
 
     // Days label (e.g. "Mon Tue Wed Thu Fri").
     row.days_label = lv_label_create(row.container);
-    lv_obj_align(row.days_label, LV_ALIGN_LEFT_MID, 15, 30);
-    lv_obj_set_style_text_font(row.days_label, &lv_font_montserrat_18, 0);
+    lv_obj_align(row.days_label, LV_ALIGN_LEFT_MID, 20, 48);
+    lv_obj_set_style_text_font(row.days_label, &lv_font_montserrat_28, 0);
     lv_obj_set_style_text_color(row.days_label, lv_color_hex(theme::kColorSecondary), 0);
     lv_label_set_text(row.days_label, "");
 
     // Toggle switch.
     row.toggle = lv_switch_create(row.container);
-    lv_obj_align(row.toggle, LV_ALIGN_RIGHT_MID, -15, 0);
-    lv_obj_set_size(row.toggle, 64, 34);
+    lv_obj_align(row.toggle, LV_ALIGN_RIGHT_MID, -20, 0);
+    lv_obj_set_size(row.toggle, 90, 48);
     lv_obj_add_event_cb(row.toggle, alarm_toggle_cb, LV_EVENT_VALUE_CHANGED,
                         reinterpret_cast<void *>(static_cast<uintptr_t>(i)));
 
@@ -132,14 +139,14 @@ void ui_build_alarm_page(lv_obj_t *parent) {
 
   // "Add alarm" button.
   add_btn_ = lv_button_create(parent);
-  lv_obj_align(add_btn_, LV_ALIGN_BOTTOM_MID, 0, -40);
-  lv_obj_set_size(add_btn_, 160, 50);
+  lv_obj_set_size(add_btn_, 280, 80);
   lv_obj_set_style_radius(add_btn_, theme::kButtonRadius, 0);
   lv_obj_set_style_bg_color(add_btn_, lv_color_hex(theme::kColorAccent), 0);
   lv_obj_add_event_cb(add_btn_, add_btn_cb, LV_EVENT_CLICKED, nullptr);
 
   lv_obj_t *add_label = lv_label_create(add_btn_);
   lv_obj_center(add_label);
+  lv_obj_set_style_text_font(add_label, &lv_font_montserrat_28, 0);
   lv_obj_set_style_text_color(add_label, lv_color_hex(theme::kColorPrimary), 0);
   lv_label_set_text(add_label, "+ Add Alarm");
 }
