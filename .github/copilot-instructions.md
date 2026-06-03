@@ -37,6 +37,25 @@ Follow the [Google C++ Style Guide](https://google.github.io/styleguide/cppguide
 - Prefer `const` wherever applicable.
 - Use `uint8_t`, `uint16_t`, etc. (from `<cstdint>`) instead of bare `int` for sized fields.
 
+## LVGL Custom Fonts
+
+Custom LVGL font files (e.g. `clock_font_160.cpp`) are generated with `lv_font_conv`. After generation, two manual edits are **always** required:
+
+1. **`#ifndef UNIT_TEST` guard** — Wrap the entire file body so it is excluded from host-side test compilation:
+   ```cpp
+   #ifndef UNIT_TEST
+   // ... entire generated content ...
+   #endif  // UNIT_TEST
+   ```
+2. **`extern` forward declaration** — In the `PUBLIC FONT` section, add an `extern` declaration immediately before the `const` definition inside the `#if LVGL_VERSION_MAJOR >= 8` block. Without this, C++ gives the `const` variable internal linkage and the linker cannot find it from other translation units:
+   ```cpp
+   #if LVGL_VERSION_MAJOR >= 8
+   extern const lv_font_t clock_font_160;   // ← ADD THIS LINE
+   const lv_font_t clock_font_160 = {
+   ```
+
+Both edits are required every time a font file is regenerated. See `clock_font_120.cpp` as a reference.
+
 ## Testing
 
 - **Write or update tests** in `tests/test_alarmclock.cpp` for every change to testable logic in `components/alarmclock/alarmclock.h` or supporting headers.
