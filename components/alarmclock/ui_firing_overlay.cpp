@@ -62,10 +62,6 @@ void ui_build_firing_overlay(lv_obj_t *parent) {
                               lv_color_hex(theme::kColorPrimary), 0);
   lv_label_set_text(firing_time_label_, "7:00 AM");
 
-  // Note: clock_font_120 would be ideal here but its glyph set only covers
-  // digits and colon — no AM/PM or space chars. montserrat_48 is the largest
-  // built-in font that covers the full character set needed.
-
   // "Alarm!" message.
   firing_message_label_ = lv_label_create(parent);
   lv_obj_align(firing_message_label_, LV_ALIGN_CENTER, 0,
@@ -138,7 +134,7 @@ void ui_firing_update_label(const char *label) {
   }
   if (label != nullptr && label[0] != '\0') {
     char buf[40];
-    snprintf(buf, sizeof(buf), "ALARM \xE2\x80\x94 %s", label);
+    snprintf(buf, sizeof(buf), "ALARM - %s", label);
     lv_label_set_text(firing_message_label_, buf);
   } else {
     lv_label_set_text(firing_message_label_, "ALARM");

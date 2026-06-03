@@ -803,7 +803,7 @@ TEST(format_next_alarm_with_label_hours) {
     alarm_set_label(at, "Work");
     char buf[64];
     format_next_alarm_text(at, 390, false, buf, sizeof(buf));
-    // 390 min = 6h 30m → "7:00 AM — Work (in 6h 30m)"
+    // 390 min = 6h 30m -> "7:00 AM - Work (in 6h 30m)"
     ASSERT_TRUE(strstr(buf, "7:00 AM") != nullptr);
     ASSERT_TRUE(strstr(buf, "Work") != nullptr);
     ASSERT_TRUE(strstr(buf, "6h 30m") != nullptr);
@@ -815,7 +815,7 @@ TEST(format_next_alarm_with_label_minutes_only) {
     alarm_set_label(at, "Work");
     char buf[64];
     format_next_alarm_text(at, 45, false, buf, sizeof(buf));
-    // 45 min → "7:30 AM — Work (in 45m)"
+    // 45 min -> "7:30 AM - Work (in 45m)"
     ASSERT_TRUE(strstr(buf, "7:30 AM") != nullptr);
     ASSERT_TRUE(strstr(buf, "Work") != nullptr);
     ASSERT_TRUE(strstr(buf, "45m") != nullptr);

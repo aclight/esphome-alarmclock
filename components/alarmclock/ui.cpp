@@ -14,7 +14,6 @@ static lv_obj_t *pages_[theme::kPageCount] = {};
 static lv_obj_t *firing_overlay_ = nullptr;
 static uint8_t current_page_ = theme::kPageClock;
 static UiCallbacks callbacks_ = {};
-static bool animating_ = false;
 
 // Touch tracking for swipe detection.
 static lv_coord_t touch_start_x_ = 0;
@@ -62,24 +61,6 @@ static void swipe_event_cb(lv_event_t *e) {
       ui_prev_page();
     }
   }
-}
-
-// ---------------------------------------------------------------------------
-// Page transition animation helpers.
-// ---------------------------------------------------------------------------
-static void anim_x_cb(void *obj, int32_t x) {
-  lv_obj_set_x(static_cast<lv_obj_t *>(obj), static_cast<lv_coord_t>(x));
-}
-
-static void anim_old_page_done_cb(lv_anim_t *a) {
-  lv_obj_t *obj = static_cast<lv_obj_t *>(a->var);
-  lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
-  // Reset position so it's ready for next transition.
-  lv_obj_set_x(obj, 0);
-}
-
-static void anim_new_page_done_cb(lv_anim_t * /*a*/) {
-  animating_ = false;
 }
 
 // Navigation arrow tap handlers.
@@ -199,58 +180,19 @@ void ui_show_page(uint8_t page_index) {
   if (page_index == current_page_) {
     return;
   }
-  if (animating_) {
-    return;  // Don't interrupt ongoing animation.
-  }
 
   lv_obj_t *old_page = pages_[current_page_];
   lv_obj_t *new_page = pages_[page_index];
 
-  // Determine slide direction: positive index = slide left, negative = slide right.
-  bool slide_left = (page_index > current_page_);
-  // Handle wraparound: going from last to first page slides left,
-  // going from first to last page slides right.
-  if (current_page_ == theme::kPageCount - 1 && page_index == 0) {
-    slide_left = true;
-  } else if (current_page_ == 0 && page_index == theme::kPageCount - 1) {
-    slide_left = false;
-  }
-
-  int16_t screen_w = theme::kScreenWidth;
-  int16_t old_end = slide_left ? -screen_w : screen_w;
-  int16_t new_start = slide_left ? screen_w : -screen_w;
-
   current_page_ = page_index;
-  animating_ = true;
 
   // Update page indicator dots.
   ui_update_page_dots(page_index);
 
-  // Position new page at the off-screen start and make visible.
-  lv_obj_set_x(new_page, new_start);
+  // Instant page switch — hide old, show new.
+  lv_obj_add_flag(old_page, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_set_x(new_page, 0);
   lv_obj_clear_flag(new_page, LV_OBJ_FLAG_HIDDEN);
-
-  // Animate old page out.
-  lv_anim_t anim_old;
-  lv_anim_init(&anim_old);
-  lv_anim_set_var(&anim_old, old_page);
-  lv_anim_set_values(&anim_old, 0, old_end);
-  lv_anim_set_time(&anim_old, theme::kPageAnimDuration);
-  lv_anim_set_path_cb(&anim_old, lv_anim_path_ease_out);
-  lv_anim_set_exec_cb(&anim_old, anim_x_cb);
-  lv_anim_set_ready_cb(&anim_old, anim_old_page_done_cb);
-  lv_anim_start(&anim_old);
-
-  // Animate new page in.
-  lv_anim_t anim_new;
-  lv_anim_init(&anim_new);
-  lv_anim_set_var(&anim_new, new_page);
-  lv_anim_set_values(&anim_new, new_start, 0);
-  lv_anim_set_time(&anim_new, theme::kPageAnimDuration);
-  lv_anim_set_path_cb(&anim_new, lv_anim_path_ease_out);
-  lv_anim_set_exec_cb(&anim_new, anim_x_cb);
-  lv_anim_set_ready_cb(&anim_new, anim_new_page_done_cb);
-  lv_anim_start(&anim_new);
 }
 
 void ui_next_page() {

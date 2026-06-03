@@ -17,9 +17,7 @@ static constexpr int16_t kPickerWidth = 700;
 static constexpr int16_t kPickerHeight = 440;
 static constexpr int16_t kRollerWidth = 80;
 static constexpr int16_t kRollerHeight = 150;
-static constexpr int16_t kDayBtnSize = 56;
-static constexpr int16_t kLabelInputWidth = 300;
-static constexpr int16_t kLabelInputHeight = 40;
+static constexpr int16_t kDayBtnSize = 64;
 static constexpr uint8_t kMaxLabelLen = 15;
 
 // Day abbreviations (two-letter to distinguish Su/Sa and Tu/Th).
@@ -198,11 +196,6 @@ static void label_focus_cb(lv_event_t *e) {
     lv_keyboard_set_textarea(keyboard_, label_input_);
     lv_obj_clear_flag(keyboard_, LV_OBJ_FLAG_HIDDEN);
   }
-  // Shift the picker panel upward so the label field remains visible above
-  // the on-screen keyboard.
-  if (picker_panel_) {
-    lv_obj_align(picker_panel_, LV_ALIGN_TOP_MID, 0, 10);
-  }
 }
 
 static void label_defocus_cb(lv_event_t *e) {
@@ -210,10 +203,6 @@ static void label_defocus_cb(lv_event_t *e) {
   // Dismiss keyboard when the textarea loses focus (e.g., tap outside).
   if (keyboard_) {
     lv_obj_add_flag(keyboard_, LV_OBJ_FLAG_HIDDEN);
-  }
-  // Restore the picker panel to center position.
-  if (picker_panel_) {
-    lv_obj_center(picker_panel_);
   }
 }
 
@@ -354,7 +343,7 @@ void ui_build_time_picker(lv_obj_t *parent) {
   // --- Day-of-week toggle buttons ---
   lv_obj_t *days_label = lv_label_create(picker_panel_);
   lv_obj_align(days_label, LV_ALIGN_TOP_LEFT, 30, 175);
-  lv_obj_set_style_text_font(days_label, &lv_font_montserrat_14, 0);
+  lv_obj_set_style_text_font(days_label, &lv_font_montserrat_24, 0);
   lv_obj_set_style_text_color(days_label, lv_color_hex(theme::kColorSecondary), 0);
   lv_label_set_text(days_label, "Repeat:");
 
@@ -362,7 +351,7 @@ void ui_build_time_picker(lv_obj_t *parent) {
     day_btns_[d] = lv_button_create(picker_panel_);
     lv_obj_set_size(day_btns_[d], kDayBtnSize, kDayBtnSize);
     lv_obj_align(day_btns_[d], LV_ALIGN_TOP_LEFT,
-                 30 + d * (kDayBtnSize + 8), 200);
+                 30 + d * (kDayBtnSize + 8), 210);
     lv_obj_set_style_radius(day_btns_[d], kDayBtnSize / 2, 0);
     lv_obj_set_style_bg_color(day_btns_[d], lv_color_hex(theme::kColorMuted), 0);
     lv_obj_set_style_bg_color(day_btns_[d], lv_color_hex(theme::kColorAccent),
@@ -376,20 +365,20 @@ void ui_build_time_picker(lv_obj_t *parent) {
     lv_label_set_text(btn_label, kDayLetters[d]);
   }
 
-  // --- Label input ---
+  // --- Label input (upper-right area, above the keyboard when visible) ---
   lv_obj_t *label_title = lv_label_create(picker_panel_);
-  lv_obj_align(label_title, LV_ALIGN_TOP_LEFT, 30, 260);
-  lv_obj_set_style_text_font(label_title, &lv_font_montserrat_14, 0);
+  lv_obj_align(label_title, LV_ALIGN_TOP_LEFT, 370, 15);
+  lv_obj_set_style_text_font(label_title, &lv_font_montserrat_24, 0);
   lv_obj_set_style_text_color(label_title, lv_color_hex(theme::kColorSecondary), 0);
   lv_label_set_text(label_title, "Label:");
 
   label_input_ = lv_textarea_create(picker_panel_);
-  lv_obj_set_size(label_input_, kLabelInputWidth, kLabelInputHeight);
-  lv_obj_align(label_input_, LV_ALIGN_TOP_LEFT, 30, 282);
+  lv_obj_set_size(label_input_, 280, 48);
+  lv_obj_align(label_input_, LV_ALIGN_TOP_LEFT, 370, 50);
   lv_textarea_set_max_length(label_input_, kMaxLabelLen);
   lv_textarea_set_one_line(label_input_, true);
   lv_textarea_set_placeholder_text(label_input_, "Alarm label");
-  lv_obj_set_style_text_font(label_input_, &lv_font_montserrat_16, 0);
+  lv_obj_set_style_text_font(label_input_, &lv_font_montserrat_24, 0);
   lv_obj_set_style_text_color(label_input_, lv_color_hex(theme::kColorPrimary), 0);
   lv_obj_set_style_bg_color(label_input_, lv_color_hex(0x222222), 0);
   lv_obj_set_style_border_color(label_input_,
@@ -397,7 +386,7 @@ void ui_build_time_picker(lv_obj_t *parent) {
 
   // --- Confirm button ---
   confirm_btn_ = lv_button_create(picker_panel_);
-  lv_obj_set_size(confirm_btn_, 120, 50);
+  lv_obj_set_size(confirm_btn_, 150, 60);
   lv_obj_align(confirm_btn_, LV_ALIGN_BOTTOM_RIGHT, -10, -10);
   lv_obj_set_style_bg_color(confirm_btn_, lv_color_hex(theme::kColorAccent), 0);
   lv_obj_set_style_radius(confirm_btn_, theme::kButtonRadius, 0);
@@ -405,13 +394,14 @@ void ui_build_time_picker(lv_obj_t *parent) {
 
   lv_obj_t *confirm_label = lv_label_create(confirm_btn_);
   lv_obj_center(confirm_label);
+  lv_obj_set_style_text_font(confirm_label, &lv_font_montserrat_20, 0);
   lv_obj_set_style_text_color(confirm_label,
                               lv_color_hex(theme::kColorPrimary), 0);
   lv_label_set_text(confirm_label, "Save");
 
   // --- Cancel button ---
   cancel_btn_ = lv_button_create(picker_panel_);
-  lv_obj_set_size(cancel_btn_, 120, 50);
+  lv_obj_set_size(cancel_btn_, 150, 60);
   lv_obj_align(cancel_btn_, LV_ALIGN_BOTTOM_MID, 0, -10);
   lv_obj_set_style_bg_color(cancel_btn_, lv_color_hex(theme::kColorMuted), 0);
   lv_obj_set_style_radius(cancel_btn_, theme::kButtonRadius, 0);
@@ -419,13 +409,14 @@ void ui_build_time_picker(lv_obj_t *parent) {
 
   lv_obj_t *cancel_label = lv_label_create(cancel_btn_);
   lv_obj_center(cancel_label);
+  lv_obj_set_style_text_font(cancel_label, &lv_font_montserrat_20, 0);
   lv_obj_set_style_text_color(cancel_label,
                               lv_color_hex(theme::kColorPrimary), 0);
   lv_label_set_text(cancel_label, "Cancel");
 
   // --- Delete button ---
   delete_btn_ = lv_button_create(picker_panel_);
-  lv_obj_set_size(delete_btn_, 120, 50);
+  lv_obj_set_size(delete_btn_, 150, 60);
   lv_obj_align(delete_btn_, LV_ALIGN_BOTTOM_LEFT, 10, -10);
   lv_obj_set_style_bg_color(delete_btn_, lv_color_hex(theme::kColorAlarmFiring), 0);
   lv_obj_set_style_radius(delete_btn_, theme::kButtonRadius, 0);
@@ -433,6 +424,7 @@ void ui_build_time_picker(lv_obj_t *parent) {
 
   lv_obj_t *del_label = lv_label_create(delete_btn_);
   lv_obj_center(del_label);
+  lv_obj_set_style_text_font(del_label, &lv_font_montserrat_20, 0);
   lv_obj_set_style_text_color(del_label, lv_color_hex(theme::kColorPrimary), 0);
   lv_label_set_text(del_label, "Delete");
 

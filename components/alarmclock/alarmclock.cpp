@@ -315,7 +315,7 @@ void AlarmClockComponent::snooze_alarm() {
     ui_firing_stop_animation();
     // Show snooze indication on the clock page.
     char buf[48];
-    snprintf(buf, sizeof(buf), "Snoozed \xe2\x80\x94 resumes in %u min",
+    snprintf(buf, sizeof(buf), "Snoozed - resumes in %u min",
              state_machine_.snooze_remaining_minutes());
     ui_update_pre_alarm_banner(buf);
     fire_ha_event_("esphome.alarm_snoozed");
@@ -690,7 +690,7 @@ void AlarmClockComponent::update_next_alarm_display_(uint8_t hour,
   // Also show snooze countdown when in snoozed state.
   if (state_machine_.state() == AlarmState::kSnoozed) {
     char buf[48];
-    snprintf(buf, sizeof(buf), "Snoozed \xe2\x80\x94 resumes in %u min",
+    snprintf(buf, sizeof(buf), "Snoozed - resumes in %u min",
              state_machine_.snooze_remaining_minutes());
     ui_update_pre_alarm_banner(buf);
   } else if (idx >= 0 && minutes_until > 0 && minutes_until <= pre_alarm_minutes_ &&

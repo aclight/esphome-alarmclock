@@ -147,6 +147,9 @@ lvgl:
             text_font: montserrat_48
             text: ""
         - label:
+            text_font: montserrat_40
+            text: ""
+        - label:
             text_font: montserrat_28
             text: ""
         - label:
