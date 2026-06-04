@@ -38,8 +38,12 @@ psram:
 
 external_components:
   - source:
-      type: local
+      type: git
+      url: https://github.com/aclight/esphome-alarmclock.git
+      ref: main
       path: components
+    components: [alarmclock]
+    refresh: 1d
 
 dashboard_import:
   package_import_url: github://aclight/esphome-alarmclock/alarmclock.yaml@main
