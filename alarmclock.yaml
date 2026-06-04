@@ -260,7 +260,9 @@ sensor:
     on_value:
       then:
         - lambda: |-
-            float sf = alarmclock::lux_to_sensor_factor(x, 10.0f, 500.0f);
+            // Calibrated for this enclosure placement: indoors often reads in
+            // single/low-double-digit lux, so map that range to full control.
+            float sf = alarmclock::lux_to_sensor_factor(x, 0.5f, 15.0f);
             id(alarm_clock_component).set_sensor_factor(sf);
 
 # ---------------------------------------------------------------------------
@@ -297,7 +299,7 @@ number:
     unit_of_measurement: "%"
     lambda: |-
       return id(alarm_clock_component).volume() * 100.0f;
-    update_interval: 1s
+    update_interval: 5s
     set_action:
       - lambda: 'id(alarm_clock_component).set_volume(x / 100.0f);'
 
@@ -311,7 +313,7 @@ number:
     unit_of_measurement: "%"
     lambda: |-
       return id(alarm_clock_component).brightness() * 100.0f;
-    update_interval: 1s
+    update_interval: 5s
     set_action:
       - lambda: 'id(alarm_clock_component).set_brightness(x / 100.0f);'
 

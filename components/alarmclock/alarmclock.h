@@ -153,8 +153,8 @@ static constexpr float kSleepUserLevel = 0.0f;
 // Sleep brightness profile (0.0–1.0), selected by ambient-light level.
 // In bright rooms, keep the screen readable while idle; in dark rooms, stay dim.
 static constexpr float kSleepBrightnessDay = 0.18f;
-static constexpr float kSleepBrightnessNight = 0.03f;
-static constexpr float kSleepDaySensorThreshold = 0.45f;
+static constexpr float kSleepBrightnessNight = 0.08f;
+static constexpr float kSleepDaySensorThreshold = 0.35f;
 
 // Ignore tiny ambient-light changes to reduce visible backlight flicker.
 static constexpr float kSensorFactorDeadband = 0.02f;
