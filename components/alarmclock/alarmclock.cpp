@@ -548,10 +548,15 @@ void AlarmClockComponent::update_backlight_() {
   float bright = 0.0f;
 
   if (screen_asleep_) {
-    // Use a simple day/night idle profile based on ambient-light factor.
-    bright = (sensor_factor_ >= kSleepDaySensorThreshold)
-                 ? kSleepBrightnessDay
-                 : kSleepBrightnessNight;
+    // Idle mode: stay close to the configured brightness in brighter rooms,
+    // but dim more aggressively when the ambient sensor says it is dark.
+    float dim_amount = (sensor_factor_ >= kSleepDaySensorThreshold)
+                           ? kSleepDayDimAmount
+                           : kSleepNightDimAmount;
+    bright = brightness_ - dim_amount;
+    if (bright < kSleepBrightnessFloor) {
+      bright = kSleepBrightnessFloor;
+    }
   } else {
     bright = compute_brightness(brightness_, sensor_factor_);
   }

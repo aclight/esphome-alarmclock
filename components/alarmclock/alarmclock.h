@@ -146,14 +146,11 @@ static constexpr uint8_t kBuzzerOff = 247;     // Command to deactivate buzzer.
 // Idle timeout before dimming the screen (milliseconds).
 static constexpr uint32_t kScreenIdleTimeoutMs = 30000;
 
-// When asleep, use this user_level to compute a dim backlight.
-// This results in a sensor-based minimum brightness.
-static constexpr float kSleepUserLevel = 0.0f;
-
-// Sleep brightness profile (0.0–1.0), selected by ambient-light level.
-// In bright rooms, keep the screen readable while idle; in dark rooms, stay dim.
-static constexpr float kSleepBrightnessDay = 0.18f;
-static constexpr float kSleepBrightnessNight = 0.08f;
+// Idle brightness uses a mild dim in brighter rooms and a stronger dim in low
+// light so the clock stays readable without being overly bright at night.
+static constexpr float kSleepDayDimAmount = 0.10f;
+static constexpr float kSleepNightDimAmount = 0.45f;
+static constexpr float kSleepBrightnessFloor = 0.08f;
 static constexpr float kSleepDaySensorThreshold = 0.35f;
 
 // Ignore tiny ambient-light changes to reduce visible backlight flicker.
