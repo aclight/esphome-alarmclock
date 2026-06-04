@@ -360,7 +360,15 @@ void AlarmClockComponent::set_brightness(float brightness) {
 void AlarmClockComponent::set_sensor_factor(float sensor_factor) {
   if (sensor_factor < 0.0f) { sensor_factor = 0.0f; }
   if (sensor_factor > 1.0f) { sensor_factor = 1.0f; }
-  sensor_factor_ = sensor_factor;
+
+  // Ignore tiny sensor jitter to reduce backlight shimmer.
+  if (fabsf(sensor_factor - sensor_factor_) < kSensorFactorDeadband) {
+    return;
+  }
+
+  // Smooth larger transitions so brightness changes feel stable.
+  sensor_factor_ = sensor_factor_ +
+      (sensor_factor - sensor_factor_) * kSensorFactorAlpha;
   update_backlight_();
 }
 
@@ -537,13 +545,25 @@ void AlarmClockComponent::check_alarms_(uint8_t hour, uint8_t minute,
 }
 
 void AlarmClockComponent::update_backlight_() {
-  float user_level = screen_asleep_ ? kSleepUserLevel : brightness_;
-  // When asleep, ignore the ambient sensor so brightness stays at minimum
-  // regardless of room light (prevents 50% brightness in bright rooms).
-  float sensor = screen_asleep_ ? 0.0f : sensor_factor_;
-  float bright = compute_brightness(user_level, sensor);
+  float bright = 0.0f;
+
+  if (screen_asleep_) {
+    // Use a simple day/night idle profile based on ambient-light factor.
+    bright = (sensor_factor_ >= kSleepDaySensorThreshold)
+                 ? kSleepBrightnessDay
+                 : kSleepBrightnessNight;
+  } else {
+    bright = compute_brightness(brightness_, sensor_factor_);
+  }
+
   uint8_t pwm = brightness_to_pwm(bright);
-  this->write(&pwm, 1);
+  if (pwm == last_backlight_pwm_) {
+    return;
+  }
+
+  if (this->write(&pwm, 1) == ::esphome::i2c::ERROR_OK) {
+    last_backlight_pwm_ = pwm;
+  }
 }
 
 void AlarmClockComponent::check_screen_sleep_() {

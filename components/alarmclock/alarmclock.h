@@ -150,6 +150,17 @@ static constexpr uint32_t kScreenIdleTimeoutMs = 30000;
 // This results in a sensor-based minimum brightness.
 static constexpr float kSleepUserLevel = 0.0f;
 
+// Sleep brightness profile (0.0–1.0), selected by ambient-light level.
+// In bright rooms, keep the screen readable while idle; in dark rooms, stay dim.
+static constexpr float kSleepBrightnessDay = 0.18f;
+static constexpr float kSleepBrightnessNight = 0.03f;
+static constexpr float kSleepDaySensorThreshold = 0.45f;
+
+// Ignore tiny ambient-light changes to reduce visible backlight flicker.
+static constexpr float kSensorFactorDeadband = 0.02f;
+// First-order smoothing factor for ambient-light updates.
+static constexpr float kSensorFactorAlpha = 0.25f;
+
 // Minimum delay between NVS settings writes (milliseconds).
 // Prevents flash wear from continuous slider drag events.
 static constexpr uint32_t kSettingsDebouncePeriodMs = 2000;
@@ -566,6 +577,9 @@ class AlarmClockComponent : public ::esphome::Component,
   // NVS write debouncing.
   bool settings_dirty_ = false;
   uint32_t settings_dirty_ms_ = 0;
+
+  // Last backlight PWM written to the I2C controller.
+  uint8_t last_backlight_pwm_ = 0xFF;
 
   // Internal helpers.
   void update_backlight_();
