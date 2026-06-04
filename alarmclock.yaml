@@ -1,6 +1,9 @@
 esphome:
   name: alarmclock
   friendly_name: Alarm Clock
+  project:
+    name: aclight.alarmclock
+    version: "1.0.0"
   platformio_options:
     board_build.flash_mode: dio
   on_boot:
@@ -37,6 +40,10 @@ external_components:
   - source:
       type: local
       path: components
+
+dashboard_import:
+  package_import_url: github://aclight/esphome-alarmclock/alarmclock.yaml@main
+  import_full_config: true
 
 wifi:
   ssid: !secret wifi_ssid
