@@ -220,6 +220,22 @@ interval:
                 time.hour, time.minute, dow);
           }
 
+          // Keep HA template numbers in sync with on-device slider changes.
+          float volume_percent = id(alarm_clock_component).volume() * 100.0f;
+          float brightness_percent = id(alarm_clock_component).brightness() * 100.0f;
+          static float last_volume_percent = -1.0f;
+          static float last_brightness_percent = -1.0f;
+
+          if (fabsf(volume_percent - last_volume_percent) >= 0.5f) {
+            id(num_volume).publish_state(volume_percent);
+            last_volume_percent = volume_percent;
+          }
+
+          if (fabsf(brightness_percent - last_brightness_percent) >= 0.5f) {
+            id(num_brightness).publish_state(brightness_percent);
+            last_brightness_percent = brightness_percent;
+          }
+
 # --- Alarm clock custom component (I2C backlight controller + alarm logic) ---
 alarmclock:
   id: alarm_clock_component

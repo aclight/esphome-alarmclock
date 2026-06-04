@@ -343,6 +343,7 @@ void AlarmClockComponent::set_volume(float volume) {
   volume_ = volume;
   mark_settings_dirty_();
   ui_update_volume(volume);
+  ESP_LOGI(TAG, "Volume set to %.0f%%", volume_ * 100.0f);
   // TODO: Apply to speaker/RTTTL gain.
 }
 
@@ -353,6 +354,7 @@ void AlarmClockComponent::set_brightness(float brightness) {
   mark_settings_dirty_();
   update_backlight_();
   ui_update_brightness(brightness);
+  ESP_LOGI(TAG, "Brightness set to %.0f%%", brightness_ * 100.0f);
 }
 
 void AlarmClockComponent::set_sensor_factor(float sensor_factor) {
