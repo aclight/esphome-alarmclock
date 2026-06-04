@@ -328,29 +328,6 @@ void ui_build_settings_page(lv_obj_t *parent) {
   }
   update_snooze_btn_styles();
 
-  // --- 12/24 hour format toggle ---
-  lv_obj_t *format_row = create_row(parent, theme::kScreenWidth - 60, 56);
-  lv_obj_set_flex_align(format_row, LV_FLEX_ALIGN_START,
-                        LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-  lv_obj_set_style_pad_column(format_row, 15, 0);
-
-  lv_obj_t *format_title = lv_label_create(format_row);
-  lv_obj_set_style_text_font(format_title, &lv_font_montserrat_28, 0);
-  lv_obj_set_style_text_color(format_title, lv_color_hex(theme::kColorSecondary), 0);
-  lv_label_set_text(format_title, "Time Format");
-
-  time_format_switch_ = lv_switch_create(format_row);
-  lv_obj_set_size(time_format_switch_, 70, 40);
-  lv_obj_set_style_bg_color(time_format_switch_, lv_color_hex(theme::kColorMuted), LV_PART_MAIN);
-  lv_obj_set_style_bg_color(time_format_switch_, lv_color_hex(theme::kColorAccent),
-                            static_cast<lv_style_selector_t>(LV_PART_INDICATOR) | LV_STATE_CHECKED);
-  lv_obj_add_event_cb(time_format_switch_, time_format_switch_cb, LV_EVENT_VALUE_CHANGED, nullptr);
-
-  time_format_label_ = lv_label_create(format_row);
-  lv_obj_set_style_text_font(time_format_label_, &lv_font_montserrat_28, 0);
-  lv_obj_set_style_text_color(time_format_label_, lv_color_hex(theme::kColorPrimary), 0);
-  lv_label_set_text(time_format_label_, "12h");
-
   // --- Pre-alarm notification section (4 buttons in a row) ---
   lv_obj_t *pre_alarm_title = lv_label_create(parent);
   lv_obj_set_style_text_font(pre_alarm_title, &lv_font_montserrat_28, 0);
@@ -376,6 +353,30 @@ void ui_build_settings_page(lv_obj_t *parent) {
     lv_obj_set_style_text_color(label, lv_color_hex(theme::kColorPrimary), 0);
     lv_label_set_text(label, kPreAlarmLabels[i]);
   }
+
+  // --- 12/24 hour format toggle ---
+  lv_obj_t *format_row = create_row(parent, theme::kScreenWidth - 60, 56);
+  lv_obj_set_flex_align(format_row, LV_FLEX_ALIGN_START,
+                        LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_set_style_pad_column(format_row, 15, 0);
+
+  lv_obj_t *format_title = lv_label_create(format_row);
+  lv_obj_set_style_text_font(format_title, &lv_font_montserrat_28, 0);
+  lv_obj_set_style_text_color(format_title, lv_color_hex(theme::kColorSecondary), 0);
+  lv_label_set_text(format_title, "Time Format");
+
+  time_format_switch_ = lv_switch_create(format_row);
+  lv_obj_set_size(time_format_switch_, 70, 40);
+  lv_obj_set_style_bg_color(time_format_switch_, lv_color_hex(theme::kColorMuted), LV_PART_MAIN);
+  lv_obj_set_style_bg_color(time_format_switch_, lv_color_hex(theme::kColorAccent),
+                            static_cast<lv_style_selector_t>(LV_PART_INDICATOR) | LV_STATE_CHECKED);
+  lv_obj_add_event_cb(time_format_switch_, time_format_switch_cb, LV_EVENT_VALUE_CHANGED, nullptr);
+
+  time_format_label_ = lv_label_create(format_row);
+  lv_obj_set_style_text_font(time_format_label_, &lv_font_montserrat_28, 0);
+  lv_obj_set_style_text_color(time_format_label_, lv_color_hex(theme::kColorPrimary), 0);
+  lv_label_set_text(time_format_label_, "12h");
+
   update_pre_alarm_btn_styles();
 }
 
