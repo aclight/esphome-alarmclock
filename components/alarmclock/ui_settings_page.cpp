@@ -182,6 +182,12 @@ void ui_build_settings_page(lv_obj_t *parent) {
   // Enable vertical scrolling.
   lv_obj_add_flag(parent, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_set_scroll_dir(parent, LV_DIR_VER);
+  // Avoid elastic bounce/momentum animations; they add redraw cost and make
+  // the page feel sluggish on this hardware.
+  lv_obj_clear_flag(parent, LV_OBJ_FLAG_SCROLL_ELASTIC);
+  lv_obj_clear_flag(parent, LV_OBJ_FLAG_SCROLL_MOMENTUM);
+  lv_obj_set_scrollbar_mode(parent, LV_SCROLLBAR_MODE_OFF);
+  lv_obj_set_style_anim_time(parent, 0, LV_PART_MAIN);
 
   // --- Title row with home button ---
   lv_obj_t *title_row = create_row(parent, theme::kScreenWidth - 40, 64);
@@ -213,17 +219,21 @@ void ui_build_settings_page(lv_obj_t *parent) {
   lv_obj_set_width(vol_title, theme::kScreenWidth - 60);
 
   lv_obj_t *vol_row = create_row(parent, theme::kScreenWidth - 60, 56);
+  lv_obj_set_flex_align(vol_row, LV_FLEX_ALIGN_START,
+                        LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_set_style_pad_column(vol_row, 16, 0);
 
   volume_slider_ = lv_slider_create(vol_row);
-  lv_obj_set_flex_grow(volume_slider_, 1);
+  lv_obj_set_width(volume_slider_, theme::kScreenWidth - 300);
   lv_obj_set_height(volume_slider_, 14);
   lv_slider_set_range(volume_slider_, 0, 100);
   lv_slider_set_value(volume_slider_, 50, LV_ANIM_OFF);
   lv_obj_set_style_bg_color(volume_slider_, lv_color_hex(theme::kColorMuted), LV_PART_MAIN);
   lv_obj_set_style_bg_color(volume_slider_, lv_color_hex(theme::kColorAccent), LV_PART_INDICATOR);
   lv_obj_set_style_bg_color(volume_slider_, lv_color_hex(theme::kColorPrimary), LV_PART_KNOB);
+  lv_obj_set_style_outline_width(volume_slider_, 0, LV_PART_MAIN);
   lv_obj_add_event_cb(volume_slider_, volume_slider_cb, LV_EVENT_VALUE_CHANGED, nullptr);
-  lv_obj_set_style_pad_all(volume_slider_, 16, LV_PART_KNOB);
+  lv_obj_set_style_pad_all(volume_slider_, 8, LV_PART_KNOB);
 
   volume_label_ = lv_label_create(vol_row);
   lv_obj_set_style_text_font(volume_label_, &lv_font_montserrat_28, 0);
@@ -239,17 +249,21 @@ void ui_build_settings_page(lv_obj_t *parent) {
   lv_obj_set_width(bright_title, theme::kScreenWidth - 60);
 
   lv_obj_t *bright_row = create_row(parent, theme::kScreenWidth - 60, 56);
+  lv_obj_set_flex_align(bright_row, LV_FLEX_ALIGN_START,
+                        LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_set_style_pad_column(bright_row, 16, 0);
 
   brightness_slider_ = lv_slider_create(bright_row);
-  lv_obj_set_flex_grow(brightness_slider_, 1);
+  lv_obj_set_width(brightness_slider_, theme::kScreenWidth - 300);
   lv_obj_set_height(brightness_slider_, 14);
   lv_slider_set_range(brightness_slider_, 0, 100);
   lv_slider_set_value(brightness_slider_, 50, LV_ANIM_OFF);
   lv_obj_set_style_bg_color(brightness_slider_, lv_color_hex(theme::kColorMuted), LV_PART_MAIN);
   lv_obj_set_style_bg_color(brightness_slider_, lv_color_hex(theme::kColorAccent), LV_PART_INDICATOR);
   lv_obj_set_style_bg_color(brightness_slider_, lv_color_hex(theme::kColorPrimary), LV_PART_KNOB);
+  lv_obj_set_style_outline_width(brightness_slider_, 0, LV_PART_MAIN);
   lv_obj_add_event_cb(brightness_slider_, brightness_slider_cb, LV_EVENT_VALUE_CHANGED, nullptr);
-  lv_obj_set_style_pad_all(brightness_slider_, 16, LV_PART_KNOB);
+  lv_obj_set_style_pad_all(brightness_slider_, 8, LV_PART_KNOB);
 
   brightness_label_ = lv_label_create(bright_row);
   lv_obj_set_style_text_font(brightness_label_, &lv_font_montserrat_28, 0);
@@ -281,9 +295,10 @@ void ui_build_settings_page(lv_obj_t *parent) {
 
   sound_roller_ = lv_roller_create(parent);
   lv_roller_set_options(sound_roller_, sound_options, LV_ROLLER_MODE_NORMAL);
-  lv_obj_set_width(sound_roller_, theme::kScreenWidth - 60);
+  lv_obj_set_width(sound_roller_, theme::kScreenWidth - 220);
   lv_obj_set_style_text_font(sound_roller_, &lv_font_montserrat_24, 0);
-  lv_roller_set_visible_row_count(sound_roller_, 3);
+  lv_obj_set_style_outline_width(sound_roller_, 0, LV_PART_MAIN);
+  lv_roller_set_visible_row_count(sound_roller_, 2);
   lv_obj_add_event_cb(sound_roller_, sound_dropdown_cb, LV_EVENT_VALUE_CHANGED, nullptr);
 
   // --- Snooze duration section (4 buttons in a row) ---
