@@ -156,12 +156,12 @@ static constexpr float kSleepDaySensorThreshold = 0.35f;
 // Ignore tiny ambient-light changes to reduce visible backlight flicker.
 static constexpr float kSensorFactorDeadband = 0.02f;
 // First-order smoothing factor for ambient-light updates.
-static constexpr float kSensorFactorAlpha = 0.50f;
+static constexpr float kSensorFactorAlpha = 0.75f;
 
 // In awake mode, ambient light scales brightness between this fraction and
 // full configured brightness.  Example: with 1.0 user brightness, factor=0.0
-// yields 25%, factor=1.0 yields 100%.
-static constexpr float kAwakeMinBrightnessFraction = 0.25f;
+// yields 5%, factor=1.0 yields 100%.
+static constexpr float kAwakeMinBrightnessFraction = 0.05f;
 
 // Minimum delay between NVS settings writes (milliseconds).
 // Prevents flash wear from continuous slider drag events.

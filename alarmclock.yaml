@@ -74,7 +74,8 @@ logger:
     touchscreen: WARN
     gt911.touchscreen: WARN
     number: WARN
-    text_sensor: WARN
+    text_sensor: ERROR
+    binary_sensor: ERROR
     sensor: WARN
 
 # --- Volume/brightness now managed by the C++ component ---
