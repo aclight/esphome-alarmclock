@@ -103,7 +103,7 @@ display:
     id: main_display
     auto_clear_enabled: false
     color_order: RGB
-    pclk_frequency: 12MHz
+    pclk_frequency: 14MHz
     dimensions:
       width: 800
       height: 480
