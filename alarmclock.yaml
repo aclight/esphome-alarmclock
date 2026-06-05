@@ -66,13 +66,16 @@ ota:
     password: !secret ota_password
 
 logger:
-  level: VERBOSE
+  level: INFO
   hardware_uart: UART0
   logs:
     i2c.idf: WARN
     lvgl: WARN
     touchscreen: WARN
     gt911.touchscreen: WARN
+    number: WARN
+    text_sensor: WARN
+    sensor: WARN
 
 # --- Volume/brightness now managed by the C++ component ---
 # (globals removed — state lives in AlarmClockComponent)
@@ -100,7 +103,7 @@ display:
     id: main_display
     auto_clear_enabled: false
     color_order: RGB
-    pclk_frequency: 14MHz
+    pclk_frequency: 12MHz
     dimensions:
       width: 800
       height: 480
@@ -212,9 +215,29 @@ interval:
             // ESPTime::day_of_week is 1-based (1=Sun..7=Sat); convert to
             // 0-based (0=Sun..6=Sat) used by alarm_time.h.
             uint8_t dow = static_cast<uint8_t>(time.day_of_week - 1);
-            alarmclock::ui_update_clock(time.hour, time.minute,
-                                       id(alarm_clock_component).time_format_24h());
-            alarmclock::ui_update_date(time.month, time.day_of_month, dow);
+            // Only redraw clock/date when values actually change to reduce
+            // LVGL workload and visible tearing on the RGB panel.
+            static int last_hour = -1;
+            static int last_minute = -1;
+            static int last_month = -1;
+            static int last_day = -1;
+            static int last_dow = -1;
+
+            if (time.hour != last_hour || time.minute != last_minute) {
+              alarmclock::ui_update_clock(time.hour, time.minute,
+                                         id(alarm_clock_component).time_format_24h());
+              last_hour = time.hour;
+              last_minute = time.minute;
+            }
+
+            if (time.month != last_month ||
+                time.day_of_month != last_day ||
+                static_cast<int>(dow) != last_dow) {
+              alarmclock::ui_update_date(time.month, time.day_of_month, dow);
+              last_month = time.month;
+              last_day = time.day_of_month;
+              last_dow = dow;
+            }
             // Check alarms on every tick — the C++ side deduplicates per minute.
             id(alarm_clock_component).check_alarms_(
                 time.hour, time.minute, dow);
