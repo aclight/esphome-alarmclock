@@ -231,34 +231,36 @@ static void build_delete_confirm(lv_obj_t *parent) {
 
   // "Delete this alarm?" label.
   lv_obj_t *msg = lv_label_create(delete_confirm_overlay_);
-  lv_obj_align(msg, LV_ALIGN_TOP_MID, 0, 60);
-  lv_obj_set_style_text_font(msg, &lv_font_montserrat_24, 0);
+  lv_obj_align(msg, LV_ALIGN_TOP_MID, 0, 50);
+  lv_obj_set_style_text_font(msg, &lv_font_montserrat_32, 0);
   lv_obj_set_style_text_color(msg, lv_color_hex(theme::kColorPrimary), 0);
   lv_label_set_text(msg, "Delete this alarm?");
 
   // Yes button.
   lv_obj_t *yes_btn = lv_button_create(delete_confirm_overlay_);
-  lv_obj_set_size(yes_btn, 120, 50);
-  lv_obj_align(yes_btn, LV_ALIGN_BOTTOM_LEFT, 80, -60);
+  lv_obj_set_size(yes_btn, 150, 70);
+  lv_obj_align(yes_btn, LV_ALIGN_BOTTOM_LEFT, 70, -50);
   lv_obj_set_style_bg_color(yes_btn, lv_color_hex(theme::kColorAlarmFiring), 0);
   lv_obj_set_style_radius(yes_btn, theme::kButtonRadius, 0);
   lv_obj_add_event_cb(yes_btn, delete_confirm_yes_cb, LV_EVENT_CLICKED, nullptr);
 
   lv_obj_t *yes_label = lv_label_create(yes_btn);
   lv_obj_center(yes_label);
+  lv_obj_set_style_text_font(yes_label, &lv_font_montserrat_24, 0);
   lv_obj_set_style_text_color(yes_label, lv_color_hex(theme::kColorPrimary), 0);
   lv_label_set_text(yes_label, "Delete");
 
   // No button.
   lv_obj_t *no_btn = lv_button_create(delete_confirm_overlay_);
-  lv_obj_set_size(no_btn, 120, 50);
-  lv_obj_align(no_btn, LV_ALIGN_BOTTOM_RIGHT, -80, -60);
+  lv_obj_set_size(no_btn, 150, 70);
+  lv_obj_align(no_btn, LV_ALIGN_BOTTOM_RIGHT, -70, -50);
   lv_obj_set_style_bg_color(no_btn, lv_color_hex(theme::kColorMuted), 0);
   lv_obj_set_style_radius(no_btn, theme::kButtonRadius, 0);
   lv_obj_add_event_cb(no_btn, delete_confirm_no_cb, LV_EVENT_CLICKED, nullptr);
 
   lv_obj_t *no_label = lv_label_create(no_btn);
   lv_obj_center(no_label);
+  lv_obj_set_style_text_font(no_label, &lv_font_montserrat_24, 0);
   lv_obj_set_style_text_color(no_label, lv_color_hex(theme::kColorPrimary), 0);
   lv_label_set_text(no_label, "Cancel");
 }
@@ -327,7 +329,7 @@ void ui_build_time_picker(lv_obj_t *parent) {
   ampm_roller_ = lv_roller_create(picker_panel_);
   lv_roller_set_options(ampm_roller_, "AM\nPM", LV_ROLLER_MODE_NORMAL);
   lv_roller_set_visible_row_count(ampm_roller_, 2);
-  lv_obj_set_size(ampm_roller_, 70, 80);
+  lv_obj_set_size(ampm_roller_, 70, 150);
   lv_obj_align(ampm_roller_, LV_ALIGN_TOP_LEFT, 240, 45);
   lv_obj_set_style_text_font(ampm_roller_, &lv_font_montserrat_20, 0);
   lv_obj_set_style_text_color(ampm_roller_, lv_color_hex(theme::kColorPrimary), 0);

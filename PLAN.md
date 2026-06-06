@@ -27,3 +27,36 @@
 - HA sync (restore alarms from HA entities on boot)
 - Weather display on clock face
 - Sunrise alarm (gradually increase brightness before alarm time)
+---
+
+## Brightness / Screen Dim-on-Wake Investigation
+
+### Issue
+After screen idle timeout, sometimes tapping to wake causes screen to get dimmer instead of restoring expected brightness. Possibly related to light sensor readings or positioning. **Not believed to be a regression from alarm changes.**
+
+### Investigation Plan
+1. Add logging to `update_backlight_()` in `alarmclock.cpp`:
+   - Log current ambient lux (from sensor factor)
+   - Log calculated brightness before applying
+   - Log final applied brightness to controller
+   - Log state transitions: screen_asleep → wake, brightness changes
+
+2. Add logging for touch wake events:
+   - Log tap event timestamp + position
+   - Log screen wake request fired from touch handler
+   - Log screen_asleep_ flag state transitions
+
+3. Collect logs during testing:
+   - Place device in daylight indoors
+   - Let screen dim from idle (note timestamp)
+   - Tap screen (note action)
+   - Capture log output showing brightness calculations + sensor readings
+
+4. Analysis:
+   - Correlate sensor lux spikes/drops with dimming events
+   - Check if brightness calculation is clamping unexpectedly
+   - Verify screen_asleep_ transitions are correct
+   - Check if light sensor readings are noisy or if positioning affects them
+
+### Next Steps
+Once logging added, run manual test, collect log segment, and debug root cause.

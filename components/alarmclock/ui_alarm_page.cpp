@@ -74,19 +74,6 @@ static void refresh_add_alarm_button_() {
   }
 }
 
-static lv_obj_t *create_header_row(lv_obj_t *parent) {
-  lv_obj_t *row = lv_obj_create(parent);
-  lv_obj_set_size(row, theme::kScreenWidth - 40, 64);
-  lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
-  lv_obj_set_flex_align(row, LV_FLEX_ALIGN_SPACE_BETWEEN,
-                        LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-  lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, 0);
-  lv_obj_set_style_border_width(row, 0, 0);
-  lv_obj_set_style_pad_all(row, 0, 0);
-  lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE);
-  return row;
-}
-
 // ---------------------------------------------------------------------------
 // Event handlers.
 // ---------------------------------------------------------------------------
@@ -172,26 +159,30 @@ static void home_btn_cb(lv_event_t *e) {
 // Build the alarm page.
 // ---------------------------------------------------------------------------
 void ui_build_alarm_page(lv_obj_t *parent) {
-  // Enable vertical scrolling for the alarm list.
+  // Layout: parent is flex column with fixed header + scrollable content area.
   lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
   lv_obj_set_flex_align(parent, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
                         LV_FLEX_ALIGN_CENTER);
-  lv_obj_set_style_pad_top(parent, 10, 0);
-  lv_obj_set_style_pad_bottom(parent, 20, 0);
-  lv_obj_set_style_pad_row(parent, kAlarmRowGap, 0);
-  lv_obj_add_flag(parent, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_clear_flag(parent, LV_OBJ_FLAG_SCROLL_MOMENTUM);
-  lv_obj_clear_flag(parent, LV_OBJ_FLAG_SCROLL_ELASTIC);
-  lv_obj_set_scroll_dir(parent, LV_DIR_VER);
+  lv_obj_set_style_pad_all(parent, 0, 0);
+  lv_obj_clear_flag(parent, LV_OBJ_FLAG_SCROLLABLE);
 
-  lv_obj_t *title_row = create_header_row(parent);
+  // --- Fixed header row (title + home button, stays visible at top) ---
+  lv_obj_t *header_row = lv_obj_create(parent);
+  lv_obj_set_size(header_row, theme::kScreenWidth, 80);
+  lv_obj_set_flex_flow(header_row, LV_FLEX_FLOW_ROW);
+  lv_obj_set_flex_align(header_row, LV_FLEX_ALIGN_SPACE_BETWEEN,
+                        LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_set_style_bg_opa(header_row, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_border_width(header_row, 0, 0);
+  lv_obj_set_style_pad_all(header_row, 10, 0);
+  lv_obj_clear_flag(header_row, LV_OBJ_FLAG_SCROLLABLE);
 
-  title_label_ = lv_label_create(title_row);
+  title_label_ = lv_label_create(header_row);
   lv_obj_set_style_text_font(title_label_, &lv_font_montserrat_48, 0);
   lv_obj_set_style_text_color(title_label_, lv_color_hex(theme::kColorPrimary), 0);
   lv_label_set_text(title_label_, "Alarms");
 
-  lv_obj_t *home_btn = lv_button_create(title_row);
+  lv_obj_t *home_btn = lv_button_create(header_row);
   lv_obj_set_size(home_btn, theme::kNavButtonWidth, theme::kNavButtonHeight);
   lv_obj_set_style_bg_color(home_btn, lv_color_hex(theme::kColorAccent), 0);
   lv_obj_set_style_radius(home_btn, theme::kButtonRadius, 0);
@@ -203,12 +194,27 @@ void ui_build_alarm_page(lv_obj_t *parent) {
   lv_obj_set_style_text_color(home_label, lv_color_hex(theme::kColorPrimary), 0);
   lv_label_set_text(home_label, LV_SYMBOL_HOME);
 
-  // Create alarm rows.
+  // --- Scrollable content area (alarm rows + add button) ---
+  lv_obj_t *scroll_area = lv_obj_create(parent);
+  lv_obj_set_size(scroll_area, theme::kScreenWidth, theme::kScreenHeight - 80);
+  lv_obj_set_flex_flow(scroll_area, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_flex_align(scroll_area, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
+                        LV_FLEX_ALIGN_CENTER);
+  lv_obj_set_style_pad_top(scroll_area, 10, 0);
+  lv_obj_set_style_pad_bottom(scroll_area, 20, 0);
+  lv_obj_set_style_pad_row(scroll_area, kAlarmRowGap, 0);
+  lv_obj_add_flag(scroll_area, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_clear_flag(scroll_area, LV_OBJ_FLAG_SCROLL_ELASTIC);
+  lv_obj_set_scroll_dir(scroll_area, LV_DIR_VER);
+  lv_obj_set_style_bg_opa(scroll_area, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_border_width(scroll_area, 0, 0);
+
+  // Create alarm rows (children of scroll_area, not parent).
   for (uint8_t i = 0; i < kMaxAlarms; i++) {
     AlarmRow &row = alarm_rows_[i];
 
     // Row container.
-    row.container = lv_obj_create(parent);
+    row.container = lv_obj_create(scroll_area);
     lv_obj_set_size(row.container, theme::kScreenWidth - 40, kAlarmRowHeight);
     lv_obj_set_style_bg_color(row.container, lv_color_hex(0x111111), 0);
     lv_obj_set_style_border_width(row.container, 0, 0);
@@ -253,8 +259,8 @@ void ui_build_alarm_page(lv_obj_t *parent) {
     lv_obj_add_flag(row.container, LV_OBJ_FLAG_HIDDEN);
   }
 
-  // "Add alarm" button.
-  add_btn_ = lv_button_create(parent);
+  // "Add alarm" button (child of scroll_area so it scrolls with content).
+  add_btn_ = lv_button_create(scroll_area);
   lv_obj_set_size(add_btn_, 280, 80);
   lv_obj_set_style_radius(add_btn_, theme::kButtonRadius, 0);
   lv_obj_set_style_bg_color(add_btn_, lv_color_hex(theme::kColorAccent), 0);
