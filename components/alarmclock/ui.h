@@ -50,6 +50,7 @@ void ui_update_alarm_row(uint8_t index, uint8_t hour, uint8_t minute,
                          bool time_format_24h = false,
                          const char *label = nullptr);
 void ui_hide_alarm_row(uint8_t index);
+void ui_set_alarm_slots_used(uint8_t used_slots, uint8_t max_slots);
 void ui_set_alarm_row_firing(uint8_t index);
 void ui_clear_alarm_row_firing(uint8_t index);
 
@@ -74,11 +75,11 @@ struct UiCallbacks {
   void (*on_alarm_snooze)() = nullptr;
   void (*on_volume_change)(float volume) = nullptr;
   void (*on_brightness_change)(float brightness) = nullptr;
+  void (*on_alarm_add)() = nullptr;
   void (*on_alarm_toggle)(uint8_t index, bool enabled) = nullptr;
   void (*on_alarm_edit)(uint8_t index) = nullptr;
-  void (*on_alarm_time_set)(uint8_t index, uint8_t hour, uint8_t minute) = nullptr;
-  void (*on_alarm_days_set)(uint8_t index, uint8_t days_mask) = nullptr;
-  void (*on_alarm_label_set)(uint8_t index, const char *label) = nullptr;
+  void (*on_alarm_save)(uint8_t index, uint8_t hour, uint8_t minute,
+                        uint8_t days_mask, const char *label) = nullptr;
   void (*on_alarm_delete)(uint8_t index) = nullptr;
   void (*on_sound_change)(uint8_t sound_index) = nullptr;
   void (*on_sound_preview)(uint8_t sound_index) = nullptr;

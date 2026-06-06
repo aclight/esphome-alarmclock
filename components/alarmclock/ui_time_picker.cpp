@@ -136,15 +136,10 @@ static void confirm_btn_cb(lv_event_t *e) {
   // Read label.
   const char *label_text = lv_textarea_get_text(label_input_);
 
-  // Fire callbacks.
-  if (cb.on_alarm_time_set) {
-    cb.on_alarm_time_set(editing_index_, hour_24, static_cast<uint8_t>(minute));
-  }
-  if (cb.on_alarm_days_set) {
-    cb.on_alarm_days_set(editing_index_, days_mask);
-  }
-  if (cb.on_alarm_label_set) {
-    cb.on_alarm_label_set(editing_index_, label_text);
+  // Fire a single save callback so UI + persistence updates happen once.
+  if (cb.on_alarm_save) {
+    cb.on_alarm_save(editing_index_, hour_24, static_cast<uint8_t>(minute),
+                     days_mask, label_text);
   }
 
   ui_hide_time_picker();

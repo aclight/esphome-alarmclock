@@ -43,7 +43,7 @@ external_components:
       ref: main
       path: components
     components: [alarmclock]
-    refresh: 1d
+    refresh: 0s
 
 dashboard_import:
   package_import_url: github://aclight/esphome-alarmclock/alarmclock.yaml@main
@@ -55,6 +55,8 @@ wifi:
   ap:
     ssid: "AlarmClock Fallback"
     password: !secret wifi_fallback_password
+
+captive_portal:
 
 api:
   encryption:

@@ -15,6 +15,7 @@ namespace alarmclock {
 static constexpr int16_t kAlarmRowHeight = 160;
 static constexpr int16_t kAlarmRowGap = 8;
 static constexpr int16_t kAlarmListStartY = 70;
+static constexpr int16_t kRowTapDragThresholdPx = 10;
 
 // ---------------------------------------------------------------------------
 // Per-alarm row widgets.
@@ -27,12 +28,51 @@ struct AlarmRow {
   lv_obj_t *toggle = nullptr;
 };
 
+struct RowTouchState {
+  int16_t press_x = 0;
+  int16_t press_y = 0;
+  bool moved = false;
+};
+
 static AlarmRow alarm_rows_[kMaxAlarms] = {};
+static RowTouchState row_touch_states_[kMaxAlarms] = {};
 static lv_obj_t *title_label_ = nullptr;
 static lv_obj_t *add_btn_ = nullptr;
+static lv_obj_t *add_btn_label_ = nullptr;
+static uint8_t used_alarm_slots_ = 0;
 
 // Forward declaration.
 const UiCallbacks &ui_get_callbacks();
+
+static bool point_from_event(lv_event_t *e, lv_point_t *out_point) {
+  lv_indev_t *indev = lv_event_get_indev(e);
+  if (indev == nullptr || out_point == nullptr) {
+    return false;
+  }
+  lv_indev_get_point(indev, out_point);
+  return true;
+}
+
+static void refresh_add_alarm_button_() {
+  if (add_btn_ == nullptr || add_btn_label_ == nullptr) {
+    return;
+  }
+
+  if (used_alarm_slots_ >= kMaxAlarms) {
+    lv_obj_add_state(add_btn_, LV_STATE_DISABLED);
+    lv_obj_set_style_bg_color(add_btn_, lv_color_hex(theme::kColorMuted), 0);
+    lv_obj_set_style_text_font(add_btn_label_, &lv_font_montserrat_24, 0);
+    char label_buf[20];
+    snprintf(label_buf, sizeof(label_buf), "Max %u Alarms",
+             static_cast<unsigned>(kMaxAlarms));
+    lv_label_set_text(add_btn_label_, label_buf);
+  } else {
+    lv_obj_clear_state(add_btn_, LV_STATE_DISABLED);
+    lv_obj_set_style_bg_color(add_btn_, lv_color_hex(theme::kColorAccent), 0);
+    lv_obj_set_style_text_font(add_btn_label_, &lv_font_montserrat_28, 0);
+    lv_label_set_text(add_btn_label_, "+ Add Alarm");
+  }
+}
 
 static lv_obj_t *create_header_row(lv_obj_t *parent) {
   lv_obj_t *row = lv_obj_create(parent);
@@ -60,8 +100,52 @@ static void alarm_toggle_cb(lv_event_t *e) {
   }
 }
 
-static void alarm_row_click_cb(lv_event_t *e) {
+static void alarm_row_pressed_cb(lv_event_t *e) {
   uint8_t index = reinterpret_cast<uintptr_t>(lv_event_get_user_data(e));
+  if (index >= kMaxAlarms) {
+    return;
+  }
+  lv_point_t p;
+  if (point_from_event(e, &p)) {
+    row_touch_states_[index].press_x = p.x;
+    row_touch_states_[index].press_y = p.y;
+  }
+  row_touch_states_[index].moved = false;
+}
+
+static void alarm_row_pressing_cb(lv_event_t *e) {
+  uint8_t index = reinterpret_cast<uintptr_t>(lv_event_get_user_data(e));
+  if (index >= kMaxAlarms || row_touch_states_[index].moved) {
+    return;
+  }
+  lv_point_t p;
+  if (!point_from_event(e, &p)) {
+    return;
+  }
+
+  int16_t dx = p.x - row_touch_states_[index].press_x;
+  if (dx < 0) {
+    dx = -dx;
+  }
+  int16_t dy = p.y - row_touch_states_[index].press_y;
+  if (dy < 0) {
+    dy = -dy;
+  }
+
+  if (dx > kRowTapDragThresholdPx || dy > kRowTapDragThresholdPx) {
+    row_touch_states_[index].moved = true;
+  }
+}
+
+static void alarm_row_released_cb(lv_event_t *e) {
+  uint8_t index = reinterpret_cast<uintptr_t>(lv_event_get_user_data(e));
+  if (index >= kMaxAlarms || row_touch_states_[index].moved) {
+    return;
+  }
+  lv_obj_t *target = static_cast<lv_obj_t *>(lv_event_get_target(e));
+  if (target != alarm_rows_[index].container) {
+    return;
+  }
   const auto &cb = ui_get_callbacks();
   if (cb.on_alarm_edit) {
     cb.on_alarm_edit(index);
@@ -70,18 +154,13 @@ static void alarm_row_click_cb(lv_event_t *e) {
 
 static void add_btn_cb(lv_event_t *e) {
   (void)e;
-  const auto &cb = ui_get_callbacks();
-  // Find the first unused alarm slot (all fields at default).
-  for (uint8_t i = 0; i < kMaxAlarms; i++) {
-    if (lv_obj_has_flag(alarm_rows_[i].container, LV_OBJ_FLAG_HIDDEN)) {
-      // Open time picker for this empty slot with defaults.
-      if (cb.on_alarm_edit) {
-        cb.on_alarm_edit(i);
-      }
-      return;
-    }
+  if (add_btn_ != nullptr && lv_obj_has_state(add_btn_, LV_STATE_DISABLED)) {
+    return;
   }
-  // All slots full — no action (button could be disabled in the future).
+  const auto &cb = ui_get_callbacks();
+  if (cb.on_alarm_add) {
+    cb.on_alarm_add();
+  }
 }
 
 static void home_btn_cb(lv_event_t *e) {
@@ -101,6 +180,8 @@ void ui_build_alarm_page(lv_obj_t *parent) {
   lv_obj_set_style_pad_bottom(parent, 20, 0);
   lv_obj_set_style_pad_row(parent, kAlarmRowGap, 0);
   lv_obj_add_flag(parent, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_clear_flag(parent, LV_OBJ_FLAG_SCROLL_MOMENTUM);
+  lv_obj_clear_flag(parent, LV_OBJ_FLAG_SCROLL_ELASTIC);
   lv_obj_set_scroll_dir(parent, LV_DIR_VER);
 
   lv_obj_t *title_row = create_header_row(parent);
@@ -133,7 +214,11 @@ void ui_build_alarm_page(lv_obj_t *parent) {
     lv_obj_set_style_border_width(row.container, 0, 0);
     lv_obj_set_style_radius(row.container, 10, 0);
     lv_obj_clear_flag(row.container, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_event_cb(row.container, alarm_row_click_cb, LV_EVENT_CLICKED,
+    lv_obj_add_event_cb(row.container, alarm_row_pressed_cb, LV_EVENT_PRESSED,
+              reinterpret_cast<void *>(static_cast<uintptr_t>(i)));
+    lv_obj_add_event_cb(row.container, alarm_row_pressing_cb, LV_EVENT_PRESSING,
+              reinterpret_cast<void *>(static_cast<uintptr_t>(i)));
+    lv_obj_add_event_cb(row.container, alarm_row_released_cb, LV_EVENT_RELEASED,
                         reinterpret_cast<void *>(static_cast<uintptr_t>(i)));
 
     // Time label (e.g. "7:00 AM").
@@ -175,11 +260,12 @@ void ui_build_alarm_page(lv_obj_t *parent) {
   lv_obj_set_style_bg_color(add_btn_, lv_color_hex(theme::kColorAccent), 0);
   lv_obj_add_event_cb(add_btn_, add_btn_cb, LV_EVENT_CLICKED, nullptr);
 
-  lv_obj_t *add_label = lv_label_create(add_btn_);
-  lv_obj_center(add_label);
-  lv_obj_set_style_text_font(add_label, &lv_font_montserrat_28, 0);
-  lv_obj_set_style_text_color(add_label, lv_color_hex(theme::kColorPrimary), 0);
-  lv_label_set_text(add_label, "+ Add Alarm");
+  add_btn_label_ = lv_label_create(add_btn_);
+  lv_obj_center(add_btn_label_);
+  lv_obj_set_style_text_font(add_btn_label_, &lv_font_montserrat_28, 0);
+  lv_obj_set_style_text_color(add_btn_label_, lv_color_hex(theme::kColorPrimary), 0);
+  lv_label_set_text(add_btn_label_, "+ Add Alarm");
+  refresh_add_alarm_button_();
 }
 
 // ---------------------------------------------------------------------------
@@ -245,6 +331,12 @@ void ui_hide_alarm_row(uint8_t index) {
     return;
   }
   lv_obj_add_flag(alarm_rows_[index].container, LV_OBJ_FLAG_HIDDEN);
+}
+
+void ui_set_alarm_slots_used(uint8_t used_slots, uint8_t max_slots) {
+  (void)max_slots;
+  used_alarm_slots_ = used_slots;
+  refresh_add_alarm_button_();
 }
 
 // Highlight an alarm row to indicate it is currently firing.

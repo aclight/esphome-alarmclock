@@ -511,6 +511,9 @@ class AlarmClockComponent : public ::esphome::Component,
   void update_alarm_time(uint8_t index, uint8_t hour, uint8_t minute);
   void update_alarm_days(uint8_t index, uint8_t days_mask);
   void update_alarm_label(uint8_t index, const char *label);
+  void update_alarm(uint8_t index, uint8_t hour, uint8_t minute,
+                    uint8_t days_mask, const char *label);
+  void add_alarm();
   void edit_alarm(uint8_t index);
   void delete_alarm(uint8_t index);
   void dismiss_alarm();
@@ -583,7 +586,14 @@ class AlarmClockComponent : public ::esphome::Component,
   // Last backlight PWM written to the I2C controller.
   uint8_t last_backlight_pwm_ = 0xFF;
 
+  // Tracks whether the home page alarm summary needs refresh.
+  bool next_alarm_dirty_ = true;
+
   // Internal helpers.
+  bool is_alarm_configured_(const AlarmTime &alarm) const;
+  uint8_t configured_alarm_count_() const;
+  void sync_alarm_slots_ui_();
+  void mark_next_alarm_dirty_();
   void update_backlight_();
   void check_screen_sleep_();
   void start_alarm_sound_();
