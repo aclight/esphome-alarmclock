@@ -56,7 +56,7 @@ static lv_obj_t *create_nav_button(lv_obj_t *parent, const char *text,
 
   lv_obj_t *label = lv_label_create(btn);
   lv_obj_center(label);
-  lv_obj_set_style_text_font(label, &lv_font_montserrat_20, 0);
+  lv_obj_set_style_text_font(label, &lv_font_montserrat_28, 0);
   lv_obj_set_style_text_color(label, lv_color_hex(theme::kColorPrimary), 0);
   lv_label_set_text(label, text);
   return btn;
@@ -66,10 +66,10 @@ static lv_obj_t *create_nav_button(lv_obj_t *parent, const char *text,
 // Build the clock page.
 // ---------------------------------------------------------------------------
 void ui_build_clock_page(lv_obj_t *parent) {
-  create_nav_button(parent, "Alarms", LV_ALIGN_TOP_RIGHT, -164, 16,
-                    theme::kColorAccent, nav_alarms_cb);
-  create_nav_button(parent, "Settings", LV_ALIGN_TOP_RIGHT, -16, 16,
+  create_nav_button(parent, LV_SYMBOL_SETTINGS, LV_ALIGN_TOP_LEFT, 16, 16,
                     0x1F1F1F, nav_settings_cb);
+  create_nav_button(parent, LV_SYMBOL_BELL, LV_ALIGN_TOP_RIGHT, -16, 16,
+                    theme::kColorAccent, nav_alarms_cb);
 
   // Large time label (e.g. "7:00") — digits only, no AM/PM.
   time_label_ = lv_label_create(parent);

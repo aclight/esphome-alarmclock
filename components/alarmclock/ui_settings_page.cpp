@@ -207,9 +207,9 @@ void ui_build_settings_page(lv_obj_t *parent) {
 
   lv_obj_t *home_label = lv_label_create(home_btn);
   lv_obj_center(home_label);
-  lv_obj_set_style_text_font(home_label, &lv_font_montserrat_20, 0);
+  lv_obj_set_style_text_font(home_label, &lv_font_montserrat_28, 0);
   lv_obj_set_style_text_color(home_label, lv_color_hex(theme::kColorPrimary), 0);
-  lv_label_set_text(home_label, "Home");
+  lv_label_set_text(home_label, LV_SYMBOL_HOME);
 
   // --- Volume section ---
   lv_obj_t *vol_title = lv_label_create(parent);
