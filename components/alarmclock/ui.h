@@ -14,12 +14,14 @@ void ui_build_clock_page(lv_obj_t *parent);
 void ui_build_alarm_page(lv_obj_t *parent);
 void ui_build_settings_page(lv_obj_t *parent);
 void ui_build_firing_overlay(lv_obj_t *parent);
-void ui_build_page_dots(lv_obj_t *parent);
 
 // Called once after LVGL is initialized to build the entire UI.
 void ui_init();
 
 // Page navigation.
+void ui_show_clock_page();
+void ui_show_alarm_page();
+void ui_show_settings_page();
 void ui_show_page(uint8_t page_index);
 void ui_next_page();
 void ui_prev_page();
@@ -35,7 +37,6 @@ void ui_update_clock(uint8_t hour, uint8_t minute, bool time_format_24h = false)
 void ui_update_date(uint8_t month, uint8_t day, uint8_t day_of_week);
 void ui_update_next_alarm(const char *text);  // e.g. "Next: 7:00 AM" or ""
 void ui_update_pre_alarm_banner(const char *text);  // e.g. "Alarm in 5 min — Work" or "" to hide
-void ui_update_page_dots(uint8_t active_page);
 void ui_update_brightness(float brightness);
 void ui_update_volume(float volume);
 void ui_update_sound_selection(uint8_t sound_index);

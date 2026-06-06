@@ -36,6 +36,8 @@ static constexpr int16_t kSwipeThreshold = 80;  // Pixels to trigger page switch
 static constexpr int16_t kButtonWidth = 300;
 static constexpr int16_t kButtonHeight = 110;
 static constexpr int16_t kButtonRadius = 12;
+static constexpr int16_t kNavButtonWidth = 140;
+static constexpr int16_t kNavButtonHeight = 56;
 
 // Firing overlay.
 static constexpr int16_t kFiringTimeY = -120;
