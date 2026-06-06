@@ -21,9 +21,6 @@ static lv_obj_t *date_label_ = nullptr;
 static lv_obj_t *next_alarm_label_ = nullptr;
 static lv_obj_t *pre_alarm_label_ = nullptr;
 
-// Page indicator dots (created in ui_init as screen-root children).
-static lv_obj_t *page_dots_[theme::kPageCount] = {};
-
 // ---------------------------------------------------------------------------
 // Day-of-week names (0=Sunday).
 // ---------------------------------------------------------------------------
@@ -35,10 +32,45 @@ static const char *kMonthNames[] = {
     "", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 
+static void nav_alarms_cb(lv_event_t *e) {
+  (void)e;
+  ui_show_alarm_page();
+}
+
+static void nav_settings_cb(lv_event_t *e) {
+  (void)e;
+  ui_show_settings_page();
+}
+
+static lv_obj_t *create_nav_button(lv_obj_t *parent, const char *text,
+                                   lv_align_t align, lv_coord_t x,
+                                   lv_coord_t y, uint32_t bg_color,
+                                   lv_event_cb_t cb) {
+  lv_obj_t *btn = lv_button_create(parent);
+  lv_obj_set_size(btn, theme::kNavButtonWidth, theme::kNavButtonHeight);
+  lv_obj_align(btn, align, x, y);
+  lv_obj_set_style_radius(btn, theme::kButtonRadius, 0);
+  lv_obj_set_style_bg_color(btn, lv_color_hex(bg_color), 0);
+  lv_obj_set_style_border_width(btn, 0, 0);
+  lv_obj_add_event_cb(btn, cb, LV_EVENT_CLICKED, nullptr);
+
+  lv_obj_t *label = lv_label_create(btn);
+  lv_obj_center(label);
+  lv_obj_set_style_text_font(label, &lv_font_montserrat_20, 0);
+  lv_obj_set_style_text_color(label, lv_color_hex(theme::kColorPrimary), 0);
+  lv_label_set_text(label, text);
+  return btn;
+}
+
 // ---------------------------------------------------------------------------
 // Build the clock page.
 // ---------------------------------------------------------------------------
 void ui_build_clock_page(lv_obj_t *parent) {
+  create_nav_button(parent, "Alarms", LV_ALIGN_TOP_RIGHT, -164, 16,
+                    theme::kColorAccent, nav_alarms_cb);
+  create_nav_button(parent, "Settings", LV_ALIGN_TOP_RIGHT, -16, 16,
+                    0x1F1F1F, nav_settings_cb);
+
   // Large time label (e.g. "7:00") — digits only, no AM/PM.
   time_label_ = lv_label_create(parent);
   lv_obj_align(time_label_, LV_ALIGN_CENTER, 0, theme::kClockTimeY);
@@ -75,25 +107,6 @@ void ui_build_clock_page(lv_obj_t *parent) {
   lv_label_set_text(pre_alarm_label_, "");
   lv_obj_add_flag(pre_alarm_label_, LV_OBJ_FLAG_HIDDEN);
 
-}
-
-// ---------------------------------------------------------------------------
-// Build page indicator dots (called from ui_init, parented to screen root).
-// ---------------------------------------------------------------------------
-void ui_build_page_dots(lv_obj_t *parent) {
-  int16_t dot_spacing = 24;
-  int16_t dot_start_x = -(dot_spacing * (theme::kPageCount - 1)) / 2;
-  for (uint8_t i = 0; i < theme::kPageCount; i++) {
-    page_dots_[i] = lv_obj_create(parent);
-    lv_obj_set_size(page_dots_[i], 12, 12);
-    lv_obj_set_style_radius(page_dots_[i], 6, 0);
-    lv_obj_set_style_border_width(page_dots_[i], 0, 0);
-    lv_obj_clear_flag(page_dots_[i], LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_align(page_dots_[i], LV_ALIGN_BOTTOM_MID,
-                 dot_start_x + i * dot_spacing, -8);
-    uint32_t color = (i == theme::kPageClock) ? theme::kColorPrimary : theme::kColorMuted;
-    lv_obj_set_style_bg_color(page_dots_[i], lv_color_hex(color), 0);
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -152,17 +165,6 @@ void ui_update_pre_alarm_banner(const char *text) {
   } else {
     lv_obj_clear_flag(pre_alarm_label_, LV_OBJ_FLAG_HIDDEN);
     lv_label_set_text(pre_alarm_label_, text);
-  }
-}
-
-// Update page dots when page changes (called from ui_show_page).
-// TODO: Hook this into ui_show_page or call from the component loop.
-void ui_update_page_dots(uint8_t active_page) {
-  for (uint8_t i = 0; i < theme::kPageCount; i++) {
-    if (page_dots_[i]) {
-      uint32_t color = (i == active_page) ? theme::kColorPrimary : theme::kColorMuted;
-      lv_obj_set_style_bg_color(page_dots_[i], lv_color_hex(color), 0);
-    }
   }
 }
 

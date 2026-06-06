@@ -70,7 +70,7 @@ static void update_pre_alarm_btn_styles() {
 // ---------------------------------------------------------------------------
 static void home_btn_cb(lv_event_t *e) {
   (void)e;
-  ui_show_page(theme::kPageClock);
+  ui_show_clock_page();
 }
 
 static void volume_slider_cb(lv_event_t *e) {
@@ -200,14 +200,14 @@ void ui_build_settings_page(lv_obj_t *parent) {
   lv_label_set_text(title_label_, "Settings");
 
   lv_obj_t *home_btn = lv_button_create(title_row);
-  lv_obj_set_size(home_btn, 160, 60);
+  lv_obj_set_size(home_btn, theme::kNavButtonWidth, theme::kNavButtonHeight);
   lv_obj_set_style_bg_color(home_btn, lv_color_hex(theme::kColorAccent), 0);
-  lv_obj_set_style_radius(home_btn, 8, 0);
+  lv_obj_set_style_radius(home_btn, theme::kButtonRadius, 0);
   lv_obj_add_event_cb(home_btn, home_btn_cb, LV_EVENT_CLICKED, nullptr);
 
   lv_obj_t *home_label = lv_label_create(home_btn);
   lv_obj_center(home_label);
-  lv_obj_set_style_text_font(home_label, &lv_font_montserrat_28, 0);
+  lv_obj_set_style_text_font(home_label, &lv_font_montserrat_20, 0);
   lv_obj_set_style_text_color(home_label, lv_color_hex(theme::kColorPrimary), 0);
   lv_label_set_text(home_label, "Home");
 

@@ -34,6 +34,19 @@ static lv_obj_t *add_btn_ = nullptr;
 // Forward declaration.
 const UiCallbacks &ui_get_callbacks();
 
+static lv_obj_t *create_header_row(lv_obj_t *parent) {
+  lv_obj_t *row = lv_obj_create(parent);
+  lv_obj_set_size(row, theme::kScreenWidth - 40, 64);
+  lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+  lv_obj_set_flex_align(row, LV_FLEX_ALIGN_SPACE_BETWEEN,
+                        LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, 0);
+  lv_obj_set_style_border_width(row, 0, 0);
+  lv_obj_set_style_pad_all(row, 0, 0);
+  lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+  return row;
+}
+
 // ---------------------------------------------------------------------------
 // Event handlers.
 // ---------------------------------------------------------------------------
@@ -71,6 +84,11 @@ static void add_btn_cb(lv_event_t *e) {
   // All slots full — no action (button could be disabled in the future).
 }
 
+static void home_btn_cb(lv_event_t *e) {
+  (void)e;
+  ui_show_clock_page();
+}
+
 // ---------------------------------------------------------------------------
 // Build the alarm page.
 // ---------------------------------------------------------------------------
@@ -85,11 +103,24 @@ void ui_build_alarm_page(lv_obj_t *parent) {
   lv_obj_add_flag(parent, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_set_scroll_dir(parent, LV_DIR_VER);
 
-  // Title.
-  title_label_ = lv_label_create(parent);
+  lv_obj_t *title_row = create_header_row(parent);
+
+  title_label_ = lv_label_create(title_row);
   lv_obj_set_style_text_font(title_label_, &lv_font_montserrat_48, 0);
   lv_obj_set_style_text_color(title_label_, lv_color_hex(theme::kColorPrimary), 0);
   lv_label_set_text(title_label_, "Alarms");
+
+  lv_obj_t *home_btn = lv_button_create(title_row);
+  lv_obj_set_size(home_btn, theme::kNavButtonWidth, theme::kNavButtonHeight);
+  lv_obj_set_style_bg_color(home_btn, lv_color_hex(theme::kColorAccent), 0);
+  lv_obj_set_style_radius(home_btn, theme::kButtonRadius, 0);
+  lv_obj_add_event_cb(home_btn, home_btn_cb, LV_EVENT_CLICKED, nullptr);
+
+  lv_obj_t *home_label = lv_label_create(home_btn);
+  lv_obj_center(home_label);
+  lv_obj_set_style_text_font(home_label, &lv_font_montserrat_20, 0);
+  lv_obj_set_style_text_color(home_label, lv_color_hex(theme::kColorPrimary), 0);
+  lv_label_set_text(home_label, "Home");
 
   // Create alarm rows.
   for (uint8_t i = 0; i < kMaxAlarms; i++) {
