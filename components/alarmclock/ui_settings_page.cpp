@@ -30,6 +30,18 @@ static lv_obj_t *time_format_label_ = nullptr;
 static uint8_t snooze_selected_ = 1;
 static uint8_t pre_alarm_selected_ = 1;
 
+static constexpr int16_t kControlGestureThresholdPx = 10;
+
+struct ControlGestureState {
+  lv_point_t press_point = {};
+  int32_t initial_value = 0;
+  bool vertical_scroll = false;
+};
+
+static ControlGestureState volume_gesture_;
+static ControlGestureState brightness_gesture_;
+static ControlGestureState sound_gesture_;
+
 // Height of the fixed header strip at the top of the page.
 static constexpr int16_t kSettingsHeaderHeight = 80;
 
@@ -76,7 +88,76 @@ static void home_btn_cb(lv_event_t *e) {
   ui_show_clock_page();
 }
 
+static bool point_from_event(lv_event_t *e, lv_point_t *out_point) {
+  lv_indev_t *indev = lv_event_get_indev(e);
+  if (indev == nullptr || out_point == nullptr) {
+    return false;
+  }
+  lv_indev_get_point(indev, out_point);
+  return true;
+}
+
+static void control_pressed_cb(lv_event_t *e) {
+  lv_obj_t *control = static_cast<lv_obj_t *>(lv_event_get_target(e));
+  ControlGestureState *state =
+      static_cast<ControlGestureState *>(lv_event_get_user_data(e));
+  if (state == nullptr || !point_from_event(e, &state->press_point)) {
+    return;
+  }
+  state->vertical_scroll = false;
+  if (control == volume_slider_ || control == brightness_slider_) {
+    state->initial_value = lv_slider_get_value(control);
+  } else if (control == sound_roller_) {
+    state->initial_value = static_cast<int32_t>(lv_roller_get_selected(control));
+  }
+}
+
+static void control_pressing_cb(lv_event_t *e) {
+  ControlGestureState *state =
+      static_cast<ControlGestureState *>(lv_event_get_user_data(e));
+  if (state == nullptr || state->vertical_scroll) {
+    return;
+  }
+
+  lv_point_t point;
+  if (!point_from_event(e, &point)) {
+    return;
+  }
+  int16_t dx = point.x - state->press_point.x;
+  int16_t dy = point.y - state->press_point.y;
+  if (dx < 0) {
+    dx = -dx;
+  }
+  if (dy < 0) {
+    dy = -dy;
+  }
+  if (dy >= kControlGestureThresholdPx && dy > dx) {
+    state->vertical_scroll = true;
+  }
+}
+
+static void control_released_cb(lv_event_t *e) {
+  lv_obj_t *control = static_cast<lv_obj_t *>(lv_event_get_target(e));
+  ControlGestureState *state =
+      static_cast<ControlGestureState *>(lv_event_get_user_data(e));
+  if (state == nullptr) {
+    return;
+  }
+  if (state->vertical_scroll) {
+    if (control == volume_slider_ || control == brightness_slider_) {
+      lv_slider_set_value(control, state->initial_value, LV_ANIM_OFF);
+    } else if (control == sound_roller_) {
+      lv_roller_set_selected(control, static_cast<uint32_t>(state->initial_value),
+                             LV_ANIM_OFF);
+    }
+  }
+  state->vertical_scroll = false;
+}
+
 static void volume_slider_cb(lv_event_t *e) {
+  if (volume_gesture_.vertical_scroll) {
+    return;
+  }
   lv_obj_t *slider = static_cast<lv_obj_t *>(lv_event_get_target(e));
   int32_t val = lv_slider_get_value(slider);
   float volume = static_cast<float>(val) / 100.0f;
@@ -94,6 +175,9 @@ static void volume_slider_cb(lv_event_t *e) {
 }
 
 static void brightness_slider_cb(lv_event_t *e) {
+  if (brightness_gesture_.vertical_scroll) {
+    return;
+  }
   lv_obj_t *slider = static_cast<lv_obj_t *>(lv_event_get_target(e));
   int32_t val = lv_slider_get_value(slider);
   float brightness = static_cast<float>(val) / 100.0f;
@@ -111,6 +195,9 @@ static void brightness_slider_cb(lv_event_t *e) {
 }
 
 static void sound_dropdown_cb(lv_event_t *e) {
+  if (sound_gesture_.vertical_scroll) {
+    return;
+  }
   lv_obj_t *roller = static_cast<lv_obj_t *>(lv_event_get_target(e));
   uint32_t sel = lv_roller_get_selected(roller);
   const auto &cb = ui_get_callbacks();
@@ -254,6 +341,12 @@ void ui_build_settings_page(lv_obj_t *page) {
   lv_slider_set_range(volume_slider_, 0, 100);
   lv_slider_set_value(volume_slider_, 50, LV_ANIM_OFF);
   lv_obj_add_flag(volume_slider_, LV_OBJ_FLAG_SCROLL_CHAIN_VER);
+  lv_obj_add_event_cb(volume_slider_, control_pressed_cb, LV_EVENT_PRESSED,
+                      &volume_gesture_);
+  lv_obj_add_event_cb(volume_slider_, control_pressing_cb, LV_EVENT_PRESSING,
+                      &volume_gesture_);
+  lv_obj_add_event_cb(volume_slider_, control_released_cb, LV_EVENT_RELEASED,
+                      &volume_gesture_);
   lv_obj_set_style_bg_color(volume_slider_, lv_color_hex(theme::kColorMuted), LV_PART_MAIN);
   lv_obj_set_style_bg_color(volume_slider_, lv_color_hex(theme::kColorAccent), LV_PART_INDICATOR);
   lv_obj_set_style_bg_color(volume_slider_, lv_color_hex(theme::kColorPrimary), LV_PART_KNOB);
@@ -285,6 +378,12 @@ void ui_build_settings_page(lv_obj_t *page) {
   lv_slider_set_range(brightness_slider_, 0, 100);
   lv_slider_set_value(brightness_slider_, 50, LV_ANIM_OFF);
   lv_obj_add_flag(brightness_slider_, LV_OBJ_FLAG_SCROLL_CHAIN_VER);
+  lv_obj_add_event_cb(brightness_slider_, control_pressed_cb, LV_EVENT_PRESSED,
+                      &brightness_gesture_);
+  lv_obj_add_event_cb(brightness_slider_, control_pressing_cb, LV_EVENT_PRESSING,
+                      &brightness_gesture_);
+  lv_obj_add_event_cb(brightness_slider_, control_released_cb, LV_EVENT_RELEASED,
+                      &brightness_gesture_);
   lv_obj_set_style_bg_color(brightness_slider_, lv_color_hex(theme::kColorMuted), LV_PART_MAIN);
   lv_obj_set_style_bg_color(brightness_slider_, lv_color_hex(theme::kColorAccent), LV_PART_INDICATOR);
   lv_obj_set_style_bg_color(brightness_slider_, lv_color_hex(theme::kColorPrimary), LV_PART_KNOB);
@@ -324,6 +423,12 @@ void ui_build_settings_page(lv_obj_t *page) {
   lv_roller_set_options(sound_roller_, sound_options, LV_ROLLER_MODE_NORMAL);
   lv_obj_set_width(sound_roller_, theme::kScreenWidth - 220);
   lv_obj_add_flag(sound_roller_, LV_OBJ_FLAG_SCROLL_CHAIN_VER);
+  lv_obj_add_event_cb(sound_roller_, control_pressed_cb, LV_EVENT_PRESSED,
+                      &sound_gesture_);
+  lv_obj_add_event_cb(sound_roller_, control_pressing_cb, LV_EVENT_PRESSING,
+                      &sound_gesture_);
+  lv_obj_add_event_cb(sound_roller_, control_released_cb, LV_EVENT_RELEASED,
+                      &sound_gesture_);
   lv_obj_set_style_text_font(sound_roller_, &lv_font_montserrat_24, 0);
   lv_obj_set_style_outline_width(sound_roller_, 0, LV_PART_MAIN);
   lv_roller_set_visible_row_count(sound_roller_, 2);
