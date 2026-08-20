@@ -82,7 +82,7 @@ static void volume_slider_cb(lv_event_t *e) {
   float volume = static_cast<float>(val) / 100.0f;
 
   char buf[8];
-  snprintf(buf, sizeof(buf), "%d%%", val);
+  snprintf(buf, sizeof(buf), "%d%%", static_cast<int>(val));
   if (volume_label_) {
     lv_label_set_text(volume_label_, buf);
   }
@@ -99,7 +99,7 @@ static void brightness_slider_cb(lv_event_t *e) {
   float brightness = static_cast<float>(val) / 100.0f;
 
   char buf[8];
-  snprintf(buf, sizeof(buf), "%d%%", val);
+  snprintf(buf, sizeof(buf), "%d%%", static_cast<int>(val));
   if (brightness_label_) {
     lv_label_set_text(brightness_label_, buf);
   }

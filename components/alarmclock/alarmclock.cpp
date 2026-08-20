@@ -570,7 +570,7 @@ void AlarmClockComponent::check_alarms_(uint8_t hour, uint8_t minute,
       bool is_stale = (mins_until > 60 && mins_until < 23 * 60);
       if (is_stale) {
         ESP_LOGW(TAG, "Discarding stale pending alarm %d (next in %d min)",
-                 pending, mins_until);
+                 pending, static_cast<int>(mins_until));
       } else {
         ESP_LOGW(TAG, "Firing queued alarm %d!", pending);
         fired_alarm_index_ = pending;
