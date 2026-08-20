@@ -320,7 +320,7 @@ void ui_build_settings_page(lv_obj_t *page) {
   // the page feel sluggish on this hardware.
   lv_obj_clear_flag(parent, LV_OBJ_FLAG_SCROLL_ELASTIC);
   lv_obj_clear_flag(parent, LV_OBJ_FLAG_SCROLL_MOMENTUM);
-  lv_obj_set_scrollbar_mode(parent, LV_SCROLLBAR_MODE_OFF);
+  lv_obj_set_scrollbar_mode(parent, LV_SCROLLBAR_MODE_AUTO);
   lv_obj_set_style_anim_time(parent, 0, LV_PART_MAIN);
 
   // --- Volume section ---
