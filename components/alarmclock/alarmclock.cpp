@@ -440,6 +440,7 @@ void AlarmClockComponent::set_time_format_24h(bool time_format_24h) {
   time_format_24h_ = time_format_24h;
   save_settings_to_storage_();
   ui_update_time_format(time_format_24h);
+  ui_refresh_clock(time_format_24h);
   // Re-sync alarm rows and firing overlay with new format.
   sync_ui_();
   ESP_LOGI(TAG, "Time format set to %s", time_format_24h ? "24h" : "12h");
