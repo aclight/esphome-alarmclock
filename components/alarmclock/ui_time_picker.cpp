@@ -488,7 +488,6 @@ void ui_show_time_picker(uint8_t alarm_index, uint8_t hour, uint8_t minute,
 
   // Show overlay.
   lv_obj_clear_flag(picker_overlay_, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_move_foreground(picker_overlay_);
 }
 
 // ---------------------------------------------------------------------------
