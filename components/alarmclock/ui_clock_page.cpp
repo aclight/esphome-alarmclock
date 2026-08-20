@@ -89,7 +89,9 @@ void ui_build_clock_page(lv_obj_t *parent) {
 
   // AM/PM label — smaller, positioned to the right of the time.
   ampm_label_ = lv_label_create(parent);
-  lv_obj_align_to(ampm_label_, time_label_, LV_ALIGN_OUT_RIGHT_BOTTOM, 8, -10);
+  // Keep its position stable; aligning to the fixed-width time box would put
+  // the suffix at the edge of the screen instead of beside the digits.
+  lv_obj_align(ampm_label_, LV_ALIGN_CENTER, 220, theme::kClockTimeY + 50);
   lv_obj_set_style_text_font(ampm_label_, &lv_font_montserrat_28, 0);
   lv_obj_set_style_text_color(ampm_label_, lv_color_hex(theme::kColorSecondary), 0);
   lv_label_set_text(ampm_label_, "");
@@ -141,7 +143,6 @@ void ui_update_clock(uint8_t hour, uint8_t minute, bool time_format_24h) {
     lv_label_set_text(time_label_, buf);
     if (ampm_label_) {
       lv_label_set_text(ampm_label_, is_pm ? "PM" : "AM");
-      lv_obj_align_to(ampm_label_, time_label_, LV_ALIGN_OUT_RIGHT_BOTTOM, 8, -10);
     }
   }
 }
