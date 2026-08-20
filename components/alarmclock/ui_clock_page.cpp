@@ -78,6 +78,10 @@ void ui_build_clock_page(lv_obj_t *parent) {
 
   // Large time label (e.g. "7:00") — digits only, no AM/PM.
   time_label_ = lv_label_create(parent);
+  // Keep the label geometry stable when the hour changes between one and two
+  // digits; changing an auto-sized label can move it during a frame update.
+  lv_obj_set_width(time_label_, 580);
+  lv_obj_set_style_text_align(time_label_, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(time_label_, LV_ALIGN_CENTER, 0, theme::kClockTimeY);
   lv_obj_set_style_text_font(time_label_, &clock_font_160, 0);
   lv_obj_set_style_text_color(time_label_, lv_color_hex(theme::kColorPrimary), 0);
