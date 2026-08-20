@@ -40,7 +40,6 @@ struct ControlGestureState {
 
 static ControlGestureState volume_gesture_;
 static ControlGestureState brightness_gesture_;
-static ControlGestureState sound_gesture_;
 
 // Height of the fixed header strip at the top of the page.
 static constexpr int16_t kSettingsHeaderHeight = 80;
@@ -107,8 +106,6 @@ static void control_pressed_cb(lv_event_t *e) {
   state->vertical_scroll = false;
   if (control == volume_slider_ || control == brightness_slider_) {
     state->initial_value = lv_slider_get_value(control);
-  } else if (control == sound_roller_) {
-    state->initial_value = static_cast<int32_t>(lv_roller_get_selected(control));
   }
 }
 
@@ -146,9 +143,6 @@ static void control_released_cb(lv_event_t *e) {
   if (state->vertical_scroll) {
     if (control == volume_slider_ || control == brightness_slider_) {
       lv_slider_set_value(control, state->initial_value, LV_ANIM_OFF);
-    } else if (control == sound_roller_) {
-      lv_roller_set_selected(control, static_cast<uint32_t>(state->initial_value),
-                             LV_ANIM_OFF);
     }
   }
   state->vertical_scroll = false;
@@ -195,9 +189,6 @@ static void brightness_slider_cb(lv_event_t *e) {
 }
 
 static void sound_dropdown_cb(lv_event_t *e) {
-  if (sound_gesture_.vertical_scroll) {
-    return;
-  }
   lv_obj_t *roller = static_cast<lv_obj_t *>(lv_event_get_target(e));
   uint32_t sel = lv_roller_get_selected(roller);
   const auto &cb = ui_get_callbacks();
@@ -421,15 +412,9 @@ void ui_build_settings_page(lv_obj_t *page) {
 
   sound_roller_ = lv_roller_create(parent);
   lv_roller_set_options(sound_roller_, sound_options, LV_ROLLER_MODE_NORMAL);
-  lv_obj_set_width(sound_roller_, theme::kScreenWidth - 220);
   lv_obj_add_flag(sound_roller_, LV_OBJ_FLAG_SCROLL_CHAIN_VER);
-  lv_obj_add_event_cb(sound_roller_, control_pressed_cb, LV_EVENT_PRESSED,
-                      &sound_gesture_);
-  lv_obj_add_event_cb(sound_roller_, control_pressing_cb, LV_EVENT_PRESSING,
-                      &sound_gesture_);
-  lv_obj_add_event_cb(sound_roller_, control_released_cb, LV_EVENT_RELEASED,
-                      &sound_gesture_);
   lv_obj_set_style_text_font(sound_roller_, &lv_font_montserrat_24, 0);
+  lv_obj_set_width(sound_roller_, LV_SIZE_CONTENT);
   lv_obj_set_style_outline_width(sound_roller_, 0, LV_PART_MAIN);
   lv_roller_set_visible_row_count(sound_roller_, 2);
   lv_obj_add_event_cb(sound_roller_, sound_dropdown_cb, LV_EVENT_VALUE_CHANGED, nullptr);
