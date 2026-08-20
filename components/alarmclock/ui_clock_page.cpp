@@ -21,6 +21,11 @@ static lv_obj_t *date_label_ = nullptr;
 static lv_obj_t *next_alarm_label_ = nullptr;
 static lv_obj_t *pre_alarm_label_ = nullptr;
 
+// Last rendered time, so the label can be re-rendered without waiting for the
+// next minute rollover (e.g. when the 12/24h setting changes).
+static uint8_t last_hour_ = 0xFF;
+static uint8_t last_minute_ = 0xFF;
+
 // ---------------------------------------------------------------------------
 // Day-of-week names (0=Sunday).
 // ---------------------------------------------------------------------------
@@ -117,6 +122,8 @@ void ui_update_clock(uint8_t hour, uint8_t minute, bool time_format_24h) {
   if (!time_label_) {
     return;
   }
+  last_hour_ = hour;
+  last_minute_ = minute;
   char buf[12];
   if (time_format_24h) {
     snprintf(buf, sizeof(buf), "%02d:%02d", hour, minute);
@@ -133,6 +140,13 @@ void ui_update_clock(uint8_t hour, uint8_t minute, bool time_format_24h) {
       lv_obj_align_to(ampm_label_, time_label_, LV_ALIGN_OUT_RIGHT_BOTTOM, 8, -10);
     }
   }
+}
+
+void ui_refresh_clock(bool time_format_24h) {
+  if (last_hour_ > 23 || last_minute_ > 59) {
+    return;
+  }
+  ui_update_clock(last_hour_, last_minute_, time_format_24h);
 }
 
 void ui_update_date(uint8_t month, uint8_t day, uint8_t day_of_week) {

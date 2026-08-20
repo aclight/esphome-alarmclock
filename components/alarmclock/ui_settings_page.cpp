@@ -30,6 +30,9 @@ static lv_obj_t *time_format_label_ = nullptr;
 static uint8_t snooze_selected_ = 1;
 static uint8_t pre_alarm_selected_ = 1;
 
+// Height of the fixed header strip at the top of the page.
+static constexpr int16_t kSettingsHeaderHeight = 80;
+
 // Snooze button labels.
 static const char *kSnoozeLabels[kSnoozeDurationOptionCount] = {
     "5 min", "9 min", "10 min", "15 min"};
@@ -171,15 +174,58 @@ static lv_obj_t *create_row(lv_obj_t *parent, int16_t width, int16_t height) {
 // ---------------------------------------------------------------------------
 // Build the settings page.
 // ---------------------------------------------------------------------------
-void ui_build_settings_page(lv_obj_t *parent) {
-  // Use flex column layout so widgets flow automatically.
+void ui_build_settings_page(lv_obj_t *page) {
+  // Layout: page is a flex column with a fixed header plus a scrollable body,
+  // mirroring the alarm page so the home button never scrolls out of reach.
+  lv_obj_set_flex_flow(page, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_flex_align(page, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
+                        LV_FLEX_ALIGN_CENTER);
+  lv_obj_set_style_pad_all(page, 0, 0);
+  lv_obj_clear_flag(page, LV_OBJ_FLAG_SCROLLABLE);
+
+  // --- Fixed header row (title + home button, stays visible at top) ---
+  lv_obj_t *header_row = lv_obj_create(page);
+  lv_obj_set_size(header_row, theme::kScreenWidth, kSettingsHeaderHeight);
+  lv_obj_set_flex_flow(header_row, LV_FLEX_FLOW_ROW);
+  lv_obj_set_flex_align(header_row, LV_FLEX_ALIGN_SPACE_BETWEEN,
+                        LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_set_style_bg_color(header_row, lv_color_hex(theme::kColorBackground), 0);
+  lv_obj_set_style_border_width(header_row, 0, 0);
+  lv_obj_set_style_radius(header_row, 0, 0);
+  lv_obj_set_style_pad_all(header_row, 10, 0);
+  lv_obj_clear_flag(header_row, LV_OBJ_FLAG_SCROLLABLE);
+
+  title_label_ = lv_label_create(header_row);
+  lv_obj_set_style_text_font(title_label_, &lv_font_montserrat_48, 0);
+  lv_obj_set_style_text_color(title_label_, lv_color_hex(theme::kColorPrimary), 0);
+  lv_label_set_text(title_label_, "Settings");
+
+  lv_obj_t *home_btn = lv_button_create(header_row);
+  lv_obj_set_size(home_btn, theme::kNavButtonWidth, theme::kNavButtonHeight);
+  lv_obj_set_style_bg_color(home_btn, lv_color_hex(theme::kColorAccent), 0);
+  lv_obj_set_style_radius(home_btn, theme::kButtonRadius, 0);
+  lv_obj_clear_flag(home_btn, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
+  lv_obj_add_event_cb(home_btn, home_btn_cb, LV_EVENT_CLICKED, nullptr);
+
+  lv_obj_t *home_label = lv_label_create(home_btn);
+  lv_obj_center(home_label);
+  lv_obj_set_style_text_font(home_label, &lv_font_montserrat_28, 0);
+  lv_obj_set_style_text_color(home_label, lv_color_hex(theme::kColorPrimary), 0);
+  lv_label_set_text(home_label, LV_SYMBOL_HOME);
+
+  // --- Scrollable body ---
+  lv_obj_t *parent = lv_obj_create(page);
+  lv_obj_set_size(parent, theme::kScreenWidth,
+                  theme::kScreenHeight - kSettingsHeaderHeight);
   lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
   lv_obj_set_flex_align(parent, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
                         LV_FLEX_ALIGN_CENTER);
+  lv_obj_set_style_bg_color(parent, lv_color_hex(theme::kColorBackground), 0);
+  lv_obj_set_style_border_width(parent, 0, 0);
+  lv_obj_set_style_radius(parent, 0, 0);
   lv_obj_set_style_pad_top(parent, 10, 0);
   lv_obj_set_style_pad_bottom(parent, 30, 0);
   lv_obj_set_style_pad_row(parent, 10, 0);
-  // Enable vertical scrolling.
   lv_obj_add_flag(parent, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_set_scroll_dir(parent, LV_DIR_VER);
   // Avoid elastic bounce/momentum animations; they add redraw cost and make
@@ -188,28 +234,6 @@ void ui_build_settings_page(lv_obj_t *parent) {
   lv_obj_clear_flag(parent, LV_OBJ_FLAG_SCROLL_MOMENTUM);
   lv_obj_set_scrollbar_mode(parent, LV_SCROLLBAR_MODE_OFF);
   lv_obj_set_style_anim_time(parent, 0, LV_PART_MAIN);
-
-  // --- Title row with home button ---
-  lv_obj_t *title_row = create_row(parent, theme::kScreenWidth - 40, 64);
-  lv_obj_set_flex_align(title_row, LV_FLEX_ALIGN_SPACE_BETWEEN,
-                        LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-
-  title_label_ = lv_label_create(title_row);
-  lv_obj_set_style_text_font(title_label_, &lv_font_montserrat_48, 0);
-  lv_obj_set_style_text_color(title_label_, lv_color_hex(theme::kColorPrimary), 0);
-  lv_label_set_text(title_label_, "Settings");
-
-  lv_obj_t *home_btn = lv_button_create(title_row);
-  lv_obj_set_size(home_btn, theme::kNavButtonWidth, theme::kNavButtonHeight);
-  lv_obj_set_style_bg_color(home_btn, lv_color_hex(theme::kColorAccent), 0);
-  lv_obj_set_style_radius(home_btn, theme::kButtonRadius, 0);
-  lv_obj_add_event_cb(home_btn, home_btn_cb, LV_EVENT_CLICKED, nullptr);
-
-  lv_obj_t *home_label = lv_label_create(home_btn);
-  lv_obj_center(home_label);
-  lv_obj_set_style_text_font(home_label, &lv_font_montserrat_28, 0);
-  lv_obj_set_style_text_color(home_label, lv_color_hex(theme::kColorPrimary), 0);
-  lv_label_set_text(home_label, LV_SYMBOL_HOME);
 
   // --- Volume section ---
   lv_obj_t *vol_title = lv_label_create(parent);
@@ -317,6 +341,9 @@ void ui_build_settings_page(lv_obj_t *parent) {
     snooze_btns_[i] = lv_button_create(snooze_row);
     lv_obj_set_size(snooze_btns_[i], 160, 56);
     lv_obj_set_style_radius(snooze_btns_[i], 8, 0);
+    // Without this LVGL scrolls the page to "reveal" the pressed button,
+    // shifting content out from under the finger.
+    lv_obj_clear_flag(snooze_btns_[i], LV_OBJ_FLAG_SCROLL_ON_FOCUS);
     lv_obj_add_event_cb(snooze_btns_[i], snooze_btn_cb, LV_EVENT_CLICKED,
                         reinterpret_cast<void *>(static_cast<uintptr_t>(i)));
 
@@ -344,6 +371,7 @@ void ui_build_settings_page(lv_obj_t *parent) {
     pre_alarm_btns_[i] = lv_button_create(pre_alarm_row);
     lv_obj_set_size(pre_alarm_btns_[i], 160, 56);
     lv_obj_set_style_radius(pre_alarm_btns_[i], 8, 0);
+    lv_obj_clear_flag(pre_alarm_btns_[i], LV_OBJ_FLAG_SCROLL_ON_FOCUS);
     lv_obj_add_event_cb(pre_alarm_btns_[i], pre_alarm_btn_cb, LV_EVENT_CLICKED,
                         reinterpret_cast<void *>(static_cast<uintptr_t>(i)));
 
