@@ -34,6 +34,8 @@ bool ui_is_firing_overlay_visible();
 
 // Update functions (called from loop/interval).
 void ui_update_clock(uint8_t hour, uint8_t minute, bool time_format_24h = false);
+// Re-renders the clock label from the last known time (no time source needed).
+void ui_refresh_clock(bool time_format_24h);
 void ui_update_date(uint8_t month, uint8_t day, uint8_t day_of_week);
 void ui_update_next_alarm(const char *text);  // e.g. "Next: 7:00 AM" or ""
 void ui_update_pre_alarm_banner(const char *text);  // e.g. "Alarm in 5 min — Work" or "" to hide
