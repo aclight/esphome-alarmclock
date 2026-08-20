@@ -168,6 +168,7 @@ static lv_obj_t *create_row(lv_obj_t *parent, int16_t width, int16_t height) {
   lv_obj_set_style_border_width(row, 0, 0);
   lv_obj_set_style_pad_all(row, 0, 0);
   lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_add_flag(row, LV_OBJ_FLAG_SCROLL_CHAIN_VER);
   return row;
 }
 
@@ -252,6 +253,7 @@ void ui_build_settings_page(lv_obj_t *page) {
   lv_obj_set_height(volume_slider_, 14);
   lv_slider_set_range(volume_slider_, 0, 100);
   lv_slider_set_value(volume_slider_, 50, LV_ANIM_OFF);
+  lv_obj_add_flag(volume_slider_, LV_OBJ_FLAG_SCROLL_CHAIN_VER);
   lv_obj_set_style_bg_color(volume_slider_, lv_color_hex(theme::kColorMuted), LV_PART_MAIN);
   lv_obj_set_style_bg_color(volume_slider_, lv_color_hex(theme::kColorAccent), LV_PART_INDICATOR);
   lv_obj_set_style_bg_color(volume_slider_, lv_color_hex(theme::kColorPrimary), LV_PART_KNOB);
@@ -282,6 +284,7 @@ void ui_build_settings_page(lv_obj_t *page) {
   lv_obj_set_height(brightness_slider_, 14);
   lv_slider_set_range(brightness_slider_, 0, 100);
   lv_slider_set_value(brightness_slider_, 50, LV_ANIM_OFF);
+  lv_obj_add_flag(brightness_slider_, LV_OBJ_FLAG_SCROLL_CHAIN_VER);
   lv_obj_set_style_bg_color(brightness_slider_, lv_color_hex(theme::kColorMuted), LV_PART_MAIN);
   lv_obj_set_style_bg_color(brightness_slider_, lv_color_hex(theme::kColorAccent), LV_PART_INDICATOR);
   lv_obj_set_style_bg_color(brightness_slider_, lv_color_hex(theme::kColorPrimary), LV_PART_KNOB);
@@ -320,6 +323,7 @@ void ui_build_settings_page(lv_obj_t *page) {
   sound_roller_ = lv_roller_create(parent);
   lv_roller_set_options(sound_roller_, sound_options, LV_ROLLER_MODE_NORMAL);
   lv_obj_set_width(sound_roller_, theme::kScreenWidth - 220);
+  lv_obj_add_flag(sound_roller_, LV_OBJ_FLAG_SCROLL_CHAIN_VER);
   lv_obj_set_style_text_font(sound_roller_, &lv_font_montserrat_24, 0);
   lv_obj_set_style_outline_width(sound_roller_, 0, LV_PART_MAIN);
   lv_roller_set_visible_row_count(sound_roller_, 2);
