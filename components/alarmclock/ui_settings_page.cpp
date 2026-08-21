@@ -15,7 +15,6 @@ const UiCallbacks &ui_get_callbacks();
 // ---------------------------------------------------------------------------
 // Static widgets.
 // ---------------------------------------------------------------------------
-static lv_obj_t *title_label_ = nullptr;
 static lv_obj_t *volume_slider_ = nullptr;
 static lv_obj_t *volume_label_ = nullptr;
 static lv_obj_t *brightness_slider_ = nullptr;
@@ -43,8 +42,6 @@ static ControlGestureState volume_gesture_;
 static ControlGestureState brightness_gesture_;
 
 // Height of the fixed header strip at the top of the page.
-static constexpr int16_t kSettingsHeaderHeight = 80;
-
 // Snooze button labels.
 static const char *kSnoozeLabels[kSnoozeDurationOptionCount] = {
     "5 min", "9 min", "10 min", "15 min"};
@@ -83,11 +80,6 @@ static void update_pre_alarm_btn_styles() {
 // ---------------------------------------------------------------------------
 // Event handlers.
 // ---------------------------------------------------------------------------
-static void home_btn_cb(lv_event_t *e) {
-  (void)e;
-  ui_show_clock_page();
-}
-
 static bool point_from_event(lv_event_t *e, lv_point_t *out_point) {
   lv_indev_t *indev = lv_event_get_indev(e);
   if (indev == nullptr || out_point == nullptr) {
@@ -273,40 +265,12 @@ void ui_build_settings_page(lv_obj_t *page) {
   lv_obj_set_style_pad_all(page, 0, 0);
   lv_obj_clear_flag(page, LV_OBJ_FLAG_SCROLLABLE);
 
-  // --- Fixed header row (title + home button, stays visible at top) ---
-  lv_obj_t *header_row = lv_obj_create(page);
-  lv_obj_set_size(header_row, theme::kScreenWidth, kSettingsHeaderHeight);
-  lv_obj_set_flex_flow(header_row, LV_FLEX_FLOW_ROW);
-  lv_obj_set_flex_align(header_row, LV_FLEX_ALIGN_SPACE_BETWEEN,
-                        LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-  lv_obj_set_style_bg_color(header_row, lv_color_hex(theme::kColorBackground), 0);
-  lv_obj_set_style_border_width(header_row, 0, 0);
-  lv_obj_set_style_radius(header_row, 0, 0);
-  lv_obj_set_style_pad_all(header_row, 10, 0);
-  lv_obj_clear_flag(header_row, LV_OBJ_FLAG_SCROLLABLE);
-
-  title_label_ = lv_label_create(header_row);
-  lv_obj_set_style_text_font(title_label_, &lv_font_montserrat_48, 0);
-  lv_obj_set_style_text_color(title_label_, lv_color_hex(theme::kColorPrimary), 0);
-  lv_label_set_text(title_label_, "Settings");
-
-  lv_obj_t *home_btn = lv_button_create(header_row);
-  lv_obj_set_size(home_btn, theme::kNavButtonWidth, theme::kNavButtonHeight);
-  lv_obj_set_style_bg_color(home_btn, lv_color_hex(theme::kColorAccent), 0);
-  lv_obj_set_style_radius(home_btn, theme::kButtonRadius, 0);
-  lv_obj_clear_flag(home_btn, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
-  lv_obj_add_event_cb(home_btn, home_btn_cb, LV_EVENT_CLICKED, nullptr);
-
-  lv_obj_t *home_label = lv_label_create(home_btn);
-  lv_obj_center(home_label);
-  lv_obj_set_style_text_font(home_label, &lv_font_montserrat_28, 0);
-  lv_obj_set_style_text_color(home_label, lv_color_hex(theme::kColorPrimary), 0);
-  lv_label_set_text(home_label, LV_SYMBOL_HOME);
+  ui_create_page_header(page, "Settings");
 
   // --- Scrollable body ---
   lv_obj_t *parent = lv_obj_create(page);
   lv_obj_set_size(parent, theme::kScreenWidth,
-                  theme::kScreenHeight - kSettingsHeaderHeight);
+                  theme::kScreenHeight - theme::kPageHeaderHeight);
   lv_obj_set_flex_flow(parent, LV_FLEX_FLOW_COLUMN);
   lv_obj_set_flex_align(parent, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
                         LV_FLEX_ALIGN_CENTER);

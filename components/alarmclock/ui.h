@@ -1,4 +1,4 @@
-// UI manager — creates pages, handles swipe navigation, manages overlays.
+// UI manager — creates pages, navigation chrome, and overlays.
 #ifndef UI_H
 #define UI_H
 
@@ -23,9 +23,10 @@ void ui_show_clock_page();
 void ui_show_alarm_page();
 void ui_show_settings_page();
 void ui_show_page(uint8_t page_index);
-void ui_next_page();
-void ui_prev_page();
 uint8_t ui_current_page();
+
+// Shared fixed header used by secondary pages.
+void ui_create_page_header(lv_obj_t *parent, const char *title);
 
 // Firing overlay control.
 void ui_show_firing_overlay();

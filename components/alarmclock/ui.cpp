@@ -15,12 +15,54 @@ static lv_obj_t *firing_overlay_ = nullptr;
 static uint8_t current_page_ = theme::kPageClock;
 static UiCallbacks callbacks_ = {};
 
+static void home_button_cb(lv_event_t *event) {
+  (void)event;
+  ui_show_clock_page();
+}
+
 // ---------------------------------------------------------------------------
 // Public API.
 // ---------------------------------------------------------------------------
 
 void ui_set_callbacks(const UiCallbacks &cb) {
   callbacks_ = cb;
+}
+
+void ui_create_page_header(lv_obj_t *parent, const char *title) {
+  lv_obj_t *header = lv_obj_create(parent);
+  lv_obj_set_size(header, theme::kScreenWidth, theme::kPageHeaderHeight);
+  lv_obj_set_flex_flow(header, LV_FLEX_FLOW_ROW);
+  lv_obj_set_flex_align(header, LV_FLEX_ALIGN_SPACE_BETWEEN,
+            LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_set_style_bg_color(header, lv_color_hex(theme::kColorBackground), 0);
+  lv_obj_set_style_border_width(header, 0, 0);
+  lv_obj_set_style_radius(header, 0, 0);
+  lv_obj_set_style_pad_all(header, 10, 0);
+  lv_obj_clear_flag(header, LV_OBJ_FLAG_SCROLLABLE);
+
+  lv_obj_t *title_label = lv_label_create(header);
+  lv_obj_set_style_text_font(title_label, &lv_font_montserrat_48, 0);
+  lv_obj_set_style_text_color(
+    title_label, lv_color_hex(theme::kColorPrimary), 0);
+  lv_label_set_text(title_label, title);
+
+  lv_obj_t *home_button = lv_button_create(header);
+  lv_obj_set_size(
+    home_button, theme::kNavButtonWidth, theme::kNavButtonHeight);
+  lv_obj_set_style_bg_color(
+    home_button, lv_color_hex(theme::kColorAccent), 0);
+  lv_obj_set_style_border_width(home_button, 0, 0);
+  lv_obj_set_style_radius(home_button, theme::kButtonRadius, 0);
+  lv_obj_clear_flag(home_button, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
+  lv_obj_add_event_cb(
+    home_button, home_button_cb, LV_EVENT_CLICKED, nullptr);
+
+  lv_obj_t *home_label = lv_label_create(home_button);
+  lv_obj_center(home_label);
+  lv_obj_set_style_text_font(home_label, &lv_font_montserrat_28, 0);
+  lv_obj_set_style_text_color(
+    home_label, lv_color_hex(theme::kColorPrimary), 0);
+  lv_label_set_text(home_label, LV_SYMBOL_HOME);
 }
 
 void ui_init() {
@@ -106,14 +148,6 @@ void ui_show_page(uint8_t page_index) {
   lv_obj_add_flag(old_page, LV_OBJ_FLAG_HIDDEN);
   lv_obj_set_x(new_page, 0);
   lv_obj_clear_flag(new_page, LV_OBJ_FLAG_HIDDEN);
-}
-
-void ui_next_page() {
-  ui_show_alarm_page();
-}
-
-void ui_prev_page() {
-  ui_show_clock_page();
 }
 
 uint8_t ui_current_page() {
