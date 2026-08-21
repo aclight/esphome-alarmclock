@@ -126,6 +126,11 @@ inline float compute_ramp_volume(float configured_volume, uint32_t elapsed_ms,
   return configured_volume * (kVolumeRampStartFraction + (1.0f - kVolumeRampStartFraction) * t);
 }
 
+// Only active alarm playback should prevent the display from dimming.
+inline bool alarm_should_keep_screen_awake(AlarmState state) {
+  return state == AlarmState::kFiring;
+}
+
 // ---------------------------------------------------------------------------
 // I2C register / value constants for the backlight controller.
 // ---------------------------------------------------------------------------
@@ -598,6 +603,7 @@ class AlarmClockComponent : public ::esphome::Component,
   void check_screen_sleep_();
   void start_alarm_sound_();
   void stop_alarm_sound_();
+  void finish_active_alarm_();
   void play_alarm_melody_();
   void sync_ui_();
   void fire_ha_event_(const char *event_type);

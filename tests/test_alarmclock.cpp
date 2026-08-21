@@ -572,6 +572,13 @@ TEST(state_machine_custom_snooze_duration) {
     PASS();
 }
 
+TEST(screen_awake_only_while_firing) {
+    ASSERT_FALSE(alarm_should_keep_screen_awake(AlarmState::kIdle));
+    ASSERT_TRUE(alarm_should_keep_screen_awake(AlarmState::kFiring));
+    ASSERT_FALSE(alarm_should_keep_screen_awake(AlarmState::kSnoozed));
+    PASS();
+}
+
 // ===========================================================================
 // Volume ramp tests (compute_ramp_volume from alarmclock.h)
 // ===========================================================================
@@ -1866,6 +1873,7 @@ int main() {
     RUN(state_machine_tick_snooze_noop_when_not_snoozed);
     RUN(state_machine_reset);
     RUN(state_machine_custom_snooze_duration);
+    RUN(screen_awake_only_while_firing);
 
     // Volume ramp
     RUN(ramp_volume_at_start);
