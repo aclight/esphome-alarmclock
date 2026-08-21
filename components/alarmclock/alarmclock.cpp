@@ -414,12 +414,15 @@ void AlarmClockComponent::set_sensor_factor(float sensor_factor, float lux) {
 
   const float effective_brightness =
       compute_screen_brightness(brightness_, sensor_factor_, screen_asleep_);
+  const uint8_t content_dim_opacity =
+      compute_content_dim_opacity(brightness_);
   ESP_LOGI(TAG,
            "Ambient %.1f lx: setting %.0f%%, sensor %.1f%%, effective %.1f%%, "
-           "PWM %u",
+           "PWM %u, color filter %.1f%%",
            lux, brightness_ * 100.0f, sensor_factor_ * 100.0f,
            effective_brightness * 100.0f,
-           static_cast<unsigned>(brightness_to_pwm(effective_brightness)));
+           static_cast<unsigned>(brightness_to_pwm(effective_brightness)),
+           content_dim_opacity * 100.0f / 255.0f);
 }
 
 void AlarmClockComponent::set_sound_index(uint8_t index) {
