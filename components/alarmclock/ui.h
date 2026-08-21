@@ -40,6 +40,7 @@ void ui_refresh_clock(bool time_format_24h);
 void ui_update_date(uint8_t month, uint8_t day, uint8_t day_of_week);
 void ui_update_next_alarm(const char *text);  // e.g. "Next: 7:00 AM" or ""
 void ui_update_pre_alarm_banner(const char *text);  // e.g. "Alarm in 5 min — Work" or "" to hide
+void ui_set_content_brightness(float brightness);
 void ui_update_brightness(float brightness);
 void ui_update_volume(float volume);
 void ui_update_sound_selection(uint8_t sound_index);

@@ -14,6 +14,14 @@ static lv_obj_t *pages_[theme::kPageCount] = {};
 static lv_obj_t *firing_overlay_ = nullptr;
 static uint8_t current_page_ = theme::kPageClock;
 static UiCallbacks callbacks_ = {};
+static lv_color_filter_dsc_t content_dim_filter_;
+static uint8_t content_dim_opacity_ = 0;
+
+static lv_color_t content_dim_filter_cb(
+    const lv_color_filter_dsc_t *filter, lv_color_t color, lv_opa_t opacity) {
+  (void)filter;
+  return lv_color_mix(lv_color_black(), color, opacity);
+}
 
 static void home_button_cb(lv_event_t *event) {
   (void)event;
@@ -75,6 +83,9 @@ void ui_init() {
 
   lv_obj_set_style_bg_color(scr, lv_color_hex(theme::kColorBackground), 0);
   lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
+  lv_color_filter_dsc_init(&content_dim_filter_, content_dim_filter_cb);
+  lv_obj_set_style_color_filter_dsc(scr, &content_dim_filter_, 0);
+  lv_obj_set_style_color_filter_opa(scr, content_dim_opacity_, 0);
 
   // Create page containers (full-screen panels, only one visible at a time).
   for (uint8_t i = 0; i < theme::kPageCount; i++) {
@@ -104,6 +115,8 @@ void ui_init() {
   lv_obj_set_style_border_width(firing_overlay_, 0, 0);
   lv_obj_set_style_radius(firing_overlay_, 0, 0);
   lv_obj_clear_flag(firing_overlay_, LV_OBJ_FLAG_SCROLLABLE);
+  // Alarm controls must remain fully colored and legible at every setting.
+  lv_obj_set_style_color_filter_opa(firing_overlay_, LV_OPA_TRANSP, 0);
   lv_obj_add_flag(firing_overlay_, LV_OBJ_FLAG_HIDDEN);
   ui_build_firing_overlay(firing_overlay_);
 
@@ -152,6 +165,19 @@ void ui_show_page(uint8_t page_index) {
 
 uint8_t ui_current_page() {
   return current_page_;
+}
+
+void ui_set_content_brightness(float brightness) {
+  const uint8_t opacity = compute_content_dim_opacity(brightness);
+  if (opacity == content_dim_opacity_) {
+    return;
+  }
+
+  content_dim_opacity_ = opacity;
+  lv_obj_t *screen = lv_scr_act();
+  if (screen != nullptr) {
+    lv_obj_set_style_color_filter_opa(screen, opacity, 0);
+  }
 }
 
 void ui_show_firing_overlay() {

@@ -170,6 +170,25 @@ static constexpr float kSensorFactorAlpha = 0.75f;
 // yields 5%, factor=1.0 yields 100%.
 static constexpr float kAwakeMinBrightnessFraction = 0.05f;
 
+// Below this user setting, progressively shade UI colors toward black. This
+// extends the useful dimming range after the backlight reaches its hardware
+// minimum. At 0%, white content becomes approximately 0x404040.
+static constexpr float kContentDimThreshold = 0.25f;
+static constexpr uint8_t kContentDimMaxOpacity = 191;
+
+inline uint8_t compute_content_dim_opacity(float configured_brightness) {
+  if (configured_brightness <= 0.0f) {
+    return kContentDimMaxOpacity;
+  }
+  if (configured_brightness >= kContentDimThreshold) {
+    return 0;
+  }
+
+  const float dim_fraction =
+      (kContentDimThreshold - configured_brightness) / kContentDimThreshold;
+  return static_cast<uint8_t>(dim_fraction * kContentDimMaxOpacity + 0.5f);
+}
+
 inline float compute_screen_brightness(float configured_brightness,
                                        float sensor_factor, bool asleep) {
   if (configured_brightness < 0.0f) {
