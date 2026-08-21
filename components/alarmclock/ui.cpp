@@ -92,6 +92,10 @@ void ui_show_page(uint8_t page_index) {
   if (page_index == current_page_) {
     return;
   }
+  if (current_page_ == theme::kPageSettings &&
+      callbacks_.on_sound_preview_cancel != nullptr) {
+    callbacks_.on_sound_preview_cancel();
+  }
 
   lv_obj_t *old_page = pages_[current_page_];
   lv_obj_t *new_page = pages_[page_index];

@@ -75,6 +75,12 @@ static void on_sound_preview(uint8_t sound_index) {
   }
 }
 
+static void on_sound_preview_cancel() {
+  if (instance_) {
+    instance_->cancel_sound_preview();
+  }
+}
+
 static void on_snooze_duration_change(uint8_t option_index) {
   if (instance_) {
     instance_->set_snooze_duration_option(option_index);
@@ -135,6 +141,7 @@ void AlarmClockComponent::setup() {
   cb.on_alarm_delete = on_alarm_delete;
   cb.on_sound_change = on_sound_change;
   cb.on_sound_preview = on_sound_preview;
+  cb.on_sound_preview_cancel = on_sound_preview_cancel;
   cb.on_snooze_duration_change = on_snooze_duration_change;
   cb.on_time_format_change = on_time_format_change;
   cb.on_pre_alarm_change = on_pre_alarm_change;
@@ -427,9 +434,19 @@ void AlarmClockComponent::preview_sound(uint8_t sound_index) {
   sound_preview_pending_ = true;
 }
 
+void AlarmClockComponent::cancel_sound_preview() {
+  sound_preview_pending_ = false;
+  if (!alarm_sound_active_ && rtttl_ != nullptr && rtttl_->is_playing()) {
+    rtttl_->stop();
+  }
+}
+
 void AlarmClockComponent::play_sound_preview_(uint8_t sound_index) {
   if (rtttl_ == nullptr) {
     return;
+  }
+  if (rtttl_->is_playing()) {
+    rtttl_->stop();
   }
   rtttl_->set_gain(volume_);
   const char *melody = get_alarm_sound_rtttl(sound_index);
@@ -665,6 +682,9 @@ void AlarmClockComponent::check_screen_sleep_() {
 void AlarmClockComponent::start_alarm_sound_() {
   ESP_LOGI(TAG, "Starting alarm sound (volume=%.0f%%)", volume_ * 100);
   sound_preview_pending_ = false;
+  if (rtttl_ != nullptr && rtttl_->is_playing()) {
+    rtttl_->stop();
+  }
   alarm_sound_active_ = true;
   alarm_pause_active_ = false;
   // On snooze re-fire, skip the volume ramp — user is already aware.
@@ -702,6 +722,8 @@ void AlarmClockComponent::play_alarm_melody_() {
     return;
   }
   uint32_t elapsed = ::esphome::millis() - alarm_sound_start_ms_;
+  // The speaker backend applies gain when each RTTTL playback initializes, so
+  // the 30-second ramp advances in deliberate steps between melody loops.
   float gain = compute_ramp_volume(volume_, elapsed);
   rtttl_->set_gain(gain);
   const char *melody = get_alarm_sound_rtttl(selected_sound_index_);

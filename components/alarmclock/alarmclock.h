@@ -538,6 +538,7 @@ class AlarmClockComponent : public ::esphome::Component,
   void set_sensor_factor(float sensor_factor);
   void set_sound_index(uint8_t index);
   void preview_sound(uint8_t sound_index);
+  void cancel_sound_preview();
   void set_snooze_duration_option(uint8_t option_index);
   void set_time_format_24h(bool time_format_24h);
   void set_pre_alarm_option(uint8_t option_index);

@@ -31,6 +31,7 @@ static uint8_t snooze_selected_ = 1;
 static uint8_t pre_alarm_selected_ = 1;
 
 static constexpr int16_t kControlGestureThresholdPx = 10;
+static constexpr int16_t kSliderHeight = 32;
 
 struct ControlGestureState {
   lv_point_t press_point = {};
@@ -338,7 +339,7 @@ void ui_build_settings_page(lv_obj_t *page) {
 
   volume_slider_ = lv_slider_create(vol_row);
   lv_obj_set_width(volume_slider_, theme::kScreenWidth - 300);
-  lv_obj_set_height(volume_slider_, 14);
+  lv_obj_set_height(volume_slider_, kSliderHeight);
   lv_slider_set_range(volume_slider_, 0, 100);
   lv_slider_set_value(volume_slider_, 50, LV_ANIM_OFF);
   lv_obj_add_flag(volume_slider_, LV_OBJ_FLAG_SCROLL_CHAIN_VER);
@@ -353,7 +354,7 @@ void ui_build_settings_page(lv_obj_t *page) {
   lv_obj_set_style_bg_color(volume_slider_, lv_color_hex(theme::kColorPrimary), LV_PART_KNOB);
   lv_obj_set_style_outline_width(volume_slider_, 0, LV_PART_MAIN);
   lv_obj_add_event_cb(volume_slider_, volume_slider_cb, LV_EVENT_VALUE_CHANGED, nullptr);
-  lv_obj_set_style_pad_all(volume_slider_, 8, LV_PART_KNOB);
+  lv_obj_set_style_pad_all(volume_slider_, 4, LV_PART_KNOB);
 
   volume_label_ = lv_label_create(vol_row);
   lv_obj_set_style_text_font(volume_label_, &lv_font_montserrat_28, 0);
@@ -375,7 +376,7 @@ void ui_build_settings_page(lv_obj_t *page) {
 
   brightness_slider_ = lv_slider_create(bright_row);
   lv_obj_set_width(brightness_slider_, theme::kScreenWidth - 300);
-  lv_obj_set_height(brightness_slider_, 14);
+  lv_obj_set_height(brightness_slider_, kSliderHeight);
   lv_slider_set_range(brightness_slider_, 0, 100);
   lv_slider_set_value(brightness_slider_, 50, LV_ANIM_OFF);
   lv_obj_add_flag(brightness_slider_, LV_OBJ_FLAG_SCROLL_CHAIN_VER);
@@ -390,7 +391,7 @@ void ui_build_settings_page(lv_obj_t *page) {
   lv_obj_set_style_bg_color(brightness_slider_, lv_color_hex(theme::kColorPrimary), LV_PART_KNOB);
   lv_obj_set_style_outline_width(brightness_slider_, 0, LV_PART_MAIN);
   lv_obj_add_event_cb(brightness_slider_, brightness_slider_cb, LV_EVENT_VALUE_CHANGED, nullptr);
-  lv_obj_set_style_pad_all(brightness_slider_, 8, LV_PART_KNOB);
+  lv_obj_set_style_pad_all(brightness_slider_, 4, LV_PART_KNOB);
 
   brightness_label_ = lv_label_create(bright_row);
   lv_obj_set_style_text_font(brightness_label_, &lv_font_montserrat_28, 0);
@@ -422,7 +423,7 @@ void ui_build_settings_page(lv_obj_t *page) {
 
   sound_roller_ = lv_roller_create(parent);
   lv_roller_set_options(sound_roller_, sound_options, LV_ROLLER_MODE_NORMAL);
-  lv_obj_add_flag(sound_roller_, LV_OBJ_FLAG_SCROLL_CHAIN_VER);
+  lv_obj_clear_flag(sound_roller_, LV_OBJ_FLAG_SCROLL_CHAIN_VER);
   lv_obj_set_style_text_font(sound_roller_, &lv_font_montserrat_24, 0);
   lv_obj_set_width(sound_roller_, LV_SIZE_CONTENT);
   lv_obj_set_style_outline_width(sound_roller_, 0, LV_PART_MAIN);

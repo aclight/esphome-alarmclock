@@ -36,7 +36,12 @@ speaker:
 - RTTTL generates waveform at its own gain level, independent of speaker volume
 - Use `id(alarm_rtttl).set_gain(float)` to control RTTTL volume (0.0 to 1.0)
 - Must call `set_gain()` before `rtttl.play` for it to take effect on that playback
-- Can also call `set_gain()` mid-playback and it updates immediately
+- With the ESPHome speaker backend, gain is applied when RTTTL playback enters
+  its initialization state. Changing gain mid-playback does not update the
+  active speaker stream.
+- The alarm's 30-second ramp therefore advances between melody loops. Each loop
+  is restarted with a newly calculated gain; previews and alarms explicitly
+  stop any existing RTTTL playback before starting the replacement.
 
 ## Boot Sequence (on_boot, priority -100)
 ```cpp
