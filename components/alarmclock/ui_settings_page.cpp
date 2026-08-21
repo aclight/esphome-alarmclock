@@ -141,8 +141,13 @@ static void control_released_cb(lv_event_t *e) {
     return;
   }
   if (state->vertical_scroll) {
-    if (control == volume_slider_ || control == brightness_slider_) {
-      lv_slider_set_value(control, state->initial_value, LV_ANIM_OFF);
+    lv_slider_set_value(control, state->initial_value, LV_ANIM_OFF);
+    float restored_value = static_cast<float>(state->initial_value) / 100.0f;
+    const auto &cb = ui_get_callbacks();
+    if (control == volume_slider_ && cb.on_volume_change) {
+      cb.on_volume_change(restored_value);
+    } else if (control == brightness_slider_ && cb.on_brightness_change) {
+      cb.on_brightness_change(restored_value);
     }
   }
   state->vertical_scroll = false;
@@ -188,14 +193,19 @@ static void brightness_slider_cb(lv_event_t *e) {
   }
 }
 
-static void sound_dropdown_cb(lv_event_t *e) {
+static void sound_selection_cb(lv_event_t *e) {
   lv_obj_t *roller = static_cast<lv_obj_t *>(lv_event_get_target(e));
   uint32_t sel = lv_roller_get_selected(roller);
   const auto &cb = ui_get_callbacks();
   if (cb.on_sound_change) {
     cb.on_sound_change(static_cast<uint8_t>(sel));
   }
-  // Auto-preview the selected sound.
+}
+
+static void sound_preview_cb(lv_event_t *e) {
+  lv_obj_t *roller = static_cast<lv_obj_t *>(lv_event_get_target(e));
+  uint32_t sel = lv_roller_get_selected(roller);
+  const auto &cb = ui_get_callbacks();
   if (cb.on_sound_preview) {
     cb.on_sound_preview(static_cast<uint8_t>(sel));
   }
@@ -417,7 +427,10 @@ void ui_build_settings_page(lv_obj_t *page) {
   lv_obj_set_width(sound_roller_, LV_SIZE_CONTENT);
   lv_obj_set_style_outline_width(sound_roller_, 0, LV_PART_MAIN);
   lv_roller_set_visible_row_count(sound_roller_, 2);
-  lv_obj_add_event_cb(sound_roller_, sound_dropdown_cb, LV_EVENT_VALUE_CHANGED, nullptr);
+  lv_obj_add_event_cb(sound_roller_, sound_selection_cb,
+                      LV_EVENT_VALUE_CHANGED, nullptr);
+  lv_obj_add_event_cb(sound_roller_, sound_preview_cb, LV_EVENT_RELEASED,
+                      nullptr);
 
   // --- Snooze duration section (4 buttons in a row) ---
   lv_obj_t *snooze_title = lv_label_create(parent);

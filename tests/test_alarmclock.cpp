@@ -1659,6 +1659,20 @@ TEST(settings_debounce_period_sanity) {
     PASS();
 }
 
+TEST(deferred_action_waits_for_delay) {
+    ASSERT_FALSE(deferred_action_ready(1299, 1000, 300));
+    ASSERT_TRUE(deferred_action_ready(1300, 1000, 300));
+    ASSERT_TRUE(deferred_action_ready(1500, 1000, 300));
+    PASS();
+}
+
+TEST(deferred_action_handles_millis_rollover) {
+    constexpr uint32_t started_ms = UINT32_MAX - 99;
+    ASSERT_FALSE(deferred_action_ready(49, started_ms, 150));
+    ASSERT_TRUE(deferred_action_ready(50, started_ms, 150));
+    PASS();
+}
+
 // ===========================================================================
 // D1: deserialize_alarm must reject out-of-range fields (PLAN.md A3/D1)
 // ===========================================================================
@@ -2022,6 +2036,8 @@ int main() {
 
     // NVS debounce constant (Batch 1, Issue #3)
     RUN(settings_debounce_period_sanity);
+    RUN(deferred_action_waits_for_delay);
+    RUN(deferred_action_handles_millis_rollover);
 
     // D1: deserialize_alarm rejects out-of-range fields (PLAN.md A3/D1)
     RUN(deserialize_alarm_invalid_hour);
