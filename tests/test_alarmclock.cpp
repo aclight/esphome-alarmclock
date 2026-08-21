@@ -579,6 +579,28 @@ TEST(screen_awake_only_while_firing) {
     PASS();
 }
 
+TEST(screen_wake_never_reduces_brightness) {
+    const float configured_levels[] = {0.0f, 0.1f, 0.5f, 1.0f};
+    const float sensor_factors[] = {0.0f, 0.2f, 0.35f, 0.7f, 1.0f};
+    for (float configured_level : configured_levels) {
+        for (float sensor_factor : sensor_factors) {
+            const float asleep = compute_screen_brightness(
+                configured_level, sensor_factor, true);
+            const float awake = compute_screen_brightness(
+                configured_level, sensor_factor, false);
+            ASSERT_TRUE(asleep <= awake);
+        }
+    }
+    PASS();
+}
+
+TEST(screen_wake_increases_brightness_in_dark_room) {
+    const float asleep = compute_screen_brightness(0.5f, 0.0f, true);
+    const float awake = compute_screen_brightness(0.5f, 0.0f, false);
+    ASSERT_TRUE(awake > asleep);
+    PASS();
+}
+
 // ===========================================================================
 // Volume ramp tests (compute_ramp_volume from alarmclock.h)
 // ===========================================================================
@@ -1888,6 +1910,8 @@ int main() {
     RUN(state_machine_reset);
     RUN(state_machine_custom_snooze_duration);
     RUN(screen_awake_only_while_firing);
+    RUN(screen_wake_never_reduces_brightness);
+    RUN(screen_wake_increases_brightness_in_dark_room);
 
     // Volume ramp
     RUN(ramp_volume_at_start);
