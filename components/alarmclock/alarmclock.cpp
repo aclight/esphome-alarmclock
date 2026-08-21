@@ -400,19 +400,26 @@ void AlarmClockComponent::set_brightness(float brightness) {
   ESP_LOGI(TAG, "Brightness set to %.0f%%", brightness_ * 100.0f);
 }
 
-void AlarmClockComponent::set_sensor_factor(float sensor_factor) {
+void AlarmClockComponent::set_sensor_factor(float sensor_factor, float lux) {
   if (sensor_factor < 0.0f) { sensor_factor = 0.0f; }
   if (sensor_factor > 1.0f) { sensor_factor = 1.0f; }
 
   // Ignore tiny sensor jitter to reduce backlight shimmer.
-  if (fabsf(sensor_factor - sensor_factor_) < kSensorFactorDeadband) {
-    return;
+  if (fabsf(sensor_factor - sensor_factor_) >= kSensorFactorDeadband) {
+    // Smooth larger transitions so brightness changes feel stable.
+    sensor_factor_ = sensor_factor_ +
+        (sensor_factor - sensor_factor_) * kSensorFactorAlpha;
+    update_backlight_();
   }
 
-  // Smooth larger transitions so brightness changes feel stable.
-  sensor_factor_ = sensor_factor_ +
-      (sensor_factor - sensor_factor_) * kSensorFactorAlpha;
-  update_backlight_();
+  const float effective_brightness =
+      compute_screen_brightness(brightness_, sensor_factor_, screen_asleep_);
+  ESP_LOGI(TAG,
+           "Ambient %.1f lx: setting %.0f%%, sensor %.1f%%, effective %.1f%%, "
+           "PWM %u",
+           lux, brightness_ * 100.0f, sensor_factor_ * 100.0f,
+           effective_brightness * 100.0f,
+           static_cast<unsigned>(brightness_to_pwm(effective_brightness)));
 }
 
 void AlarmClockComponent::set_sound_index(uint8_t index) {

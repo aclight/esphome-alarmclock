@@ -590,7 +590,7 @@ class AlarmClockComponent : public ::esphome::Component,
   // --- Settings ---
   void set_volume(float volume);
   void set_brightness(float brightness);
-  void set_sensor_factor(float sensor_factor);
+  void set_sensor_factor(float sensor_factor, float lux);
   void set_sound_index(uint8_t index);
   void preview_sound(uint8_t sound_index);
   void cancel_sound_preview();
