@@ -103,6 +103,7 @@ display:
     model: RPI
     id: main_display
     auto_clear_enabled: false
+    update_interval: never
     color_order: RGB
     pclk_frequency: 14MHz
     dimensions:
@@ -155,6 +156,7 @@ lvgl:
     - main_display
   touchscreens:
     - touch
+  buffer_size: 12%
   pages:
     - id: boot_page
       widgets:
