@@ -1,6 +1,7 @@
 // UI manager implementation — page container, swipe detection, overlay.
 #ifndef UNIT_TEST
 
+#include "alarmclock.h"
 #include "ui.h"
 #include "ui_theme.h"
 #include "lvgl.h"
