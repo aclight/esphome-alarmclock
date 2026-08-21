@@ -625,27 +625,9 @@ void AlarmClockComponent::check_alarms_(uint8_t hour, uint8_t minute,
 }
 
 void AlarmClockComponent::update_backlight_() {
-  float bright = 0.0f;
-
-  if (screen_asleep_) {
-    // Idle mode: stay close to the configured brightness in brighter rooms,
-    // but dim more aggressively when the ambient sensor says it is dark.
-    float dim_amount = (sensor_factor_ >= kSleepDaySensorThreshold)
-                           ? kSleepDayDimAmount
-                           : kSleepNightDimAmount;
-    bright = brightness_ - dim_amount;
-    if (bright < kSleepBrightnessFloor) {
-      bright = kSleepBrightnessFloor;
-    }
-  } else {
-    // Awake mode: keep user brightness as the ceiling, but allow ambient
-    // light to pull it down significantly in dark conditions.
-    float ambient_scale = kAwakeMinBrightnessFraction +
-        (1.0f - kAwakeMinBrightnessFraction) * sensor_factor_;
-    bright = brightness_ * ambient_scale;
-  }
-
-  uint8_t pwm = brightness_to_pwm(bright);
+  const float brightness =
+      compute_screen_brightness(brightness_, sensor_factor_, screen_asleep_);
+  const uint8_t pwm = brightness_to_pwm(brightness);
   if (pwm == last_backlight_pwm_) {
     return;
   }

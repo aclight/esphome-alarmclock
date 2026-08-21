@@ -155,8 +155,10 @@ static constexpr uint32_t kScreenIdleTimeoutMs = 30000;
 // light so the clock stays readable without being overly bright at night.
 static constexpr float kSleepDayDimAmount = 0.10f;
 static constexpr float kSleepNightDimAmount = 0.45f;
+// Target floor before capping sleep below the corresponding awake level.
 static constexpr float kSleepBrightnessFloor = 0.08f;
 static constexpr float kSleepDaySensorThreshold = 0.35f;
+static constexpr float kSleepMaxAwakeFraction = 0.8f;
 
 // Ignore tiny ambient-light changes to reduce visible backlight flicker.
 static constexpr float kSensorFactorDeadband = 0.02f;
@@ -167,6 +169,40 @@ static constexpr float kSensorFactorAlpha = 0.75f;
 // full configured brightness.  Example: with 1.0 user brightness, factor=0.0
 // yields 5%, factor=1.0 yields 100%.
 static constexpr float kAwakeMinBrightnessFraction = 0.05f;
+
+inline float compute_screen_brightness(float configured_brightness,
+                                       float sensor_factor, bool asleep) {
+  if (configured_brightness < 0.0f) {
+    configured_brightness = 0.0f;
+  }
+  if (configured_brightness > 1.0f) {
+    configured_brightness = 1.0f;
+  }
+  if (sensor_factor < 0.0f) {
+    sensor_factor = 0.0f;
+  }
+  if (sensor_factor > 1.0f) {
+    sensor_factor = 1.0f;
+  }
+
+  const float ambient_scale = kAwakeMinBrightnessFraction +
+      (1.0f - kAwakeMinBrightnessFraction) * sensor_factor;
+  const float awake_brightness = configured_brightness * ambient_scale;
+  if (!asleep) {
+    return awake_brightness;
+  }
+
+  const float dim_amount = sensor_factor >= kSleepDaySensorThreshold
+                               ? kSleepDayDimAmount
+                               : kSleepNightDimAmount;
+  float sleep_brightness = configured_brightness - dim_amount;
+  if (sleep_brightness < kSleepBrightnessFloor) {
+    sleep_brightness = kSleepBrightnessFloor;
+  }
+
+  const float sleep_ceiling = awake_brightness * kSleepMaxAwakeFraction;
+  return sleep_brightness < sleep_ceiling ? sleep_brightness : sleep_ceiling;
+}
 
 // Minimum delay between NVS settings writes (milliseconds).
 // Prevents flash wear from continuous slider drag events.
