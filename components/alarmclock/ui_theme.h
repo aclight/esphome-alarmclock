@@ -29,15 +29,13 @@ static constexpr int16_t kClockDateY = 70;     // Date label Y offset from cente
 static constexpr int16_t kClockAlarmY = 120;   // Next-alarm label Y offset.
 static constexpr int16_t kClockPreAlarmY = 160; // Pre-alarm banner Y offset.
 
-// Navigation.
-static constexpr int16_t kSwipeThreshold = 80;  // Pixels to trigger page switch.
-
 // Buttons.
 static constexpr int16_t kButtonWidth = 300;
 static constexpr int16_t kButtonHeight = 110;
 static constexpr int16_t kButtonRadius = 12;
 static constexpr int16_t kNavButtonWidth = 56;
 static constexpr int16_t kNavButtonHeight = 56;
+static constexpr int16_t kPageHeaderHeight = 80;
 
 // Firing overlay.
 static constexpr int16_t kFiringTimeY = -120;
