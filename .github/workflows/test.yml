@@ -45,5 +45,10 @@ jobs:
           ota_password: "testotapassword"
           EOF
 
+      - name: Use checked-out component
+        run: |
+          grep -Fq "url: https://github.com/aclight/esphome-alarmclock.git" alarmclock.yaml
+          sed -i '/^      type: git$/,/^      path: components$/c\      type: local\n      path: components' alarmclock.yaml
+
       - name: Compile ESPHome config
         run: esphome compile alarmclock.yaml
