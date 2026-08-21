@@ -292,7 +292,7 @@ sensor:
             // Calibrated for this enclosure placement: indoors often reads in
             // single/low-double-digit lux, so map that range to full control.
             float sf = alarmclock::lux_to_sensor_factor(x, 0.5f, 15.0f);
-            id(alarm_clock_component).set_sensor_factor(sf);
+            id(alarm_clock_component).set_sensor_factor(sf, x);
 
 # ---------------------------------------------------------------------------
 # Home Assistant control entities.
