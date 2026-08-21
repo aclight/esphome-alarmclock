@@ -328,18 +328,15 @@ void AlarmClockComponent::delete_alarm(uint8_t index) {
 void AlarmClockComponent::dismiss_alarm() {
   ESP_LOGI(TAG, "Alarm dismissed");
   state_machine_.dismiss();
-  stop_alarm_sound_();
-  ui_hide_firing_overlay();
-  ui_firing_stop_animation();
-  if (fired_alarm_index_ < kMaxAlarms) {
-    ui_clear_alarm_row_firing(fired_alarm_index_);
-  }
-  auto_disable_one_shot_alarm_();
-  fired_alarm_index_ = 0xFF;
+  finish_active_alarm_();
   fire_ha_event_("esphome.alarm_dismissed");
 }
 
 void AlarmClockComponent::snooze_alarm() {
+  if (state_machine_.state() != AlarmState::kFiring) {
+    return;
+  }
+
   if (state_machine_.snooze()) {
     ESP_LOGI(TAG, "Alarm snoozed (%d min)",
              state_machine_.snooze_duration_minutes());
@@ -355,13 +352,7 @@ void AlarmClockComponent::snooze_alarm() {
   } else {
     // Max snoozes reached — auto-dismissed.
     ESP_LOGI(TAG, "Max snoozes reached, dismissed");
-    ui_hide_firing_overlay();
-    ui_firing_stop_animation();
-    if (fired_alarm_index_ < kMaxAlarms) {
-      ui_clear_alarm_row_firing(fired_alarm_index_);
-    }
-    auto_disable_one_shot_alarm_();
-    fired_alarm_index_ = 0xFF;
+    finish_active_alarm_();
     fire_ha_event_("esphome.alarm_dismissed");
   }
 }
@@ -503,20 +494,14 @@ void AlarmClockComponent::check_alarms_(uint8_t hour, uint8_t minute,
   if (state_machine_.tick_firing()) {
     ESP_LOGI(TAG, "Alarm auto-dismissed after %d minutes",
              kAutoDismissMinutes);
-    stop_alarm_sound_();
-    ui_hide_firing_overlay();
-    ui_firing_stop_animation();
-    if (fired_alarm_index_ < kMaxAlarms) {
-      ui_clear_alarm_row_firing(fired_alarm_index_);
-    }
-    auto_disable_one_shot_alarm_();
-    fired_alarm_index_ = 0xFF;
+    finish_active_alarm_();
     fire_ha_event_("esphome.alarm_dismissed");
     return;
   }
 
   if (state_machine_.tick_snooze()) {
     // Snooze expired — alarm fires again.
+    ui_update_pre_alarm_banner("");
     start_alarm_sound_();
     ui_show_firing_overlay();
     ui_firing_start_animation();
@@ -637,7 +622,7 @@ void AlarmClockComponent::update_backlight_() {
 
 void AlarmClockComponent::check_screen_sleep_() {
   // Don't sleep while the alarm is firing — keep screen bright.
-  if (state_machine_.state() != AlarmState::kIdle) {
+  if (alarm_should_keep_screen_awake(state_machine_.state())) {
     if (screen_asleep_) {
       screen_asleep_ = false;
       update_backlight_();
@@ -679,6 +664,18 @@ void AlarmClockComponent::stop_alarm_sound_() {
   if (rtttl_ != nullptr) {
     rtttl_->stop();
   }
+}
+
+void AlarmClockComponent::finish_active_alarm_() {
+  stop_alarm_sound_();
+  ui_hide_firing_overlay();
+  ui_firing_stop_animation();
+  ui_update_pre_alarm_banner("");
+  if (fired_alarm_index_ < kMaxAlarms) {
+    ui_clear_alarm_row_firing(fired_alarm_index_);
+  }
+  auto_disable_one_shot_alarm_();
+  fired_alarm_index_ = 0xFF;
 }
 
 void AlarmClockComponent::play_alarm_melody_() {
