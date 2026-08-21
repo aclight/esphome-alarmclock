@@ -495,6 +495,7 @@ void ui_update_volume(float volume) {
 }
 
 void ui_update_brightness(float brightness) {
+  ui_set_content_brightness(brightness);
   if (brightness_slider_) {
     lv_slider_set_value(brightness_slider_, static_cast<int32_t>(brightness * 100), LV_ANIM_OFF);
   }

@@ -601,6 +601,28 @@ TEST(screen_wake_increases_brightness_in_dark_room) {
     PASS();
 }
 
+TEST(content_dim_disabled_at_threshold) {
+    ASSERT_EQ(compute_content_dim_opacity(kContentDimThreshold), 0);
+    ASSERT_EQ(compute_content_dim_opacity(1.0f), 0);
+    PASS();
+}
+
+TEST(content_dim_reaches_dark_grey_at_zero) {
+    ASSERT_EQ(compute_content_dim_opacity(0.0f), kContentDimMaxOpacity);
+    ASSERT_EQ(compute_content_dim_opacity(-1.0f), kContentDimMaxOpacity);
+    PASS();
+}
+
+TEST(content_dim_scales_smoothly_below_threshold) {
+    const uint8_t quarter_dim = compute_content_dim_opacity(0.1875f);
+    const uint8_t half_dim = compute_content_dim_opacity(0.125f);
+    const uint8_t three_quarter_dim = compute_content_dim_opacity(0.0625f);
+    ASSERT_TRUE(quarter_dim > 45 && quarter_dim < 50);
+    ASSERT_TRUE(half_dim > 93 && half_dim < 98);
+    ASSERT_TRUE(three_quarter_dim > 140 && three_quarter_dim < 145);
+    PASS();
+}
+
 // ===========================================================================
 // Volume ramp tests (compute_ramp_volume from alarmclock.h)
 // ===========================================================================
@@ -1912,6 +1934,9 @@ int main() {
     RUN(screen_awake_only_while_firing);
     RUN(screen_wake_never_reduces_brightness);
     RUN(screen_wake_increases_brightness_in_dark_room);
+    RUN(content_dim_disabled_at_threshold);
+    RUN(content_dim_reaches_dark_grey_at_zero);
+    RUN(content_dim_scales_smoothly_below_threshold);
 
     // Volume ramp
     RUN(ramp_volume_at_start);

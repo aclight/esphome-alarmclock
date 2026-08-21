@@ -44,7 +44,6 @@ Relevant code:
 
 ### Bug 5 — minimum brightness too high
 
-- With the brightness slider at **0%** in a dark room the display is still too bright.
 - BH1750 verified working — covering the sensor hole gives `0.1 lx`, uncovering gives `8.1 lx`:
 
 ```
@@ -56,19 +55,20 @@ Relevant code:
 
 **Important deduction:** at slider 0%, `brightness_ = 0`, so `update_backlight_()`
 computes `bright = 0` and `brightness_to_pwm()` returns `244` — the dimmest value
-the backlight controller accepts (`245` is off). **The hardware minimum backlight
-is already in use and is still too bright.** No amount of tuning the brightness
-math will help. Remaining options:
+the backlight controller accepts (`245` is off). The hardware minimum backlight
+is already in use, so backlight math alone cannot make the display darker.
 
 1. Verify the actual command range the STC8H1K28 accepts (Elecrow's v1.3 docs /
    Arduino examples) — the 0–244/245 mapping came from a v1.1-era example and may
    be wrong or coarser than the real range.
-2. Dim the *content* instead of the backlight: below some slider threshold, scale
-   the theme colors in `ui_theme.h` toward dark grey/red so a lit pixel emits less
-   light (e.g. white `0xFFFFFF` → `0x404040` → `0x201008`). This is how most
-   bedside clocks get genuinely dark.
-3. Consider a "night mode" that both floors the backlight and switches to a dim
-   red-on-black palette.
+2. Below 25% slider brightness, an inherited LVGL color filter now shades all UI
+   colors smoothly toward black. At 0%, white content is approximately
+   `0x404040`. This neutral-grey approach preserves color meaning and avoids
+   maintaining separate night colors for every widget. The alarm-firing overlay
+   opts out so Snooze and Dismiss controls remain fully colored and legible.
+
+The filter changes draw colors directly rather than lowering whole-object
+opacity, so it does not require a full-screen intermediate compositing layer.
 
 ## Hypotheses to test for the flicker (ranked)
 
