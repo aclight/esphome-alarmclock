@@ -85,6 +85,7 @@ struct UiCallbacks {
   void (*on_alarm_delete)(uint8_t index) = nullptr;
   void (*on_sound_change)(uint8_t sound_index) = nullptr;
   void (*on_sound_preview)(uint8_t sound_index) = nullptr;
+  void (*on_sound_preview_cancel)() = nullptr;
   void (*on_snooze_duration_change)(uint8_t option_index) = nullptr;
   void (*on_time_format_change)(bool time_format_24h) = nullptr;
   void (*on_pre_alarm_change)(uint8_t option_index) = nullptr;
