@@ -172,6 +172,14 @@ static constexpr float kAwakeMinBrightnessFraction = 0.05f;
 // Prevents flash wear from continuous slider drag events.
 static constexpr uint32_t kSettingsDebouncePeriodMs = 2000;
 
+// Wait for sound roller movement to settle before starting a preview.
+static constexpr uint32_t kSoundPreviewDebouncePeriodMs = 300;
+
+inline bool deferred_action_ready(uint32_t now_ms, uint32_t started_ms,
+                                  uint32_t delay_ms) {
+  return now_ms - started_ms >= delay_ms;
+}
+
 // ---------------------------------------------------------------------------
 // Brightness control constants.
 // ---------------------------------------------------------------------------
@@ -574,6 +582,9 @@ class AlarmClockComponent : public ::esphome::Component,
   bool alarm_pause_active_ = false;
   uint32_t alarm_sound_start_ms_ = 0;
   uint32_t alarm_pause_start_ms_ = 0;
+  bool sound_preview_pending_ = false;
+  uint8_t pending_sound_preview_index_ = 0;
+  uint32_t sound_preview_pending_ms_ = 0;
 
   // Timing.
   uint8_t last_checked_minute_ = 0xFF;
@@ -605,6 +616,7 @@ class AlarmClockComponent : public ::esphome::Component,
   void stop_alarm_sound_();
   void finish_active_alarm_();
   void play_alarm_melody_();
+  void play_sound_preview_(uint8_t sound_index);
   void sync_ui_();
   void fire_ha_event_(const char *event_type);
   void auto_disable_one_shot_alarm_();

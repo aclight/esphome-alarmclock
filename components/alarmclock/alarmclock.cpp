@@ -151,12 +151,24 @@ void AlarmClockComponent::setup() {
 }
 
 void AlarmClockComponent::loop() {
-  // Flush deferred NVS writes (debounce slider drags).
+  // Flush deferred NVS writes after settings interactions settle.
   if (settings_dirty_) {
     uint32_t now_ms = ::esphome::millis();
-    if (now_ms - settings_dirty_ms_ >= kSettingsDebouncePeriodMs) {
+    if (deferred_action_ready(now_ms, settings_dirty_ms_,
+                              kSettingsDebouncePeriodMs)) {
       settings_dirty_ = false;
       save_settings_to_storage_();
+    }
+  }
+
+  if (sound_preview_pending_) {
+    uint32_t now_ms = ::esphome::millis();
+    if (deferred_action_ready(now_ms, sound_preview_pending_ms_,
+                              kSoundPreviewDebouncePeriodMs)) {
+      sound_preview_pending_ = false;
+      if (state_machine_.state() == AlarmState::kIdle) {
+        play_sound_preview_(pending_sound_preview_index_);
+      }
     }
   }
 
@@ -401,17 +413,23 @@ void AlarmClockComponent::set_sound_index(uint8_t index) {
     index = 0;
   }
   selected_sound_index_ = index;
-  save_settings_to_storage_();
+  mark_settings_dirty_();
   ui_update_sound_selection(index);
   ESP_LOGI(TAG, "Alarm sound set to: %s", get_alarm_sound_name(index));
 }
 
 void AlarmClockComponent::preview_sound(uint8_t sound_index) {
-  if (rtttl_ == nullptr) {
-    return;
-  }
   if (sound_index >= kAlarmSoundCount) {
     sound_index = 0;
+  }
+  pending_sound_preview_index_ = sound_index;
+  sound_preview_pending_ms_ = ::esphome::millis();
+  sound_preview_pending_ = true;
+}
+
+void AlarmClockComponent::play_sound_preview_(uint8_t sound_index) {
+  if (rtttl_ == nullptr) {
+    return;
   }
   rtttl_->set_gain(volume_);
   const char *melody = get_alarm_sound_rtttl(sound_index);
@@ -422,14 +440,14 @@ void AlarmClockComponent::preview_sound(uint8_t sound_index) {
 void AlarmClockComponent::set_snooze_duration_option(uint8_t option_index) {
   uint8_t minutes = snooze_option_to_minutes(option_index);
   state_machine_.set_snooze_duration(minutes);
-  save_settings_to_storage_();
+  mark_settings_dirty_();
   ui_update_snooze_selection(option_index);
   ESP_LOGI(TAG, "Snooze duration set to %d minutes", minutes);
 }
 
 void AlarmClockComponent::set_time_format_24h(bool time_format_24h) {
   time_format_24h_ = time_format_24h;
-  save_settings_to_storage_();
+  mark_settings_dirty_();
   ui_update_time_format(time_format_24h);
   ui_refresh_clock(time_format_24h);
   // Re-sync alarm rows and firing overlay with new format.
@@ -439,7 +457,7 @@ void AlarmClockComponent::set_time_format_24h(bool time_format_24h) {
 
 void AlarmClockComponent::set_pre_alarm_option(uint8_t option_index) {
   pre_alarm_minutes_ = pre_alarm_option_to_minutes(option_index);
-  save_settings_to_storage_();
+  mark_settings_dirty_();
   ui_update_pre_alarm_selection(option_index);
   ESP_LOGI(TAG, "Pre-alarm set to %d minutes", pre_alarm_minutes_);
 }
@@ -646,6 +664,7 @@ void AlarmClockComponent::check_screen_sleep_() {
 
 void AlarmClockComponent::start_alarm_sound_() {
   ESP_LOGI(TAG, "Starting alarm sound (volume=%.0f%%)", volume_ * 100);
+  sound_preview_pending_ = false;
   alarm_sound_active_ = true;
   alarm_pause_active_ = false;
   // On snooze re-fire, skip the volume ramp — user is already aware.
