@@ -33,6 +33,8 @@ static uint8_t pre_alarm_selected_ = 1;
 
 static constexpr int16_t kControlGestureThresholdPx = 10;
 static constexpr int16_t kSliderHeight = 32;
+static constexpr int16_t kSoundRollerWidth = 420;
+static constexpr uint8_t kSoundRollerVisibleRows = 3;
 
 struct ControlGestureState {
   lv_point_t press_point = {};
@@ -443,7 +445,7 @@ void ui_build_settings_page(lv_obj_t *page) {
   lv_obj_set_width(sound_title, theme::kScreenWidth - 60);
 
   // Build roller options string from kAlarmSounds.
-  static char sound_options[128];
+  static char sound_options[256];
   size_t offset = 0;
   for (uint8_t i = 0; i < kAlarmSoundCount; ++i) {
     if (i > 0 && offset < sizeof(sound_options) - 1) {
@@ -461,9 +463,9 @@ void ui_build_settings_page(lv_obj_t *page) {
   lv_roller_set_options(sound_roller_, sound_options, LV_ROLLER_MODE_NORMAL);
   lv_obj_clear_flag(sound_roller_, LV_OBJ_FLAG_SCROLL_CHAIN_VER);
   lv_obj_set_style_text_font(sound_roller_, &lv_font_montserrat_24, 0);
-  lv_obj_set_width(sound_roller_, LV_SIZE_CONTENT);
+  lv_obj_set_width(sound_roller_, kSoundRollerWidth);
   lv_obj_set_style_outline_width(sound_roller_, 0, LV_PART_MAIN);
-  lv_roller_set_visible_row_count(sound_roller_, 2);
+  lv_roller_set_visible_row_count(sound_roller_, kSoundRollerVisibleRows);
   lv_obj_add_event_cb(sound_roller_, sound_selection_cb,
                       LV_EVENT_VALUE_CHANGED, nullptr);
   lv_obj_add_event_cb(sound_roller_, sound_preview_cb, LV_EVENT_RELEASED,
