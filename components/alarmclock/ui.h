@@ -42,6 +42,7 @@ void ui_update_next_alarm(const char *text);  // e.g. "Next: 7:00 AM" or ""
 void ui_update_pre_alarm_banner(const char *text);  // e.g. "Alarm in 5 min — Work" or "" to hide
 void ui_set_content_brightness(float brightness);
 void ui_update_brightness(float brightness);
+void ui_update_night_brightness(float brightness_fraction);
 void ui_update_volume(float volume);
 void ui_update_sound_selection(uint8_t sound_index);
 void ui_update_snooze_selection(uint8_t option_index);
@@ -79,6 +80,7 @@ struct UiCallbacks {
   void (*on_alarm_snooze)() = nullptr;
   void (*on_volume_change)(float volume) = nullptr;
   void (*on_brightness_change)(float brightness) = nullptr;
+  void (*on_night_brightness_change)(float brightness_fraction) = nullptr;
   void (*on_alarm_add)() = nullptr;
   void (*on_alarm_toggle)(uint8_t index, bool enabled) = nullptr;
   void (*on_alarm_edit)(uint8_t index) = nullptr;

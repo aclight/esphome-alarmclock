@@ -78,8 +78,19 @@ TEST(sensor_factor_bright) {
 }
 
 TEST(sensor_factor_midpoint) {
-    float sf = lux_to_sensor_factor(255.0f, 10.0f, 500.0f);
-    ASSERT_TRUE(sf > 0.45f && sf < 0.55f);
+    float sf = lux_to_sensor_factor(4.0f, 1.0f, 16.0f);
+    ASSERT_TRUE(sf > 0.49f && sf < 0.51f);
+    PASS();
+}
+
+TEST(sensor_factor_calibrated_clock_range) {
+    ASSERT_TRUE(lux_to_sensor_factor(kAmbientDarkLux, kAmbientDarkLux,
+                                     kAmbientDayLux) == 0.0f);
+    ASSERT_TRUE(lux_to_sensor_factor(kAmbientDayLux, kAmbientDarkLux,
+                                     kAmbientDayLux) == 1.0f);
+    const float low_light =
+        lux_to_sensor_factor(0.2f, kAmbientDarkLux, kAmbientDayLux);
+    ASSERT_TRUE(low_light > 0.32f && low_light < 0.34f);
     PASS();
 }
 
@@ -598,6 +609,27 @@ TEST(screen_wake_increases_brightness_in_dark_room) {
     const float asleep = compute_screen_brightness(0.5f, 0.0f, true);
     const float awake = compute_screen_brightness(0.5f, 0.0f, false);
     ASSERT_TRUE(awake > asleep);
+    PASS();
+}
+
+TEST(adaptive_brightness_uses_night_level_in_darkness) {
+    const float brightness =
+        compute_screen_brightness(1.0f, 0.0f, false, 0.05f);
+    ASSERT_TRUE(brightness > 0.049f && brightness < 0.051f);
+    PASS();
+}
+
+TEST(adaptive_brightness_reaches_day_setting) {
+    const float brightness =
+        compute_screen_brightness(0.75f, 1.0f, false, 0.05f);
+    ASSERT_TRUE(brightness > 0.749f && brightness < 0.751f);
+    PASS();
+}
+
+TEST(adaptive_brightness_scales_night_level_with_day_setting) {
+    const float brightness =
+        compute_screen_brightness(0.5f, 0.0f, false, 0.10f);
+    ASSERT_TRUE(brightness > 0.049f && brightness < 0.051f);
     PASS();
 }
 
@@ -1143,7 +1175,8 @@ TEST(serialized_alarm_size_constant) {
 }
 
 TEST(serialized_settings_size_constant) {
-    ASSERT_EQ(kSerializedSettingsSize, (size_t)13);
+    ASSERT_EQ(kLegacySerializedSettingsSize, (size_t)13);
+    ASSERT_EQ(kSerializedSettingsSize, (size_t)17);
     PASS();
 }
 
@@ -1292,6 +1325,7 @@ TEST(serialize_settings_roundtrip) {
     orig.time_format_24h = true;
     orig.selected_sound_index = 2;
     orig.pre_alarm_minutes = 10;
+    orig.night_brightness_fraction = 0.2f;
 
     uint8_t buf[kSerializedSettingsSize];
     size_t written = serialize_settings(orig, buf, sizeof(buf));
@@ -1305,6 +1339,21 @@ TEST(serialize_settings_roundtrip) {
     ASSERT_TRUE(loaded.time_format_24h);
     ASSERT_EQ(loaded.selected_sound_index, 2);
     ASSERT_EQ(loaded.pre_alarm_minutes, 10);
+    ASSERT_TRUE(loaded.night_brightness_fraction > 0.19f &&
+                loaded.night_brightness_fraction < 0.21f);
+    PASS();
+}
+
+TEST(deserialize_legacy_settings_defaults_night_brightness) {
+    StorageSettings orig{};
+    uint8_t current_buf[kSerializedSettingsSize];
+    serialize_settings(orig, current_buf, sizeof(current_buf));
+
+    StorageSettings loaded{};
+    ASSERT_TRUE(deserialize_settings(current_buf,
+                                     kLegacySerializedSettingsSize, &loaded));
+    ASSERT_TRUE(loaded.night_brightness_fraction > 0.04f &&
+                loaded.night_brightness_fraction < 0.06f);
     PASS();
 }
 
@@ -1806,6 +1855,20 @@ TEST(deserialize_settings_invalid_brightness_nan) {
     PASS();
 }
 
+TEST(deserialize_settings_invalid_night_brightness) {
+    StorageSettings orig{};
+    uint8_t buf[kSerializedSettingsSize];
+    serialize_settings(orig, buf, sizeof(buf));
+    float bad = 2.0f;
+    memcpy(&buf[kLegacySerializedSettingsSize], &bad, sizeof(float));
+
+    StorageSettings loaded{};
+    ASSERT_TRUE(deserialize_settings(buf, sizeof(buf), &loaded));
+    ASSERT_TRUE(loaded.night_brightness_fraction > 0.04f &&
+                loaded.night_brightness_fraction < 0.06f);
+    PASS();
+}
+
 TEST(deserialize_settings_invalid_sound_index) {
     StorageSettings orig{};
     uint8_t buf[kSerializedSettingsSize];
@@ -1857,6 +1920,7 @@ int main() {
     RUN(sensor_factor_dark);
     RUN(sensor_factor_bright);
     RUN(sensor_factor_midpoint);
+    RUN(sensor_factor_calibrated_clock_range);
     RUN(sensor_factor_invalid_range);
 
     // compute_brightness
@@ -1934,6 +1998,9 @@ int main() {
     RUN(screen_awake_only_while_firing);
     RUN(screen_wake_never_reduces_brightness);
     RUN(screen_wake_increases_brightness_in_dark_room);
+    RUN(adaptive_brightness_uses_night_level_in_darkness);
+    RUN(adaptive_brightness_reaches_day_setting);
+    RUN(adaptive_brightness_scales_night_level_with_day_setting);
     RUN(content_dim_disabled_at_threshold);
     RUN(content_dim_reaches_dark_grey_at_zero);
     RUN(content_dim_scales_smoothly_below_threshold);
@@ -2024,6 +2091,7 @@ int main() {
     RUN(deserialize_alarm_small_buf);
     RUN(deserialize_alarm_wrong_version);
     RUN(serialize_settings_roundtrip);
+    RUN(deserialize_legacy_settings_defaults_night_brightness);
     RUN(serialize_settings_defaults);
     RUN(serialize_settings_null_buf);
     RUN(serialize_settings_small_buf);
@@ -2100,6 +2168,7 @@ int main() {
     // D3: deserialize_settings rejects out-of-range values (PLAN.md D3)
     RUN(deserialize_settings_invalid_volume);
     RUN(deserialize_settings_invalid_brightness_nan);
+    RUN(deserialize_settings_invalid_night_brightness);
     RUN(deserialize_settings_invalid_sound_index);
 
     // D5: hour_24_to_12 / hour_12_to_24 out-of-range (PLAN.md D5)

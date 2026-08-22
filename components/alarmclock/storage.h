@@ -16,7 +16,7 @@ namespace alarmclock {
 // Serialization format constants.
 // ---------------------------------------------------------------------------
 
-// Current format version — bump when the layout changes.
+// Base format version. Append-only settings fields remain compatible by size.
 static constexpr uint8_t kStorageVersion = 2;
 
 // Maximum valid alarm sound index for storage validation.
@@ -25,7 +25,9 @@ static constexpr uint8_t kMaxStoredSoundIndex = 5;
 
 // Serialized sizes (including the version byte).
 static constexpr size_t kSerializedAlarmSize = 1 + 1 + 1 + 1 + 1 + kAlarmLabelMaxLen;  // 21
-static constexpr size_t kSerializedSettingsSize = 1 + 4 + 4 + 1 + 1 + 1 + 1;               // 13
+static constexpr size_t kLegacySerializedSettingsSize = 1 + 4 + 4 + 1 + 1 + 1 + 1;  // 13
+static constexpr size_t kSerializedSettingsSize =
+    kLegacySerializedSettingsSize + 4;  // 17
 
 // ---------------------------------------------------------------------------
 // Global settings stored in NVS.
@@ -38,6 +40,7 @@ struct StorageSettings {
   bool time_format_24h = false;
   uint8_t selected_sound_index = 0;
   uint8_t pre_alarm_minutes = 5;
+  float night_brightness_fraction = 0.05f;
 };
 
 // ---------------------------------------------------------------------------
@@ -108,14 +111,17 @@ inline size_t serialize_settings(const StorageSettings &settings, uint8_t *buf,
   buf[offset++] = settings.time_format_24h ? 1 : 0;
   buf[offset++] = settings.selected_sound_index;
   buf[offset++] = settings.pre_alarm_minutes;
+  std::memcpy(&buf[offset], &settings.night_brightness_fraction, sizeof(float));
+  offset += sizeof(float);
   return offset;
 }
 
-// Deserialize StorageSettings from |buf| (must be >= kSerializedSettingsSize bytes).
-// Returns true on success.  Clamps out-of-range values to valid defaults.
+// Deserialize current settings or a legacy record without night brightness.
+// Returns true on success. Clamps out-of-range values to valid defaults.
 inline bool deserialize_settings(const uint8_t *buf, size_t buf_size,
                                  StorageSettings *settings) {
-  if (buf == nullptr || settings == nullptr || buf_size < kSerializedSettingsSize) {
+  if (buf == nullptr || settings == nullptr ||
+      buf_size < kLegacySerializedSettingsSize) {
     return false;
   }
   size_t offset = 0;
@@ -131,6 +137,11 @@ inline bool deserialize_settings(const uint8_t *buf, size_t buf_size,
   settings->time_format_24h = buf[offset++] != 0;
   settings->selected_sound_index = buf[offset++];
   settings->pre_alarm_minutes = buf[offset++];
+  settings->night_brightness_fraction = 0.05f;
+  if (buf_size >= kSerializedSettingsSize) {
+    std::memcpy(&settings->night_brightness_fraction, &buf[offset],
+                sizeof(float));
+  }
 
   // Clamp volume and brightness to [0.0, 1.0].
   if (settings->volume < 0.0f || settings->volume > 1.0f ||
@@ -140,6 +151,12 @@ inline bool deserialize_settings(const uint8_t *buf, size_t buf_size,
   if (settings->brightness < 0.0f || settings->brightness > 1.0f ||
       std::isnan(settings->brightness) || std::isinf(settings->brightness)) {
     settings->brightness = 0.5f;
+  }
+  if (settings->night_brightness_fraction < 0.0f ||
+      settings->night_brightness_fraction > 1.0f ||
+      std::isnan(settings->night_brightness_fraction) ||
+      std::isinf(settings->night_brightness_fraction)) {
+    settings->night_brightness_fraction = 0.05f;
   }
   // Clamp sound index to valid range.
   if (settings->selected_sound_index >= kMaxStoredSoundIndex) {

@@ -167,8 +167,11 @@ bool storage_load_settings(StorageSettings *settings) {
     return false;
   }
 
-  ESP_LOGD(TAG, "Loaded settings: vol=%.2f bri=%.2f snooze=%u 24h=%d sound=%u",
+  ESP_LOGD(TAG,
+           "Loaded settings: vol=%.2f day=%.2f night=%.2f snooze=%u 24h=%d "
+           "sound=%u",
            settings->volume, settings->brightness,
+           settings->night_brightness_fraction,
            settings->snooze_duration_minutes, settings->time_format_24h,
            settings->selected_sound_index);
   return true;

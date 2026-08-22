@@ -44,6 +44,12 @@ static void on_brightness_change(float brightness) {
   }
 }
 
+static void on_night_brightness_change(float brightness_fraction) {
+  if (instance_) {
+    instance_->set_night_brightness_fraction(brightness_fraction);
+  }
+}
+
 static void on_alarm_add() {
   if (instance_) {
     instance_->add_alarm();
@@ -134,6 +140,7 @@ void AlarmClockComponent::setup() {
   cb.on_alarm_snooze = on_snooze;
   cb.on_volume_change = on_volume_change;
   cb.on_brightness_change = on_brightness_change;
+  cb.on_night_brightness_change = on_night_brightness_change;
   cb.on_alarm_add = on_alarm_add;
   cb.on_alarm_toggle = on_alarm_toggle;
   cb.on_alarm_save = on_alarm_save;
@@ -400,6 +407,18 @@ void AlarmClockComponent::set_brightness(float brightness) {
   ESP_LOGI(TAG, "Brightness set to %.0f%%", brightness_ * 100.0f);
 }
 
+void AlarmClockComponent::set_night_brightness_fraction(
+    float brightness_fraction) {
+  if (brightness_fraction < 0.0f) { brightness_fraction = 0.0f; }
+  if (brightness_fraction > 1.0f) { brightness_fraction = 1.0f; }
+  night_brightness_fraction_ = brightness_fraction;
+  mark_settings_dirty_();
+  update_backlight_();
+  ui_update_night_brightness(brightness_fraction);
+  ESP_LOGI(TAG, "Night brightness set to %.0f%% of daytime",
+           night_brightness_fraction_ * 100.0f);
+}
+
 void AlarmClockComponent::set_sensor_factor(float sensor_factor, float lux) {
   if (sensor_factor < 0.0f) { sensor_factor = 0.0f; }
   if (sensor_factor > 1.0f) { sensor_factor = 1.0f; }
@@ -413,13 +432,16 @@ void AlarmClockComponent::set_sensor_factor(float sensor_factor, float lux) {
   }
 
   const float effective_brightness =
-      compute_screen_brightness(brightness_, sensor_factor_, screen_asleep_);
+      compute_screen_brightness(brightness_, sensor_factor_, screen_asleep_,
+                  night_brightness_fraction_);
   const uint8_t content_dim_opacity =
-      compute_content_dim_opacity(brightness_);
+      compute_content_dim_opacity(effective_brightness);
   ESP_LOGI(TAG,
-           "Ambient %.1f lx: setting %.0f%%, sensor %.1f%%, effective %.1f%%, "
-           "PWM %u, color filter %.1f%%",
-           lux, brightness_ * 100.0f, sensor_factor_ * 100.0f,
+           "Ambient %.1f lx: day %.0f%%, night %.0f%%, sensor %.1f%%, "
+           "state %s, effective %.1f%%, PWM %u, color filter %.1f%%",
+           lux, brightness_ * 100.0f,
+           night_brightness_fraction_ * 100.0f, sensor_factor_ * 100.0f,
+           screen_asleep_ ? "idle" : "awake",
            effective_brightness * 100.0f,
            static_cast<unsigned>(brightness_to_pwm(effective_brightness)),
            content_dim_opacity * 100.0f / 255.0f);
@@ -636,7 +658,9 @@ void AlarmClockComponent::check_alarms_(uint8_t hour, uint8_t minute,
 
 void AlarmClockComponent::update_backlight_() {
   const float brightness =
-      compute_screen_brightness(brightness_, sensor_factor_, screen_asleep_);
+      compute_screen_brightness(brightness_, sensor_factor_, screen_asleep_,
+                                night_brightness_fraction_);
+  ui_set_content_brightness(brightness);
   const uint8_t pwm = brightness_to_pwm(brightness);
   if (pwm == last_backlight_pwm_) {
     return;
@@ -749,6 +773,7 @@ void AlarmClockComponent::sync_ui_() {
   sync_alarm_slots_ui_();
   ui_update_volume(volume_);
   ui_update_brightness(brightness_);
+  ui_update_night_brightness(night_brightness_fraction_);
   ui_update_sound_selection(selected_sound_index_);
   ui_update_snooze_selection(
       snooze_minutes_to_option(state_machine_.snooze_duration_minutes()));
@@ -838,6 +863,7 @@ void AlarmClockComponent::save_settings_to_storage_() {
   StorageSettings settings;
   settings.volume = volume_;
   settings.brightness = brightness_;
+  settings.night_brightness_fraction = night_brightness_fraction_;
   settings.snooze_duration_minutes = state_machine_.snooze_duration_minutes();
   settings.time_format_24h = time_format_24h_;
   settings.selected_sound_index = selected_sound_index_;
@@ -878,12 +904,15 @@ void AlarmClockComponent::load_from_storage_() {
   if (storage_load_settings(&settings)) {
     volume_ = settings.volume;
     brightness_ = settings.brightness;
+    night_brightness_fraction_ = settings.night_brightness_fraction;
     state_machine_.set_snooze_duration(settings.snooze_duration_minutes);
     selected_sound_index_ = settings.selected_sound_index;
     time_format_24h_ = settings.time_format_24h;
     pre_alarm_minutes_ = settings.pre_alarm_minutes;
     ESP_LOGI(TAG, "Loaded settings from NVS");
   }
+
+  update_backlight_();
 
   // Sync UI with loaded data.
   sync_ui_();
