@@ -438,9 +438,10 @@ void AlarmClockComponent::set_sensor_factor(float sensor_factor, float lux) {
       compute_content_dim_opacity(effective_brightness);
   ESP_LOGI(TAG,
            "Ambient %.1f lx: day %.0f%%, night %.0f%%, sensor %.1f%%, "
-           "effective %.1f%%, PWM %u, color filter %.1f%%",
+           "state %s, effective %.1f%%, PWM %u, color filter %.1f%%",
            lux, brightness_ * 100.0f,
            night_brightness_fraction_ * 100.0f, sensor_factor_ * 100.0f,
+           screen_asleep_ ? "idle" : "awake",
            effective_brightness * 100.0f,
            static_cast<unsigned>(brightness_to_pwm(effective_brightness)),
            content_dim_opacity * 100.0f / 255.0f);
