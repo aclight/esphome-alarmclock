@@ -1175,7 +1175,8 @@ TEST(serialized_alarm_size_constant) {
 }
 
 TEST(serialized_settings_size_constant) {
-    ASSERT_EQ(kSerializedSettingsSize, (size_t)13);
+    ASSERT_EQ(kLegacySerializedSettingsSize, (size_t)13);
+    ASSERT_EQ(kSerializedSettingsSize, (size_t)17);
     PASS();
 }
 
