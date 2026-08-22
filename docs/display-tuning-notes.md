@@ -20,8 +20,8 @@ Relevant code:
 
 - `update_backlight_()` — [components/alarmclock/alarmclock.cpp](../components/alarmclock/alarmclock.cpp#L606)
 - `brightness_to_pwm()` — [components/alarmclock/alarmclock.h](../components/alarmclock/alarmclock.h#L272)
-- `set_sensor_factor()` (deadband 0.05, EMA alpha 0.2) — [components/alarmclock/alarmclock.cpp](../components/alarmclock/alarmclock.cpp#L397)
-- `lux_to_sensor_factor()` (maps 0.5–15 lx → 0.0–1.0) — [components/alarmclock/alarmclock.h](../components/alarmclock/alarmclock.h#L193)
+- `set_sensor_factor()` (deadband 0.02, EMA alpha 0.75) — [components/alarmclock/alarmclock.cpp](../components/alarmclock/alarmclock.cpp)
+- `lux_to_sensor_factor()` (logarithmically maps 0.1–0.8 lx to 0.0–1.0) — [components/alarmclock/alarmclock.h](../components/alarmclock/alarmclock.h)
 - Clock tick / redraw throttling — [alarmclock.yaml](../alarmclock.yaml#L218)
 
 ## Observed symptoms
@@ -61,14 +61,31 @@ is already in use, so backlight math alone cannot make the display darker.
 1. Verify the actual command range the STC8H1K28 accepts (Elecrow's v1.3 docs /
    Arduino examples) — the 0–244/245 mapping came from a v1.1-era example and may
    be wrong or coarser than the real range.
-2. Below 25% slider brightness, an inherited LVGL color filter now shades all UI
-   colors smoothly toward black. At 0%, white content is approximately
-   `0x404040`. This neutral-grey approach preserves color meaning and avoids
-   maintaining separate night colors for every widget. The alarm-firing overlay
-   opts out so Snooze and Dismiss controls remain fully colored and legible.
+2. Below 25% effective brightness, an inherited LVGL color filter shades all UI
+  colors smoothly toward black. At 0%, white content is approximately
+  `0x404040`. This neutral-grey approach preserves color meaning and avoids
+  maintaining separate night colors for every widget. The alarm-firing overlay
+  opts out so Snooze and Dismiss controls remain fully colored and legible.
 
 The filter changes draw colors directly rather than lowering whole-object
 opacity, so it does not require a full-screen intermediate compositing layer.
+
+## Adaptive brightness calibration
+
+Measurements with the revised enclosure established these operating points:
+
+| Condition | Reading |
+|---|---:|
+| Dark bedroom overnight | 0.1 lx |
+| Indirect overcast daylight, room lights off | 0.8 lx |
+| Office lights on | 5.1 lx |
+
+Ambient light is mapped logarithmically from 0.1 lx (night) to 0.8 lx (day).
+Readings above 0.8 lx use the configured Display Brightness. At the dark end,
+the persisted Night Brightness setting selects a percentage of Display
+Brightness; it defaults to 5% and can be adjusted from the clock or Home
+Assistant. Both backlight PWM and content filtering use the resulting effective
+brightness.
 
 ## Hypotheses to test for the flicker (ranked)
 

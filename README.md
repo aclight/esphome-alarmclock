@@ -39,7 +39,7 @@ The CrowPanel Advance 4.3" has a 4-position DIP switch used during flashing and 
 - **Clock display** — Large LVGL clock face, auto-dimming based on ambient light
 - **Alarm management** — Multiple alarms with day-of-week scheduling, snooze/dismiss via touch
 - **Audio playback** — Alarm tones via I2S → MAX98357A → speaker
-- **Auto-dimming backlight** — Ambient light sensor drives LCD backlight brightness
+- **Adaptive display brightness** — Calibrated ambient-light control with separate daytime and night preferences
 - **Home Assistant integration** — Alarm control, sensor data, OTA updates via ESPHome API
 - **LVGL touchscreen UI** — Clock faces, alarm configuration, settings screens
 
@@ -70,6 +70,11 @@ The BH1750 is an optional external module that connects to the CrowPanel's I2C h
 The CrowPanel Advance 4.3" exposes a 4-pin I2C connector (IO15/IO16/3.3V/GND). If your BH1750 breakout board has a matching connector (e.g. STEMMA QT / Qwiic), you can plug it in directly. Otherwise, use jumper wires to the header pins.
 
 My BH1750 board uses I2C address 0x23 if ADDR is floating or grounded and 0x5C if it is tied to VCC.
+
+Display Brightness sets the daytime level. Night Brightness sets the dark-room
+level as a percentage of that daytime setting. The firmware interpolates between
+them from the BH1750 reading and applies neutral content shading when the
+backlight reaches the bottom of its useful range.
 
 ## Open Questions
 

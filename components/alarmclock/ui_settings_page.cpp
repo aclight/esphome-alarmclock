@@ -1,4 +1,4 @@
-// Settings page — volume, brightness, alarm sound, snooze duration, time format.
+// Settings page — volume, day/night brightness, sound, snooze, and time format.
 #ifndef UNIT_TEST
 
 #include "ui.h"
@@ -19,6 +19,8 @@ static lv_obj_t *volume_slider_ = nullptr;
 static lv_obj_t *volume_label_ = nullptr;
 static lv_obj_t *brightness_slider_ = nullptr;
 static lv_obj_t *brightness_label_ = nullptr;
+static lv_obj_t *night_brightness_slider_ = nullptr;
+static lv_obj_t *night_brightness_label_ = nullptr;
 static lv_obj_t *sound_roller_ = nullptr;
 static lv_obj_t *snooze_btns_[kSnoozeDurationOptionCount] = {};
 static lv_obj_t *pre_alarm_btns_[kPreAlarmOptionCount] = {};
@@ -40,6 +42,7 @@ struct ControlGestureState {
 
 static ControlGestureState volume_gesture_;
 static ControlGestureState brightness_gesture_;
+static ControlGestureState night_brightness_gesture_;
 
 // Height of the fixed header strip at the top of the page.
 // Snooze button labels.
@@ -97,7 +100,8 @@ static void control_pressed_cb(lv_event_t *e) {
     return;
   }
   state->vertical_scroll = false;
-  if (control == volume_slider_ || control == brightness_slider_) {
+  if (control == volume_slider_ || control == brightness_slider_ ||
+      control == night_brightness_slider_) {
     state->initial_value = lv_slider_get_value(control);
   }
 }
@@ -141,6 +145,9 @@ static void control_released_cb(lv_event_t *e) {
       cb.on_volume_change(restored_value);
     } else if (control == brightness_slider_ && cb.on_brightness_change) {
       cb.on_brightness_change(restored_value);
+    } else if (control == night_brightness_slider_ &&
+               cb.on_night_brightness_change) {
+      cb.on_night_brightness_change(restored_value);
     }
   }
   state->vertical_scroll = false;
@@ -183,6 +190,26 @@ static void brightness_slider_cb(lv_event_t *e) {
   const auto &cb = ui_get_callbacks();
   if (cb.on_brightness_change) {
     cb.on_brightness_change(brightness);
+  }
+}
+
+static void night_brightness_slider_cb(lv_event_t *e) {
+  if (night_brightness_gesture_.vertical_scroll) {
+    return;
+  }
+  lv_obj_t *slider = static_cast<lv_obj_t *>(lv_event_get_target(e));
+  int32_t val = lv_slider_get_value(slider);
+  float brightness_fraction = static_cast<float>(val) / 100.0f;
+
+  char buf[8];
+  snprintf(buf, sizeof(buf), "%d%%", static_cast<int>(val));
+  if (night_brightness_label_) {
+    lv_label_set_text(night_brightness_label_, buf);
+  }
+
+  const auto &cb = ui_get_callbacks();
+  if (cb.on_night_brightness_change) {
+    cb.on_night_brightness_change(brightness_fraction);
   }
 }
 
@@ -363,6 +390,51 @@ void ui_build_settings_page(lv_obj_t *page) {
   lv_label_set_text(brightness_label_, "50%");
   lv_obj_set_style_min_width(brightness_label_, 80, 0);
 
+  // --- Night brightness section ---
+  lv_obj_t *night_title = lv_label_create(parent);
+  lv_obj_set_style_text_font(night_title, &lv_font_montserrat_28, 0);
+  lv_obj_set_style_text_color(night_title,
+                              lv_color_hex(theme::kColorSecondary), 0);
+  lv_label_set_text(night_title, "Night Brightness");
+  lv_obj_set_width(night_title, theme::kScreenWidth - 60);
+
+  lv_obj_t *night_row = create_row(parent, theme::kScreenWidth - 60, 56);
+  lv_obj_set_flex_align(night_row, LV_FLEX_ALIGN_START,
+                        LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  lv_obj_set_style_pad_column(night_row, 16, 0);
+
+  night_brightness_slider_ = lv_slider_create(night_row);
+  lv_obj_set_width(night_brightness_slider_, theme::kScreenWidth - 300);
+  lv_obj_set_height(night_brightness_slider_, kSliderHeight);
+  lv_slider_set_range(night_brightness_slider_, 0, 100);
+  lv_slider_set_value(night_brightness_slider_, 5, LV_ANIM_OFF);
+  lv_obj_add_flag(night_brightness_slider_, LV_OBJ_FLAG_SCROLL_CHAIN_VER);
+  lv_obj_add_event_cb(night_brightness_slider_, control_pressed_cb,
+                      LV_EVENT_PRESSED, &night_brightness_gesture_);
+  lv_obj_add_event_cb(night_brightness_slider_, control_pressing_cb,
+                      LV_EVENT_PRESSING, &night_brightness_gesture_);
+  lv_obj_add_event_cb(night_brightness_slider_, control_released_cb,
+                      LV_EVENT_RELEASED, &night_brightness_gesture_);
+  lv_obj_set_style_bg_color(night_brightness_slider_,
+                            lv_color_hex(theme::kColorMuted), LV_PART_MAIN);
+  lv_obj_set_style_bg_color(night_brightness_slider_,
+                            lv_color_hex(theme::kColorAccent),
+                            LV_PART_INDICATOR);
+  lv_obj_set_style_bg_color(night_brightness_slider_,
+                            lv_color_hex(theme::kColorPrimary), LV_PART_KNOB);
+  lv_obj_set_style_outline_width(night_brightness_slider_, 0, LV_PART_MAIN);
+  lv_obj_add_event_cb(night_brightness_slider_, night_brightness_slider_cb,
+                      LV_EVENT_VALUE_CHANGED, nullptr);
+  lv_obj_set_style_pad_all(night_brightness_slider_, 4, LV_PART_KNOB);
+
+  night_brightness_label_ = lv_label_create(night_row);
+  lv_obj_set_style_text_font(night_brightness_label_, &lv_font_montserrat_28,
+                             0);
+  lv_obj_set_style_text_color(night_brightness_label_,
+                              lv_color_hex(theme::kColorPrimary), 0);
+  lv_label_set_text(night_brightness_label_, "5%");
+  lv_obj_set_style_min_width(night_brightness_label_, 80, 0);
+
   // --- Alarm sound section ---
   lv_obj_t *sound_title = lv_label_create(parent);
   lv_obj_set_style_text_font(sound_title, &lv_font_montserrat_28, 0);
@@ -495,7 +567,6 @@ void ui_update_volume(float volume) {
 }
 
 void ui_update_brightness(float brightness) {
-  ui_set_content_brightness(brightness);
   if (brightness_slider_) {
     lv_slider_set_value(brightness_slider_, static_cast<int32_t>(brightness * 100), LV_ANIM_OFF);
   }
@@ -503,6 +574,20 @@ void ui_update_brightness(float brightness) {
     char buf[8];
     snprintf(buf, sizeof(buf), "%d%%", static_cast<int>(brightness * 100));
     lv_label_set_text(brightness_label_, buf);
+  }
+}
+
+void ui_update_night_brightness(float brightness_fraction) {
+  if (night_brightness_slider_) {
+    lv_slider_set_value(night_brightness_slider_,
+                        static_cast<int32_t>(brightness_fraction * 100),
+                        LV_ANIM_OFF);
+  }
+  if (night_brightness_label_) {
+    char buf[8];
+    snprintf(buf, sizeof(buf), "%d%%",
+             static_cast<int>(brightness_fraction * 100));
+    lv_label_set_text(night_brightness_label_, buf);
   }
 }
 

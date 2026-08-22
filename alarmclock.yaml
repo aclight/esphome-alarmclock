@@ -289,9 +289,10 @@ sensor:
     on_value:
       then:
         - lambda: |-
-            // Calibrated for this enclosure placement: indoors often reads in
-            // single/low-double-digit lux, so map that range to full control.
-            float sf = alarmclock::lux_to_sensor_factor(x, 0.5f, 15.0f);
+            // Logarithmic interpolation from a dark bedroom to indirect
+            // daylight; brighter conditions use the configured daytime level.
+            float sf = alarmclock::lux_to_sensor_factor(
+                x, alarmclock::kAmbientDarkLux, alarmclock::kAmbientDayLux);
             id(alarm_clock_component).set_sensor_factor(sf, x);
 
 # ---------------------------------------------------------------------------
@@ -345,6 +346,21 @@ number:
     update_interval: 5s
     set_action:
       - lambda: 'id(alarm_clock_component).set_brightness(x / 100.0f);'
+
+  - platform: template
+    name: "Night Brightness"
+    id: num_night_brightness
+    icon: "mdi:brightness-4"
+    min_value: 0
+    max_value: 100
+    step: 5
+    unit_of_measurement: "%"
+    lambda: |-
+      return id(alarm_clock_component).night_brightness_fraction() * 100.0f;
+    update_interval: 5s
+    set_action:
+      - lambda: |-
+          id(alarm_clock_component).set_night_brightness_fraction(x / 100.0f);
 
 # --- Text Sensor: Alarm state (idle/firing/snoozed) ---
 text_sensor:
