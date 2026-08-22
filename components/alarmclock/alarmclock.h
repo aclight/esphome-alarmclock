@@ -49,7 +49,7 @@ struct AlarmSound {
   const char *rtttl;
 };
 
-static constexpr uint8_t kAlarmSoundCount = 5;
+static constexpr uint8_t kAlarmSoundCount = 9;
 
 static const AlarmSound kAlarmSounds[kAlarmSoundCount] = {
     {"Classic Beep", "Alarm:d=8,o=6,b=400:c,p,c,p,c,4p,c,p,c,p,c"},
@@ -57,7 +57,14 @@ static const AlarmSound kAlarmSounds[kAlarmSoundCount] = {
     {"Gentle Chime", "Chime:d=8,o=6,b=200:e,g,a,g,e,4p,e,g,a,g,e"},
     {"Digital Buzz", "Buzz:d=16,o=7,b=600:c,p,c,p,c,p,c,8p,c,p,c,p,c,p,c"},
     {"Melody Wake", "Wake:d=8,o=5,b=180:g,a,b,d6,4b,a,g,4a,2g"},
+    {"Soft Bells", "Bells:d=8,o=6,b=140:e,4p,g,4p,b,2p,g,4p,e,2p"},
+    {"Sunrise", "Sunrise:d=8,o=5,b=150:c,e,g,c6,b,g,e,4g,2c6"},
+    {"Bright Steps", "Steps:d=8,o=5,b=190:c,d,e,g,a,c6,4a,4g,2c6"},
+    {"Urgent Pulse", "Pulse:d=16,o=6,b=480:c,c,p,c,c,p,g,g,p,g,g,4p"},
 };
+
+static_assert(kMaxStoredSoundIndex == kAlarmSoundCount,
+              "Stored sound-index limit must match the alarm sound catalog");
 
 // Get the RTTTL string for a sound index (clamped to valid range).
 inline const char *get_alarm_sound_rtttl(uint8_t index) {

@@ -1437,7 +1437,8 @@ TEST(serialize_settings_version_byte) {
 // ===========================================================================
 
 TEST(alarm_sound_count) {
-    ASSERT_EQ(kAlarmSoundCount, (uint8_t)5);
+    ASSERT_EQ(kAlarmSoundCount, (uint8_t)9);
+    ASSERT_EQ(kMaxStoredSoundIndex, kAlarmSoundCount);
     PASS();
 }
 
