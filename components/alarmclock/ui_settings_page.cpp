@@ -21,7 +21,7 @@ static lv_obj_t *brightness_slider_ = nullptr;
 static lv_obj_t *brightness_label_ = nullptr;
 static lv_obj_t *night_brightness_slider_ = nullptr;
 static lv_obj_t *night_brightness_label_ = nullptr;
-static lv_obj_t *sound_roller_ = nullptr;
+static lv_obj_t *sound_dropdown_ = nullptr;
 static lv_obj_t *snooze_btns_[kSnoozeDurationOptionCount] = {};
 static lv_obj_t *pre_alarm_btns_[kPreAlarmOptionCount] = {};
 static lv_obj_t *time_format_switch_ = nullptr;
@@ -33,8 +33,6 @@ static uint8_t pre_alarm_selected_ = 1;
 
 static constexpr int16_t kControlGestureThresholdPx = 10;
 static constexpr int16_t kSliderHeight = 32;
-static constexpr int16_t kSoundRollerWidth = 420;
-static constexpr uint8_t kSoundRollerVisibleRows = 3;
 
 struct ControlGestureState {
   lv_point_t press_point = {};
@@ -201,20 +199,14 @@ static void night_brightness_slider_cb(lv_event_t *e) {
 }
 
 static void sound_selection_cb(lv_event_t *e) {
-  lv_obj_t *roller = static_cast<lv_obj_t *>(lv_event_get_target(e));
-  uint32_t sel = lv_roller_get_selected(roller);
+  lv_obj_t *dropdown = static_cast<lv_obj_t *>(lv_event_get_target(e));
+  uint16_t selected = lv_dropdown_get_selected(dropdown);
   const auto &cb = ui_get_callbacks();
   if (cb.on_sound_change) {
-    cb.on_sound_change(static_cast<uint8_t>(sel));
+    cb.on_sound_change(static_cast<uint8_t>(selected));
   }
-}
-
-static void sound_preview_cb(lv_event_t *e) {
-  lv_obj_t *roller = static_cast<lv_obj_t *>(lv_event_get_target(e));
-  uint32_t sel = lv_roller_get_selected(roller);
-  const auto &cb = ui_get_callbacks();
   if (cb.on_sound_preview) {
-    cb.on_sound_preview(static_cast<uint8_t>(sel));
+    cb.on_sound_preview(static_cast<uint8_t>(selected));
   }
 }
 
@@ -426,7 +418,7 @@ void ui_build_settings_page(lv_obj_t *page) {
   lv_label_set_text(sound_title, "Alarm Sound");
   lv_obj_set_width(sound_title, theme::kScreenWidth - 60);
 
-  // Build roller options string from kAlarmSounds.
+  // Build dropdown options string from kAlarmSounds.
   static char sound_options[256];
   size_t offset = 0;
   for (uint8_t i = 0; i < kAlarmSoundCount; ++i) {
@@ -441,17 +433,14 @@ void ui_build_settings_page(lv_obj_t *page) {
   }
   sound_options[offset] = '\0';
 
-  sound_roller_ = lv_roller_create(parent);
-  lv_roller_set_options(sound_roller_, sound_options, LV_ROLLER_MODE_NORMAL);
-  lv_obj_clear_flag(sound_roller_, LV_OBJ_FLAG_SCROLL_CHAIN_VER);
-  lv_obj_set_style_text_font(sound_roller_, &lv_font_montserrat_24, 0);
-  lv_obj_set_width(sound_roller_, kSoundRollerWidth);
-  lv_obj_set_style_outline_width(sound_roller_, 0, LV_PART_MAIN);
-  lv_roller_set_visible_row_count(sound_roller_, kSoundRollerVisibleRows);
-  lv_obj_add_event_cb(sound_roller_, sound_selection_cb,
+  sound_dropdown_ = lv_dropdown_create(parent);
+  lv_dropdown_set_options(sound_dropdown_, sound_options);
+  lv_obj_set_width(sound_dropdown_, theme::kScreenWidth - 60);
+  lv_obj_set_style_text_font(sound_dropdown_, &lv_font_montserrat_24, 0);
+  lv_obj_set_style_outline_width(sound_dropdown_, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(sound_dropdown_, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
+  lv_obj_add_event_cb(sound_dropdown_, sound_selection_cb,
                       LV_EVENT_VALUE_CHANGED, nullptr);
-  lv_obj_add_event_cb(sound_roller_, sound_preview_cb, LV_EVENT_RELEASED,
-                      nullptr);
 
   // --- Snooze duration section (4 buttons in a row) ---
   lv_obj_t *snooze_title = lv_label_create(parent);
@@ -576,11 +565,11 @@ void ui_update_night_brightness(float brightness_fraction) {
 }
 
 void ui_update_sound_selection(uint8_t sound_index) {
-  if (sound_roller_) {
+  if (sound_dropdown_) {
     if (sound_index >= kAlarmSoundCount) {
       sound_index = 0;
     }
-    lv_roller_set_selected(sound_roller_, sound_index, LV_ANIM_OFF);
+    lv_dropdown_set_selected(sound_dropdown_, sound_index);
   }
 }
 
