@@ -52,6 +52,10 @@ slider callback work as disproven as the primary vertical-scroll bottleneck.
 - Judge finger-down tracking separately from post-release travel: momentum is
 	expected to improve flick behavior, not rendering throughput while dragging.
 
+**Hardware result:** Merged and tested. No clear responsiveness improvement was
+visible, but no adverse scrolling or control behavior was observed. Retain
+native scroll momentum and continue with the alarm sound control replacement.
+
 ### PR 4 — Replace the alarm sound roller with a dropdown
 
 - Enable the LVGL dropdown widget in the YAML bootstrap page so ESPHome includes

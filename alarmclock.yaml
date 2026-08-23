@@ -199,6 +199,9 @@ lvgl:
         - roller:
             hidden: true
             options: "1"
+        - dropdown:
+            hidden: true
+            options: "1"
         - textarea:
             hidden: true
         - keyboard:
