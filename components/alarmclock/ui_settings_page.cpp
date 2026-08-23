@@ -296,12 +296,9 @@ void ui_build_settings_page(lv_obj_t *page) {
   lv_obj_set_style_pad_row(parent, 10, 0);
   lv_obj_add_flag(parent, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_set_scroll_dir(parent, LV_DIR_VER);
-  // Avoid elastic bounce/momentum animations; they add redraw cost and make
-  // the page feel sluggish on this hardware.
+  // Keep the edge fixed while retaining LVGL's native momentum for flicks.
   lv_obj_clear_flag(parent, LV_OBJ_FLAG_SCROLL_ELASTIC);
-  lv_obj_clear_flag(parent, LV_OBJ_FLAG_SCROLL_MOMENTUM);
   lv_obj_set_scrollbar_mode(parent, LV_SCROLLBAR_MODE_AUTO);
-  lv_obj_set_style_anim_time(parent, 0, LV_PART_MAIN);
 
   // --- Volume section ---
   lv_obj_t *vol_title = lv_label_create(parent);

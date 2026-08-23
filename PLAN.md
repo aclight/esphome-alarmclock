@@ -35,6 +35,11 @@ primary bottleneck.
 	released value, and that brightness applies promptly when the slider is
 	released.
 
+**Hardware result:** Merged and tested. Slider behavior remains correct, but
+general Settings-page vertical scrolling is not noticeably faster. Retain the
+release-only setting updates as a useful reduction in side effects, but treat
+slider callback work as disproven as the primary vertical-scroll bottleneck.
+
 ### PR 3 — Restore native scroll behavior
 
 - Re-enable LVGL scroll momentum on Settings, matching the widgets demo and the
@@ -44,6 +49,8 @@ primary bottleneck.
 	press-lost and scroll-chain behavior without protecting a real interaction.
 - Compare short drags, fast flicks, scrolling that starts over a control, and
 	accidental row activation.
+- Judge finger-down tracking separately from post-release travel: momentum is
+	expected to improve flick behavior, not rendering throughput while dragging.
 
 ### PR 4 — Replace the alarm sound roller with a dropdown
 
