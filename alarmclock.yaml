@@ -147,6 +147,9 @@ touchscreen:
   - platform: gt911
     id: touch
     display: main_display
+    # ESPHome defaults to 50 ms polling when no interrupt pin is configured.
+    # Sample near LVGL's 60 Hz refresh cadence for smoother drag tracking.
+    update_interval: 16ms
 
 # --- LVGL UI (minimal — all UI built in C++ component) ---
 # The boot_page exists solely to force ESPHome to compile in the LVGL fonts
