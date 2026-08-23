@@ -18,6 +18,11 @@ to one change.
 - Keep the change only if scrolling becomes smoother without introducing missed
 	touches, I2C errors, or display instability.
 
+**Hardware result:** Merged and tested. No meaningful responsiveness change was
+visible, but no adverse touch, display, or I2C behavior was observed. Retain the
+16 ms interval, but treat the original 50 ms polling rate as disproven as the
+primary bottleneck.
+
 ### PR 2 — Reduce work during slider drags
 
 - Keep `LV_EVENT_VALUE_CHANGED` local to the UI: update only the displayed
@@ -27,7 +32,8 @@ to one change.
 	slider does not save an accidental value.
 - Avoid duplicate slider/label updates and repeated `INFO` logs during a drag.
 - Verify that Home Assistant values and persisted settings receive the final
-	released value, and that brightness still previews acceptably.
+	released value, and that brightness applies promptly when the slider is
+	released.
 
 ### PR 3 — Restore native scroll behavior
 

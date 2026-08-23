@@ -94,6 +94,15 @@ static bool point_from_event(lv_event_t *e, lv_point_t *out_point) {
   return true;
 }
 
+static void update_percentage_label(lv_obj_t *label, int32_t value) {
+  if (label == nullptr) {
+    return;
+  }
+  char buf[8];
+  snprintf(buf, sizeof(buf), "%d%%", static_cast<int>(value));
+  lv_label_set_text(label, buf);
+}
+
 static void control_pressed_cb(lv_event_t *e) {
   lv_obj_t *control = static_cast<lv_obj_t *>(lv_event_get_target(e));
   ControlGestureState *state =
@@ -141,16 +150,27 @@ static void control_released_cb(lv_event_t *e) {
   }
   if (state->vertical_scroll) {
     lv_slider_set_value(control, state->initial_value, LV_ANIM_OFF);
-    float restored_value = static_cast<float>(state->initial_value) / 100.0f;
-    const auto &cb = ui_get_callbacks();
-    if (control == volume_slider_ && cb.on_volume_change) {
-      cb.on_volume_change(restored_value);
-    } else if (control == brightness_slider_ && cb.on_brightness_change) {
-      cb.on_brightness_change(restored_value);
-    } else if (control == night_brightness_slider_ &&
-               cb.on_night_brightness_change) {
-      cb.on_night_brightness_change(restored_value);
+    if (control == volume_slider_) {
+      update_percentage_label(volume_label_, state->initial_value);
+    } else if (control == brightness_slider_) {
+      update_percentage_label(brightness_label_, state->initial_value);
+    } else if (control == night_brightness_slider_) {
+      update_percentage_label(night_brightness_label_, state->initial_value);
     }
+    state->vertical_scroll = false;
+    return;
+  }
+
+  const float value =
+      static_cast<float>(lv_slider_get_value(control)) / 100.0f;
+  const auto &cb = ui_get_callbacks();
+  if (control == volume_slider_ && cb.on_volume_change) {
+    cb.on_volume_change(value);
+  } else if (control == brightness_slider_ && cb.on_brightness_change) {
+    cb.on_brightness_change(value);
+  } else if (control == night_brightness_slider_ &&
+             cb.on_night_brightness_change) {
+    cb.on_night_brightness_change(value);
   }
   state->vertical_scroll = false;
 }
@@ -160,19 +180,7 @@ static void volume_slider_cb(lv_event_t *e) {
     return;
   }
   lv_obj_t *slider = static_cast<lv_obj_t *>(lv_event_get_target(e));
-  int32_t val = lv_slider_get_value(slider);
-  float volume = static_cast<float>(val) / 100.0f;
-
-  char buf[8];
-  snprintf(buf, sizeof(buf), "%d%%", static_cast<int>(val));
-  if (volume_label_) {
-    lv_label_set_text(volume_label_, buf);
-  }
-
-  const auto &cb = ui_get_callbacks();
-  if (cb.on_volume_change) {
-    cb.on_volume_change(volume);
-  }
+  update_percentage_label(volume_label_, lv_slider_get_value(slider));
 }
 
 static void brightness_slider_cb(lv_event_t *e) {
@@ -180,19 +188,7 @@ static void brightness_slider_cb(lv_event_t *e) {
     return;
   }
   lv_obj_t *slider = static_cast<lv_obj_t *>(lv_event_get_target(e));
-  int32_t val = lv_slider_get_value(slider);
-  float brightness = static_cast<float>(val) / 100.0f;
-
-  char buf[8];
-  snprintf(buf, sizeof(buf), "%d%%", static_cast<int>(val));
-  if (brightness_label_) {
-    lv_label_set_text(brightness_label_, buf);
-  }
-
-  const auto &cb = ui_get_callbacks();
-  if (cb.on_brightness_change) {
-    cb.on_brightness_change(brightness);
-  }
+  update_percentage_label(brightness_label_, lv_slider_get_value(slider));
 }
 
 static void night_brightness_slider_cb(lv_event_t *e) {
@@ -200,19 +196,8 @@ static void night_brightness_slider_cb(lv_event_t *e) {
     return;
   }
   lv_obj_t *slider = static_cast<lv_obj_t *>(lv_event_get_target(e));
-  int32_t val = lv_slider_get_value(slider);
-  float brightness_fraction = static_cast<float>(val) / 100.0f;
-
-  char buf[8];
-  snprintf(buf, sizeof(buf), "%d%%", static_cast<int>(val));
-  if (night_brightness_label_) {
-    lv_label_set_text(night_brightness_label_, buf);
-  }
-
-  const auto &cb = ui_get_callbacks();
-  if (cb.on_night_brightness_change) {
-    cb.on_night_brightness_change(brightness_fraction);
-  }
+  update_percentage_label(night_brightness_label_,
+                          lv_slider_get_value(slider));
 }
 
 static void sound_selection_cb(lv_event_t *e) {
