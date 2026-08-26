@@ -1,6 +1,10 @@
+substitutions:
+  name: "alarmclock"
+  friendly_name: "Alarm Clock"
+
 esphome:
-  name: alarmclock
-  friendly_name: Alarm Clock
+  name: ${name}
+  friendly_name: ${friendly_name}
   project:
     name: aclight.alarmclock
     version: "1.0.0"

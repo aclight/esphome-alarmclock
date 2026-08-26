@@ -24,7 +24,7 @@ Standalone bedside alarm clock built on the **Elecrow CrowPanel Advance 4.3"** (
 
 ### DIP Switch
 
-The CrowPanel Advance 4.3" has a 4-position DIP switch used during flashing and boot mode selection. All switches should be OFF during normal operation.
+The CrowPanel Advance 4.3" has a 4-position DIP switch used during flashing and boot mode selection. **All switches should be OFF during normal operation.**
 
 ### Peripherals
 
