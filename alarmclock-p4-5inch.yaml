@@ -47,6 +47,15 @@ substitutions:
 packages:
   alarmclock: !include alarmclock.yaml
 
+# TEMPORARY: diagnosing the blank P4 screen. Revert once resolved.
+logger:
+  level: DEBUG
+  logs:
+    i2c.idf: INFO
+    lvgl: INFO
+    touchscreen: DEBUG
+    gt911.touchscreen: DEBUG
+
 esp32:
   # Targets pre-rev3 silicon: the image then boots on both engineering and
   # production P4s, whereas a rev3-targeted image is rejected by early samples.
