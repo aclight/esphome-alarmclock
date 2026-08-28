@@ -11,7 +11,10 @@ substitutions:
   display_vsync_pin: GPIO41
   display_hsync_pin: GPIO40
   display_pclk_pin: GPIO39
-  display_pclk_frequency: 14MHz
+  # Refresh = pclk / ((800+8+4+43) * (480+8+4+12)) = pclk / 430920.
+  # 14MHz gave only 32.5Hz, which tears; 18MHz gives ~42Hz, matching the rate
+  # that eliminated identical tearing on the P4 board.
+  display_pclk_frequency: 18MHz
   display_hsync_front_porch: "8"
   display_hsync_pulse_width: "4"
   display_hsync_back_porch: "43"
