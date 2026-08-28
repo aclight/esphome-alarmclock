@@ -24,6 +24,11 @@ jobs:
 
   esphome-compile:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        config:
+          - alarmclock.yaml
+          - alarmclock-p4-5inch.yaml
     steps:
       - uses: actions/checkout@v4
 
@@ -51,4 +56,4 @@ jobs:
           sed -i '/^      type: git$/,/^      path: components$/c\      type: local\n      path: components' alarmclock.yaml
 
       - name: Compile ESPHome config
-        run: esphome compile alarmclock.yaml
+        run: esphome compile "${{ matrix.config }}"

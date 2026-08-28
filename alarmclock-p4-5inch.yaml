@@ -1,0 +1,75 @@
+substitutions:
+  name: "alarmclock-p4"
+  friendly_name: "Alarm Clock P4"
+  device_variant: esp32p4
+  flash_size: 16MB
+  psram_mode: hex
+  psram_speed: 200MHz
+  i2c_sda_pin: GPIO45
+  i2c_scl_pin: GPIO46
+  display_de_pin: GPIO2
+  display_vsync_pin: GPIO41
+  display_hsync_pin: GPIO40
+  display_pclk_pin: GPIO3
+  display_pclk_frequency: 18MHz
+  display_hsync_front_porch: "8"
+  display_hsync_pulse_width: "4"
+  display_hsync_back_porch: "8"
+  display_vsync_front_porch: "16"
+  display_vsync_pulse_width: "4"
+  display_vsync_back_porch: "16"
+  display_r0_pin: GPIO19
+  display_r1_pin: GPIO18
+  display_r2_pin: GPIO17
+  display_r3_pin: GPIO16
+  display_r4_pin: GPIO15
+  display_g0_pin: GPIO14
+  display_g1_pin: GPIO13
+  display_g2_pin: GPIO12
+  display_g3_pin: GPIO11
+  display_g4_pin: GPIO10
+  display_g5_pin: GPIO9
+  display_b0_pin: GPIO8
+  display_b1_pin: GPIO7
+  display_b2_pin: GPIO6
+  display_b3_pin: GPIO5
+  display_b4_pin: GPIO4
+  i2s_lrclk_pin: GPIO21
+  i2s_bclk_pin: GPIO22
+  i2s_dout_pin: GPIO23
+  controller_address: "0x2F"
+  backlight_mode: stc8_register
+  speaker_amp_mode: stc8_register
+
+packages:
+  alarmclock: !include alarmclock.yaml
+
+esp32:
+  engineering_sample: false
+  cpu_frequency: 360MHz
+
+esp32_hosted:
+  type: sdio
+  variant: ESP32C6
+  reset_pin: GPIO20
+  active_high: true
+  clk_pin: GPIO53
+  cmd_pin: GPIO54
+  d0_pin: GPIO52
+  d1_pin: GPIO51
+  d2_pin: GPIO50
+  d3_pin: GPIO49
+  bus_width: 4
+  slot: 1
+  sdio_frequency: 40MHz
+
+touchscreen:
+  - id: !extend touch
+    reset_pin:
+      number: GPIO36
+      ignore_strapping_warning: true
+    interrupt_pin: GPIO42
+
+dashboard_import:
+  package_import_url: github://aclight/esphome-alarmclock/alarmclock-p4-5inch.yaml@main
+  import_full_config: true

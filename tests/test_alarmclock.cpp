@@ -61,6 +61,16 @@ TEST(backlight_constants_sanity) {
     PASS();
 }
 
+TEST(stc8_backlight_duty) {
+    ASSERT_EQ(brightness_to_stc8_duty(-0.1f), 0);
+    ASSERT_EQ(brightness_to_stc8_duty(0.0f), 0);
+    ASSERT_EQ(brightness_to_stc8_duty(0.504f), 50);
+    ASSERT_EQ(brightness_to_stc8_duty(0.505f), 51);
+    ASSERT_EQ(brightness_to_stc8_duty(1.0f), 100);
+    ASSERT_EQ(brightness_to_stc8_duty(1.1f), 100);
+    PASS();
+}
+
 // ===========================================================================
 // lux_to_sensor_factor tests
 // ===========================================================================

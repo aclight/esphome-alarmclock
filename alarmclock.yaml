@@ -1,6 +1,45 @@
 substitutions:
   name: "alarmclock"
   friendly_name: "Alarm Clock"
+  device_variant: esp32s3
+  flash_size: 16MB
+  psram_mode: octal
+  psram_speed: 80MHz
+  i2c_sda_pin: GPIO15
+  i2c_scl_pin: GPIO16
+  display_de_pin: GPIO42
+  display_vsync_pin: GPIO41
+  display_hsync_pin: GPIO40
+  display_pclk_pin: GPIO39
+  display_pclk_frequency: 14MHz
+  display_hsync_front_porch: "8"
+  display_hsync_pulse_width: "4"
+  display_hsync_back_porch: "43"
+  display_vsync_front_porch: "8"
+  display_vsync_pulse_width: "4"
+  display_vsync_back_porch: "12"
+  display_r0_pin: GPIO7
+  display_r1_pin: GPIO17
+  display_r2_pin: GPIO18
+  display_r3_pin: GPIO3
+  display_r4_pin: GPIO46
+  display_g0_pin: GPIO9
+  display_g1_pin: GPIO10
+  display_g2_pin: GPIO11
+  display_g3_pin: GPIO12
+  display_g4_pin: GPIO13
+  display_g5_pin: GPIO14
+  display_b0_pin: GPIO21
+  display_b1_pin: GPIO47
+  display_b2_pin: GPIO48
+  display_b3_pin: GPIO45
+  display_b4_pin: GPIO38
+  i2s_lrclk_pin: GPIO6
+  i2s_bclk_pin: GPIO5
+  i2s_dout_pin: GPIO4
+  controller_address: "0x30"
+  backlight_mode: legacy_raw
+  speaker_amp_mode: legacy_command
 
 esphome:
   name: ${name}
@@ -8,35 +47,16 @@ esphome:
   project:
     name: aclight.alarmclock
     version: "1.0.0"
-  on_boot:
-    priority: -100
-    then:
-      # Enable the speaker amplifier via the STC8H1K28 microcontroller at 0x30
-      # Command 248 = turn on speaker amp (per Elecrow's Arduino example)
-      - lambda: |-
-          uint8_t cmd = 248;
-          auto err = id(i2c_bus).write(0x30, &cmd, 1);
-          if (err == esphome::i2c::ERROR_OK) {
-            ESP_LOGW("speaker_init", "Speaker amplifier enabled (cmd 248 to 0x30)");
-          } else {
-            ESP_LOGE("speaker_init", "Failed to enable speaker amplifier!");
-          }
 
 esp32:
-  board: esp32-s3-devkitc-1
-  variant: esp32s3
-  flash_size: 16MB
+  variant: ${device_variant}
+  flash_size: ${flash_size}
   framework:
     type: esp-idf
-    sdkconfig_options:
-      CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240: "y"
-      CONFIG_ESP32S3_SPIRAM_SUPPORT: "y"
-      CONFIG_SPIRAM_MODE_OCT: "y"
-      CONFIG_SPIRAM_SPEED_80M: "y"
 
 psram:
-  mode: octal
-  speed: 80MHz
+  mode: ${psram_mode}
+  speed: ${psram_speed}
 
 external_components:
   - source:
@@ -88,8 +108,8 @@ logger:
 # --- I2C bus (shared: touch controller + BH1750) ---
 i2c:
   id: i2c_bus
-  sda: GPIO15
-  scl: GPIO16
+  sda: ${i2c_sda_pin}
+  scl: ${i2c_scl_pin}
   scan: true
 
 # --- Time source from Home Assistant (with SNTP fallback) ---
@@ -109,42 +129,42 @@ display:
     auto_clear_enabled: false
     update_interval: never
     color_order: RGB
-    pclk_frequency: 14MHz
+    pclk_frequency: ${display_pclk_frequency}
     dimensions:
       width: 800
       height: 480
-    de_pin: GPIO42
-    vsync_pin: GPIO41
-    hsync_pin: GPIO40
-    pclk_pin: GPIO39
+    de_pin: ${display_de_pin}
+    vsync_pin: ${display_vsync_pin}
+    hsync_pin: ${display_hsync_pin}
+    pclk_pin: ${display_pclk_pin}
     # Pin mapping verified against Elecrow CrowPanel Advance 4.3" official repo:
     # https://github.com/Elecrow-RD/CrowPanel-Advance-4.3-HMI-ESP32-S3-AI-Powered-IPS-Touch-Screen-800x480
     data_pins:
       red:
-        - GPIO7    # R0
-        - GPIO17   # R1
-        - GPIO18   # R2
-        - GPIO3    # R3
-        - GPIO46   # R4
+        - ${display_r0_pin}
+        - ${display_r1_pin}
+        - ${display_r2_pin}
+        - ${display_r3_pin}
+        - ${display_r4_pin}
       green:
-        - GPIO9    # G0
-        - GPIO10   # G1
-        - GPIO11   # G2
-        - GPIO12   # G3
-        - GPIO13   # G4
-        - GPIO14   # G5
+        - ${display_g0_pin}
+        - ${display_g1_pin}
+        - ${display_g2_pin}
+        - ${display_g3_pin}
+        - ${display_g4_pin}
+        - ${display_g5_pin}
       blue:
-        - GPIO21   # B0
-        - GPIO47   # B1
-        - GPIO48   # B2
-        - GPIO45   # B3
-        - GPIO38   # B4
-    hsync_front_porch: 8
-    hsync_pulse_width: 4
-    hsync_back_porch: 43
-    vsync_front_porch: 8
-    vsync_pulse_width: 4
-    vsync_back_porch: 12
+        - ${display_b0_pin}
+        - ${display_b1_pin}
+        - ${display_b2_pin}
+        - ${display_b3_pin}
+        - ${display_b4_pin}
+    hsync_front_porch: ${display_hsync_front_porch}
+    hsync_pulse_width: ${display_hsync_pulse_width}
+    hsync_back_porch: ${display_hsync_back_porch}
+    vsync_front_porch: ${display_vsync_front_porch}
+    vsync_pulse_width: ${display_vsync_pulse_width}
+    vsync_back_porch: ${display_vsync_back_porch}
 
 # --- Touchscreen: GT911 ---
 touchscreen:
@@ -262,19 +282,21 @@ interval:
 # --- Alarm clock custom component (I2C backlight controller + alarm logic) ---
 alarmclock:
   id: alarm_clock_component
-  address: 0x30
+  address: ${controller_address}
+  backlight_mode: ${backlight_mode}
+  speaker_amp_mode: ${speaker_amp_mode}
   rtttl_id: alarm_rtttl
 
 # --- I2S audio output (MAX98357A) ---
 i2s_audio:
-  i2s_lrclk_pin: GPIO6
-  i2s_bclk_pin: GPIO5
+  i2s_lrclk_pin: ${i2s_lrclk_pin}
+  i2s_bclk_pin: ${i2s_bclk_pin}
 
 speaker:
   - platform: i2s_audio
     id: alarm_speaker
     dac_type: external
-    i2s_dout_pin: GPIO4
+    i2s_dout_pin: ${i2s_dout_pin}
     channel: mono
     timeout: never
     sample_rate: 16000
