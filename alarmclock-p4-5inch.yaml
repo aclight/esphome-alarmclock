@@ -85,27 +85,22 @@ esp32:
   engineering_sample: true
   cpu_frequency: 360MHz
   framework:
-    # TEMPORARY: the display worked on IDF 5.5.4 and went blank on the 5.5.5 that
-    # ESPHome 2026.8.1 pins. Pinned back to isolate the IDF upgrade.
-    version: 5.5.4
     advanced:
       # Keeps code executing while the flash cache is disabled; Elecrow sets this.
       execute_from_psram: true
       enable_idf_experimental_features: true
-    # Espressif's recommended P4 display settings; the cache line size in
-    # particular is called out as a cause of RGB drift in bounce-buffer mode.
     sdkconfig_options:
-      CONFIG_CACHE_L2_CACHE_256KB: y
-      CONFIG_CACHE_L2_CACHE_LINE_128B: y
-      CONFIG_COMPILER_OPTIMIZATION_PERF: y
-      CONFIG_FREERTOS_HZ: "1000"
       # Workaround for espressif/esp-idf#19020: a stack this large cannot fit in
       # the 8KB SPM pool, which esp_ptr_in_dram() wrongly rejects on cache
       # disable, so main_task falls through to DIRAM instead. Remove once fixed.
       CONFIG_ESP_MAIN_TASK_STACK_SIZE: "8192"
-      # Puts the bounce-buffer refill ISR in IRAM so it does not fetch its own
-      # instructions from PSRAM while copying the framebuffer out of PSRAM.
-      CONFIG_LCD_RGB_ISR_IRAM_SAFE: y
+      # The four tearing-experiment options below are removed while the panel is
+      # blank; L2 cache line size changes framebuffer/DMA alignment on P4.
+      # CONFIG_CACHE_L2_CACHE_256KB: y
+      # CONFIG_CACHE_L2_CACHE_LINE_128B: y
+      # CONFIG_COMPILER_OPTIMIZATION_PERF: y
+      # CONFIG_FREERTOS_HZ: "1000"
+      # CONFIG_LCD_RGB_ISR_IRAM_SAFE: y
 
 esp32_hosted:
   type: sdio
