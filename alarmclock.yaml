@@ -337,6 +337,17 @@ sensor:
                 x, alarmclock::kAmbientDarkLux, alarmclock::kAmbientDayLux);
             id(alarm_clock_component).set_sensor_factor(sf, x);
 
+  # On-die temperature. Worth watching because 120MHz PSRAM is temperature
+  # sensitive and degrades before it fails outright.
+  - platform: internal_temperature
+    name: "Board Temperature"
+    id: board_temperature
+    update_interval: 60s
+    on_value:
+      then:
+        # Own tag: the logger filters the "sensor" tag to WARN.
+        - lambda: 'ESP_LOGI("board_temp", "Board temperature: %.1f C", x);'
+
 # ---------------------------------------------------------------------------
 # Home Assistant control entities.
 # These let you control the alarm from HA automations, dashboards, or
