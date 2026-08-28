@@ -125,9 +125,18 @@ void AlarmClockComponent::setup() {
   ESP_LOGI(TAG, "AlarmClock component initializing...");
   instance_ = this;
 
-  // Turn on backlight at maximum brightness.
-  uint8_t brightness = kBacklightMax;
-  if (this->write(&brightness, 1) != ::esphome::i2c::ERROR_OK) {
+  if (speaker_amp_mode_ == SpeakerAmpMode::kStc8Register) {
+    this->write_byte(kStc8AudioShutdownRegister, 0);
+  } else {
+    const uint8_t speaker_enable = 248;
+    this->write(&speaker_enable, 1);
+  }
+
+  if (backlight_mode_ == BacklightMode::kStc8Register) {
+    this->write_byte(kStc8BacklightPowerRegister, 1);
+  }
+
+  if (!write_backlight_(1.0f)) {
     ESP_LOGW(TAG, "Failed to set backlight via I2C (address 0x%02X)",
              this->address_);
   } else {
@@ -656,19 +665,34 @@ void AlarmClockComponent::check_alarms_(uint8_t hour, uint8_t minute,
   }
 }
 
+bool AlarmClockComponent::write_backlight_(float brightness) {
+  const uint8_t pwm = backlight_mode_ == BacklightMode::kStc8Register
+                          ? brightness_to_stc8_duty(brightness)
+                          : brightness_to_pwm(brightness);
+  if (pwm == last_backlight_pwm_) {
+    return true;
+  }
+
+  ::esphome::i2c::ErrorCode result;
+  if (backlight_mode_ == BacklightMode::kStc8Register) {
+    result = this->write_register(kStc8BacklightPwmRegister, &pwm, 1);
+  } else {
+    result = this->write(&pwm, 1);
+  }
+  if (result != ::esphome::i2c::ERROR_OK) {
+    return false;
+  }
+
+  last_backlight_pwm_ = pwm;
+  return true;
+}
+
 void AlarmClockComponent::update_backlight_() {
   const float brightness =
       compute_screen_brightness(brightness_, sensor_factor_, screen_asleep_,
                                 night_brightness_fraction_);
   ui_set_content_brightness(brightness);
-  const uint8_t pwm = brightness_to_pwm(brightness);
-  if (pwm == last_backlight_pwm_) {
-    return;
-  }
-
-  if (this->write(&pwm, 1) == ::esphome::i2c::ERROR_OK) {
-    last_backlight_pwm_ = pwm;
-  }
+  write_backlight_(brightness);
 }
 
 void AlarmClockComponent::check_screen_sleep_() {

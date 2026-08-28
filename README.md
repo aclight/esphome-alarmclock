@@ -1,14 +1,23 @@
 # esphome-alarmclock
 
-Standalone bedside alarm clock built on the **Elecrow CrowPanel Advance 4.3"** (ESP32-S3, 800×480 capacitive touch IPS display) running **ESPHome** with an **LVGL** touchscreen UI.
+Standalone bedside alarm clock for the **Elecrow CrowPanel Advance 4.3"**
+(ESP32-S3) and **CrowPanel Advance 5.0"** (ESP32-P4). Both use an 800×480
+capacitive touch IPS display running **ESPHome** with an **LVGL** touchscreen UI.
 
 ## Hardware
 
-### Board
+### Boards
 
-**Elecrow CrowPanel Advance 4.3 v1.1"** — ESP32-S3-WROOM-1, 16 MB flash, 8 MB PSRAM.
+| Entry file | Board | Processor | Connectivity |
+|---|---|---|---|
+| `alarmclock.yaml` | CrowPanel Advance 4.3" v1.1 | ESP32-S3, 16 MB flash, 8 MB PSRAM | Native Wi-Fi |
+| `alarmclock-p4-5inch.yaml` | CrowPanel Advance 5.0" | ESP32-P4, 16 MB flash, 32 MB PSRAM | ESP32-C6 over ESP-Hosted SDIO |
 
-### Pin Map
+The 5-inch configuration renders the existing 800×480 interface without UI
+scaling. Board-specific display, touch, audio, and controller settings are
+overridden in its entry file while the application configuration remains shared.
+
+### 4.3-inch Pin Map
 
 | Function | GPIO | Notes |
 |---|---|---|
@@ -85,7 +94,8 @@ backlight reaches the bottom of its useful range.
 ## Project Structure
 
 ```
-alarmclock.yaml              # Main ESPHome configuration
+alarmclock.yaml              # Shared application and 4.3-inch S3 entry
+alarmclock-p4-5inch.yaml     # 5-inch P4 hardware overrides
 secrets.yaml                 # Wi-Fi credentials, API keys (git-ignored)
 components/alarmclock/       # Custom ESPHome component
   __init__.py                # Component registration
@@ -108,7 +118,8 @@ g++ -std=c++17 -Wall -Wextra -Werror -DUNIT_TEST -I . tests/test_alarmclock.cpp 
 ./run_tests
 ```
 
-Tests run automatically on every push/PR via GitHub Actions. CI also validates ESPHome YAML compilation.
+Tests run automatically on every push/PR via GitHub Actions. CI also compiles
+both ESPHome hardware configurations.
 
 ## Getting Started
 
@@ -116,6 +127,9 @@ Tests run automatically on every push/PR via GitHub Actions. CI also validates E
 # 1. Copy secrets template
 cp secrets.yaml.example secrets.yaml
 # 2. Edit secrets.yaml with your Wi-Fi credentials and API keys
-# 3. Compile and flash
+# 3. Compile and flash the 4.3-inch ESP32-S3 board
 esphome run alarmclock.yaml
+
+# Or compile and flash the 5-inch ESP32-P4 board
+esphome run alarmclock-p4-5inch.yaml
 ```

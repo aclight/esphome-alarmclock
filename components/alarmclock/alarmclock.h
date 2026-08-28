@@ -146,6 +146,29 @@ static constexpr uint8_t kBacklightMin = 244;  // PWM duty for minimum brightnes
 static constexpr uint8_t kBacklightOff = 245;  // Value that turns backlight off.
 static constexpr uint8_t kBuzzerOn = 246;      // Command to activate buzzer.
 static constexpr uint8_t kBuzzerOff = 247;     // Command to deactivate buzzer.
+static constexpr uint8_t kStc8BacklightPowerRegister = 0x1B;
+static constexpr uint8_t kStc8BacklightPwmRegister = 0x20;
+static constexpr uint8_t kStc8AudioShutdownRegister = 0x1A;
+
+enum class BacklightMode : uint8_t {
+  kLegacyRaw = 0,
+  kStc8Register = 1,
+};
+
+enum class SpeakerAmpMode : uint8_t {
+  kLegacyCommand = 0,
+  kStc8Register = 1,
+};
+
+inline uint8_t brightness_to_stc8_duty(float brightness) {
+  if (brightness <= 0.0f) {
+    return 0;
+  }
+  if (brightness >= 1.0f) {
+    return 100;
+  }
+  return static_cast<uint8_t>(brightness * 100.0f + 0.5f);
+}
 
 // ---------------------------------------------------------------------------
 // Pure functions — testable on the host without ESPHome.
@@ -625,6 +648,12 @@ class AlarmClockComponent : public ::esphome::Component,
 
   // --- RTTTL audio ---
   void set_rtttl(::esphome::rtttl::Rtttl *rtttl) { rtttl_ = rtttl; }
+  void set_backlight_mode(uint8_t mode) {
+    backlight_mode_ = static_cast<BacklightMode>(mode);
+  }
+  void set_speaker_amp_mode(uint8_t mode) {
+    speaker_amp_mode_ = static_cast<SpeakerAmpMode>(mode);
+  }
   void on_rtttl_finished();
 
   // --- Screen sleep/wake ---
@@ -678,6 +707,8 @@ class AlarmClockComponent : public ::esphome::Component,
 
   // Last backlight PWM written to the I2C controller.
   uint8_t last_backlight_pwm_ = 0xFF;
+  BacklightMode backlight_mode_ = BacklightMode::kLegacyRaw;
+  SpeakerAmpMode speaker_amp_mode_ = SpeakerAmpMode::kLegacyCommand;
 
   // Tracks whether the home page alarm summary needs refresh.
   bool next_alarm_dirty_ = true;
@@ -687,6 +718,7 @@ class AlarmClockComponent : public ::esphome::Component,
   uint8_t configured_alarm_count_() const;
   void sync_alarm_slots_ui_();
   void mark_next_alarm_dirty_();
+  bool write_backlight_(float brightness);
   void update_backlight_();
   void check_screen_sleep_();
   void start_alarm_sound_();
