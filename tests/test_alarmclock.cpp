@@ -1926,6 +1926,7 @@ int main() {
     RUN(backlight_midpoint);
     RUN(backlight_invalid_range);
     RUN(backlight_constants_sanity);
+    RUN(stc8_backlight_duty);
 
     // lux_to_sensor_factor
     RUN(sensor_factor_dark);
