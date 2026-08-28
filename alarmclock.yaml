@@ -39,6 +39,7 @@ substitutions:
   i2s_dout_pin: GPIO4
   controller_address: "0x30"
   backlight_mode: legacy_raw
+  raw_backlight_pwm_max: "244"
   speaker_amp_mode: legacy_command
 
 esphome:
@@ -393,6 +394,34 @@ number:
     set_action:
       - lambda: |-
           id(alarm_clock_component).set_night_brightness_fraction(x / 100.0f);
+
+  - platform: template
+    name: "Raw Backlight PWM"
+    id: num_raw_backlight_pwm
+    icon: "mdi:pulse"
+    min_value: 0
+    max_value: ${raw_backlight_pwm_max}
+    step: 1
+    lambda: |-
+      return id(alarm_clock_component).raw_backlight_pwm();
+    update_interval: 1s
+    set_action:
+      - lambda: |-
+          id(alarm_clock_component).set_raw_backlight_pwm(
+              static_cast<uint8_t>(x));
+
+switch:
+  - platform: template
+    name: "Raw Backlight PWM Override"
+    id: switch_raw_backlight_override
+    icon: "mdi:tune-variant"
+    restore_mode: ALWAYS_OFF
+    lambda: |-
+      return id(alarm_clock_component).raw_backlight_override();
+    turn_on_action:
+      - lambda: 'id(alarm_clock_component).set_raw_backlight_override(true);'
+    turn_off_action:
+      - lambda: 'id(alarm_clock_component).set_raw_backlight_override(false);'
 
 # --- Text Sensor: Alarm state (idle/firing/snoozed) ---
 text_sensor:

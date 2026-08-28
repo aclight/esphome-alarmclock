@@ -85,6 +85,13 @@ level as a percentage of that daytime setting. The firmware interpolates between
 them from the BH1750 reading and applies neutral content shading when the
 backlight reaches the bottom of its useful range.
 
+For backlight diagnostics, Home Assistant exposes a Raw Backlight PWM slider
+and a Raw Backlight PWM Override switch. While the override is enabled, the
+selected raw value is written directly and ambient, inactivity, and content
+dimming are bypassed. On the 4.3-inch controller, 0 is full brightness and 244
+is minimum brightness. On the 5-inch controller, 0 is minimum and 100 is full
+brightness. The override always starts disabled after a reboot.
+
 ## Open Questions
 
 - Optimal PCLK frequency for 800×480 @ 60 Hz — Elecrow examples suggest 12–16 MHz.
