@@ -48,7 +48,9 @@ packages:
   alarmclock: !include alarmclock.yaml
 
 esp32:
-  engineering_sample: !remove
+  # Targets pre-rev3 silicon: the image then boots on both engineering and
+  # production P4s, whereas a rev3-targeted image is rejected by early samples.
+  engineering_sample: true
   cpu_frequency: 360MHz
   framework:
     advanced:
