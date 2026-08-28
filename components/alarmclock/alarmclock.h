@@ -387,6 +387,20 @@ inline uint8_t brightness_to_pwm(float brightness) {
       static_cast<float>(kBacklightMin) * (1.0f - brightness));
 }
 
+inline uint8_t resolve_backlight_pwm(float brightness, BacklightMode mode,
+                                     bool raw_override_enabled,
+                                     uint8_t raw_pwm) {
+  if (raw_override_enabled) {
+    const uint8_t max_pwm =
+        mode == BacklightMode::kStc8Register ? 100 : kBacklightMin;
+    return raw_pwm > max_pwm ? max_pwm : raw_pwm;
+  }
+  if (mode == BacklightMode::kStc8Register) {
+    return brightness_to_stc8_duty(brightness);
+  }
+  return brightness_to_pwm(brightness);
+}
+
 // ---------------------------------------------------------------------------
 // 12-hour / 24-hour time conversion helpers.
 // ---------------------------------------------------------------------------
@@ -630,6 +644,8 @@ class AlarmClockComponent : public ::esphome::Component,
   void set_volume(float volume);
   void set_brightness(float brightness);
   void set_night_brightness_fraction(float brightness_fraction);
+  void set_raw_backlight_pwm(uint8_t pwm);
+  void set_raw_backlight_override(bool enabled);
   void set_sensor_factor(float sensor_factor, float lux);
   void set_sound_index(uint8_t index);
   void preview_sound(uint8_t sound_index);
@@ -642,6 +658,8 @@ class AlarmClockComponent : public ::esphome::Component,
   float night_brightness_fraction() const {
     return night_brightness_fraction_;
   }
+  uint8_t raw_backlight_pwm() const { return raw_backlight_pwm_; }
+  bool raw_backlight_override() const { return raw_backlight_override_; }
   uint8_t sound_index() const { return selected_sound_index_; }
   bool time_format_24h() const { return time_format_24h_; }
   uint8_t pre_alarm_minutes() const { return pre_alarm_minutes_; }
@@ -707,6 +725,8 @@ class AlarmClockComponent : public ::esphome::Component,
 
   // Last backlight PWM written to the I2C controller.
   uint8_t last_backlight_pwm_ = 0xFF;
+  uint8_t raw_backlight_pwm_ = 0;
+  bool raw_backlight_override_ = false;
   BacklightMode backlight_mode_ = BacklightMode::kLegacyRaw;
   SpeakerAmpMode speaker_amp_mode_ = SpeakerAmpMode::kLegacyCommand;
 
@@ -719,6 +739,7 @@ class AlarmClockComponent : public ::esphome::Component,
   void sync_alarm_slots_ui_();
   void mark_next_alarm_dirty_();
   bool write_backlight_(float brightness);
+  bool write_backlight_pwm_(uint8_t pwm);
   void update_backlight_();
   void check_screen_sleep_();
   void start_alarm_sound_();

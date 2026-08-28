@@ -428,6 +428,23 @@ void AlarmClockComponent::set_night_brightness_fraction(
            night_brightness_fraction_ * 100.0f);
 }
 
+void AlarmClockComponent::set_raw_backlight_pwm(uint8_t pwm) {
+  raw_backlight_pwm_ = resolve_backlight_pwm(
+      0.0f, backlight_mode_, true, pwm);
+  if (raw_backlight_override_) {
+    update_backlight_();
+  }
+  ESP_LOGI(TAG, "Raw backlight PWM set to %u",
+           static_cast<unsigned>(raw_backlight_pwm_));
+}
+
+void AlarmClockComponent::set_raw_backlight_override(bool enabled) {
+  raw_backlight_override_ = enabled;
+  update_backlight_();
+  ESP_LOGI(TAG, "Raw backlight PWM override %s",
+           raw_backlight_override_ ? "enabled" : "disabled");
+}
+
 void AlarmClockComponent::set_sensor_factor(float sensor_factor, float lux) {
   if (sensor_factor < 0.0f) { sensor_factor = 0.0f; }
   if (sensor_factor > 1.0f) { sensor_factor = 1.0f; }
@@ -666,9 +683,12 @@ void AlarmClockComponent::check_alarms_(uint8_t hour, uint8_t minute,
 }
 
 bool AlarmClockComponent::write_backlight_(float brightness) {
-  const uint8_t pwm = backlight_mode_ == BacklightMode::kStc8Register
-                          ? brightness_to_stc8_duty(brightness)
-                          : brightness_to_pwm(brightness);
+  const uint8_t pwm = resolve_backlight_pwm(
+      brightness, backlight_mode_, raw_backlight_override_, raw_backlight_pwm_);
+  return write_backlight_pwm_(pwm);
+}
+
+bool AlarmClockComponent::write_backlight_pwm_(uint8_t pwm) {
   if (pwm == last_backlight_pwm_) {
     return true;
   }
@@ -691,7 +711,7 @@ void AlarmClockComponent::update_backlight_() {
   const float brightness =
       compute_screen_brightness(brightness_, sensor_factor_, screen_asleep_,
                                 night_brightness_fraction_);
-  ui_set_content_brightness(brightness);
+  ui_set_content_brightness(raw_backlight_override_ ? 1.0f : brightness);
   write_backlight_(brightness);
 }
 

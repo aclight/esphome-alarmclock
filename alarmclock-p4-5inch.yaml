@@ -39,6 +39,7 @@ substitutions:
   i2s_dout_pin: GPIO23
   controller_address: "0x2F"
   backlight_mode: stc8_register
+  raw_backlight_pwm_max: "100"
   speaker_amp_mode: stc8_register
 
 packages:

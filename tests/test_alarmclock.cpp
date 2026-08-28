@@ -71,6 +71,25 @@ TEST(stc8_backlight_duty) {
     PASS();
 }
 
+TEST(raw_backlight_pwm_override) {
+    ASSERT_EQ(resolve_backlight_pwm(0.5f, BacklightMode::kLegacyRaw, false, 7),
+              122);
+    ASSERT_EQ(resolve_backlight_pwm(0.5f, BacklightMode::kLegacyRaw, true, 7),
+              7);
+    ASSERT_EQ(resolve_backlight_pwm(0.5f, BacklightMode::kLegacyRaw, true, 255),
+              244);
+    ASSERT_EQ(resolve_backlight_pwm(0.5f, BacklightMode::kStc8Register, false,
+                                    7),
+              50);
+    ASSERT_EQ(resolve_backlight_pwm(0.5f, BacklightMode::kStc8Register, true,
+                                    75),
+              75);
+    ASSERT_EQ(resolve_backlight_pwm(0.5f, BacklightMode::kStc8Register, true,
+                                    200),
+              100);
+    PASS();
+}
+
 // ===========================================================================
 // lux_to_sensor_factor tests
 // ===========================================================================
@@ -1927,6 +1946,7 @@ int main() {
     RUN(backlight_invalid_range);
     RUN(backlight_constants_sanity);
     RUN(stc8_backlight_duty);
+    RUN(raw_backlight_pwm_override);
 
     // lux_to_sensor_factor
     RUN(sensor_factor_dark);
