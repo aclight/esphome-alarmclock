@@ -47,60 +47,14 @@ substitutions:
 packages:
   alarmclock: !include alarmclock.yaml
 
-# TEMPORARY: diagnosing the blank P4 screen. Revert once resolved.
-# Touch events are logged at VERBOSE, so the global level must allow it; the
-# chatty subsystems are pinned lower to keep the UART from flooding.
-logger:
-  level: VERBOSE
-  logs:
-    touchscreen: VERBOSE
-    gt911.touchscreen: VERBOSE
-    lvgl: DEBUG
-    i2c.idf: DEBUG
-    display: DEBUG
-    wifi: INFO
-    wifi_esp32: INFO
-    api: INFO
-    api.connection: INFO
-    esp-idf: INFO
-    mdns: INFO
-    sntp: INFO
-    time: INFO
-    preferences: INFO
-    component: INFO
-    scheduler: INFO
-    socket: INFO
-    web_server: INFO
-
-# Draws a known pattern straight to the panel, bypassing LVGL. Needs a real
-# update interval because the test card is rendered from update().
-#display:
-#  - id: !extend main_display
-#    update_interval: 1s
-#    show_test_card: true
-
 esp32:
-  # Targets pre-rev3 silicon: the image then boots on both engineering and
-  # production P4s, whereas a rev3-targeted image is rejected by early samples.
-  engineering_sample: true
+  engineering_sample: !remove
   cpu_frequency: 360MHz
   framework:
     advanced:
       # Keeps code executing while the flash cache is disabled; Elecrow sets this.
       execute_from_psram: true
       enable_idf_experimental_features: true
-    sdkconfig_options:
-      # Workaround for espressif/esp-idf#19020: a stack this large cannot fit in
-      # the 8KB SPM pool, which esp_ptr_in_dram() wrongly rejects on cache
-      # disable, so main_task falls through to DIRAM instead. Remove once fixed.
-      CONFIG_ESP_MAIN_TASK_STACK_SIZE: "8192"
-      # The four tearing-experiment options below are removed while the panel is
-      # blank; L2 cache line size changes framebuffer/DMA alignment on P4.
-      # CONFIG_CACHE_L2_CACHE_256KB: y
-      # CONFIG_CACHE_L2_CACHE_LINE_128B: y
-      # CONFIG_COMPILER_OPTIMIZATION_PERF: y
-      # CONFIG_FREERTOS_HZ: "1000"
-      # CONFIG_LCD_RGB_ISR_IRAM_SAFE: y
 
 esp32_hosted:
   type: sdio
