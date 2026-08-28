@@ -675,7 +675,7 @@ bool AlarmClockComponent::write_backlight_(float brightness) {
 
   ::esphome::i2c::ErrorCode result;
   if (backlight_mode_ == BacklightMode::kStc8Register) {
-    result = this->write_byte(kStc8BacklightPwmRegister, pwm);
+    result = this->write_register(kStc8BacklightPwmRegister, &pwm, 1);
   } else {
     result = this->write(&pwm, 1);
   }
