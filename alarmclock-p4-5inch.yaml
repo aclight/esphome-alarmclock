@@ -11,7 +11,7 @@ substitutions:
   display_vsync_pin: GPIO41
   display_hsync_pin: GPIO40
   display_pclk_pin: GPIO3
-  display_pclk_frequency: 18MHz
+  display_pclk_frequency: 14MHz
   display_hsync_front_porch: "8"
   display_hsync_pulse_width: "4"
   display_hsync_back_porch: "8"
@@ -46,7 +46,7 @@ packages:
   alarmclock: !include alarmclock.yaml
 
 esp32:
-  engineering_sample: false
+  engineering_sample: !remove
   cpu_frequency: 360MHz
 
 esp32_hosted:
