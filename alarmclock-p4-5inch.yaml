@@ -48,13 +48,36 @@ packages:
   alarmclock: !include alarmclock.yaml
 
 # TEMPORARY: diagnosing the blank P4 screen. Revert once resolved.
+# Touch events are logged at VERBOSE, so the global level must allow it; the
+# chatty subsystems are pinned lower to keep the UART from flooding.
 logger:
-  level: DEBUG
+  level: VERBOSE
   logs:
-    i2c.idf: DEBUG
+    touchscreen: VERBOSE
+    gt911.touchscreen: VERBOSE
     lvgl: DEBUG
-    touchscreen: DEBUG
-    gt911.touchscreen: DEBUG
+    i2c.idf: DEBUG
+    display: DEBUG
+    wifi: INFO
+    wifi_esp32: INFO
+    api: INFO
+    api.connection: INFO
+    esp-idf: INFO
+    mdns: INFO
+    sntp: INFO
+    time: INFO
+    preferences: INFO
+    component: INFO
+    scheduler: INFO
+    socket: INFO
+    web_server: INFO
+
+# Draws a known pattern straight to the panel, bypassing LVGL. Needs a real
+# update interval because the test card is rendered from update().
+#display:
+#  - id: !extend main_display
+#    update_interval: 1s
+#    show_test_card: true
 
 esp32:
   # Targets pre-rev3 silicon: the image then boots on both engineering and
@@ -62,6 +85,9 @@ esp32:
   engineering_sample: true
   cpu_frequency: 360MHz
   framework:
+    # TEMPORARY: the display worked on IDF 5.5.4 and went blank on the 5.5.5 that
+    # ESPHome 2026.8.1 pins. Pinned back to isolate the IDF upgrade.
+    version: 5.5.4
     advanced:
       # Keeps code executing while the flash cache is disabled; Elecrow sets this.
       execute_from_psram: true
