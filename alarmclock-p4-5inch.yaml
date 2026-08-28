@@ -55,6 +55,11 @@ esp32:
       # Keeps code executing while the flash cache is disabled; Elecrow sets this.
       execute_from_psram: true
       enable_idf_experimental_features: true
+    sdkconfig_options:
+      # Workaround for espressif/esp-idf#19020: the P4's 8 KB SPM pool is the
+      # smallest MALLOC_CAP_INTERNAL heap, so main_task's stack lands there and
+      # trips esp_task_stack_is_sane_cache_disabled(). 8192 can never fit.
+      CONFIG_ESP_MAIN_TASK_STACK_SIZE: "8192"
 
 esp32_hosted:
   type: sdio
