@@ -48,6 +48,13 @@ packages:
 esp32:
   engineering_sample: !remove
   cpu_frequency: 360MHz
+  framework:
+    sdkconfig_options:
+      CONFIG_LV_USE_LABEL: y
+      CONFIG_LV_USE_OBSERVER: y
+      CONFIG_LV_USE_SYSMON: y
+      CONFIG_LV_USE_PERF_MONITOR: y
+      CONFIG_LV_PERF_MONITOR_ALIGN_TOP_RIGHT: y
 
 esp32_hosted:
   type: sdio
