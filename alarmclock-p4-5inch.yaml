@@ -78,10 +78,6 @@ touchscreen:
       ignore_strapping_warning: true
     interrupt_pin: GPIO42
 
-# Fewer, larger flushes into the single live framebuffer than the 12% default.
-lvgl:
-  buffer_size: 50%
-
 dashboard_import:
   package_import_url: github://aclight/esphome-alarmclock/alarmclock-p4-5inch.yaml@main
   import_full_config: true
