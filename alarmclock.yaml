@@ -48,6 +48,16 @@ esphome:
   project:
     name: aclight.alarmclock
     version: "1.0.0"
+  on_boot:
+    priority: -100
+    then:
+      - speaker.play:
+          id: alarm_speaker
+          data: [0, 0]
+      - delay: 100ms
+      - speaker.play:
+          id: alarm_speaker
+          data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
 esp32:
   variant: ${device_variant}
