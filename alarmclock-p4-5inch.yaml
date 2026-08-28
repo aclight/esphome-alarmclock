@@ -11,13 +11,15 @@ substitutions:
   display_vsync_pin: GPIO41
   display_hsync_pin: GPIO40
   display_pclk_pin: GPIO3
-  display_pclk_frequency: 14MHz
+  # Timings match Elecrow's reference for this board; 18MHz over an 820x500
+  # frame is the ~42Hz their BSP targets.
+  display_pclk_frequency: 18MHz
   display_hsync_front_porch: "8"
-  display_hsync_pulse_width: "4"
-  display_hsync_back_porch: "8"
-  display_vsync_front_porch: "16"
-  display_vsync_pulse_width: "4"
-  display_vsync_back_porch: "16"
+  display_hsync_pulse_width: "8"
+  display_hsync_back_porch: "4"
+  display_vsync_front_porch: "8"
+  display_vsync_pulse_width: "8"
+  display_vsync_back_porch: "4"
   display_r0_pin: GPIO19
   display_r1_pin: GPIO18
   display_r2_pin: GPIO17
@@ -48,6 +50,11 @@ packages:
 esp32:
   engineering_sample: !remove
   cpu_frequency: 360MHz
+  framework:
+    advanced:
+      # Keeps code executing while the flash cache is disabled; Elecrow sets this.
+      execute_from_psram: true
+      enable_idf_experimental_features: true
 
 esp32_hosted:
   type: sdio
@@ -70,6 +77,10 @@ touchscreen:
       number: GPIO36
       ignore_strapping_warning: true
     interrupt_pin: GPIO42
+
+# Fewer, larger flushes into the single live framebuffer than the 12% default.
+lvgl:
+  buffer_size: 50%
 
 dashboard_import:
   package_import_url: github://aclight/esphome-alarmclock/alarmclock-p4-5inch.yaml@main
