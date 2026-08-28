@@ -51,8 +51,8 @@ packages:
 logger:
   level: DEBUG
   logs:
-    i2c.idf: INFO
-    lvgl: INFO
+    i2c.idf: CONFIG
+    lvgl: CONFIG
     touchscreen: DEBUG
     gt911.touchscreen: DEBUG
 
