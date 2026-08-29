@@ -4,7 +4,7 @@ substitutions:
   device_variant: esp32s3
   flash_size: 16MB
   psram_mode: octal
-  psram_speed: 120MHz
+  psram_speed: 80MHz
   i2c_sda_pin: GPIO15
   i2c_scl_pin: GPIO16
   display_de_pin: GPIO42
@@ -55,14 +55,13 @@ esphome:
 esp32:
   variant: ${device_variant}
   flash_size: ${flash_size}
-  # 240MHz is a prerequisite for 120MHz PSRAM, which the RGB panel DMA needs to
-  # stream the framebuffer without underrunning its bounce buffer.
+  # Default is 160MHz. 240MHz shortens LVGL flushes, which reduces the window
+  # in which the RGB DMA can underrun. 120MHz PSRAM was tried and reverted: it
+  # forces flash to 120MHz too, which needs a matching bootloader and so cannot
+  # be delivered over OTA.
   cpu_frequency: 240MHz
   framework:
     type: esp-idf
-    advanced:
-      # Required by ESPHome to allow 120MHz PSRAM in octal mode.
-      enable_idf_experimental_features: true
 
 psram:
   mode: ${psram_mode}
