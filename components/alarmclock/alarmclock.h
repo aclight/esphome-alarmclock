@@ -513,11 +513,14 @@ inline int8_t find_next_alarm_index(const AlarmTime *alarms,
 
 // Format the "next alarm" display string.
 // Output example: "7:00 AM - Work (in 6h 30m)" or "07:00 - Work (in 6h 30m)"
+// If |skip_pending| is set, appends a "(skip armed)" suffix so the home page
+// shows that the displayed occurrence has a pending skip.
 // Returns the number of characters written (excluding null terminator).
 inline size_t format_next_alarm_text(const AlarmTime &alarm,
                                      int32_t minutes_until,
                                      bool time_format_24h, char *buf,
-                                     size_t buf_size) {
+                                     size_t buf_size,
+                                     bool skip_pending = false) {
   if (buf == nullptr || buf_size == 0) {
     return 0;
   }
@@ -552,7 +555,15 @@ inline size_t format_next_alarm_text(const AlarmTime &alarm,
     buf[0] = '\0';
     return 0;
   }
-  return static_cast<size_t>(written);
+  size_t total = static_cast<size_t>(written);
+
+  if (skip_pending && total < buf_size) {
+    int suffix_written = snprintf(buf + total, buf_size - total, " (skip armed)");
+    if (suffix_written > 0) {
+      total += static_cast<size_t>(suffix_written);
+    }
+  }
+  return total;
 }
 
 // Format the pre-alarm banner text.

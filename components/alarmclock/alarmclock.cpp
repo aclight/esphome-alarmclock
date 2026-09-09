@@ -921,7 +921,7 @@ void AlarmClockComponent::update_next_alarm_display_(uint8_t hour,
   if (idx >= 0 && minutes_until > 0) {
     char buf[64];
     format_next_alarm_text(alarms_[idx], minutes_until, time_format_24h_,
-                           buf, sizeof(buf));
+                           buf, sizeof(buf), alarms_[idx].skip_next);
     ui_update_next_alarm(buf);
   } else {
     ui_update_next_alarm("");

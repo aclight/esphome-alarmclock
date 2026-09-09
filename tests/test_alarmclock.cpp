@@ -1011,6 +1011,24 @@ TEST(format_next_alarm_pm_time) {
     PASS();
 }
 
+TEST(format_next_alarm_skip_pending_appends_suffix) {
+    AlarmTime at{7, 0, kWeekdays, true};
+    alarm_set_label(at, "Work");
+    char buf[64];
+    format_next_alarm_text(at, 390, false, buf, sizeof(buf), true);
+    ASSERT_TRUE(strstr(buf, "skip armed") != nullptr);
+    PASS();
+}
+
+TEST(format_next_alarm_no_skip_pending_omits_suffix) {
+    AlarmTime at{7, 0, kWeekdays, true};
+    alarm_set_label(at, "Work");
+    char buf[64];
+    format_next_alarm_text(at, 390, false, buf, sizeof(buf), false);
+    ASSERT_TRUE(strstr(buf, "skip armed") == nullptr);
+    PASS();
+}
+
 // ===========================================================================
 // format_pre_alarm_text tests (Task 10)
 // ===========================================================================
@@ -2152,6 +2170,8 @@ int main() {
     RUN(format_next_alarm_null_buf);
     RUN(format_next_alarm_zero_buf_size);
     RUN(format_next_alarm_pm_time);
+    RUN(format_next_alarm_skip_pending_appends_suffix);
+    RUN(format_next_alarm_no_skip_pending_omits_suffix);
 
     // format_pre_alarm_text (Task 10)
     RUN(format_pre_alarm_with_label);
