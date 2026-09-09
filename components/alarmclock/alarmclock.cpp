@@ -3,11 +3,14 @@
 
 #include "alarmclock.h"
 
+#include <cstring>
+
 #ifndef UNIT_TEST
 
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/components/rtttl/rtttl.h"
+#include "esphome/components/speaker/speaker.h"
 #include "esphome/components/api/api_server.h"
 
 namespace alarmclock {
@@ -218,6 +221,13 @@ void AlarmClockComponent::loop() {
     if (now_ms - alarm_pause_start_ms_ >= kAlarmPauseDurationMs) {
       alarm_pause_active_ = false;
       play_alarm_melody_();
+    }
+  }
+
+  if (sample_playback_.active()) {
+    uint32_t now_ms = ::esphome::millis();
+    if (sample_playback_.ready(now_ms)) {
+      play_sample_chunk_();
     }
   }
 }
@@ -521,12 +531,35 @@ void AlarmClockComponent::cancel_sound_preview() {
   if (!alarm_sound_active_ && rtttl_ != nullptr && rtttl_->is_playing()) {
     rtttl_->stop();
   }
+  if (!alarm_sound_active_ && sample_playback_.active()) {
+    sample_playback_.stop();
+    if (speaker_ != nullptr) {
+      speaker_->stop();
+    }
+  }
 }
 
 void AlarmClockComponent::play_sound_preview_(uint8_t sound_index) {
+  const AlarmSound &sound = kAlarmSounds[sound_index];
+  if (sound.kind == SoundKind::kSample) {
+    if (speaker_ == nullptr) {
+      return;
+    }
+    if (rtttl_ != nullptr) {
+      rtttl_->stop();
+    }
+    speaker_->stop();
+    speaker_->set_volume(volume_);
+    sample_sound_index_ = sound_index;
+    sample_playback_.start(sound.sample_size, false, ::esphome::millis());
+    play_sample_chunk_();
+    ESP_LOGI(TAG, "Previewing alarm sound: %s", sound.name);
+    return;
+  }
   if (rtttl_ == nullptr) {
     return;
   }
+  sample_playback_.stop();
   if (rtttl_->is_playing()) {
     rtttl_->stop();
   }
@@ -791,6 +824,9 @@ void AlarmClockComponent::start_alarm_sound_() {
   if (rtttl_ != nullptr && rtttl_->is_playing()) {
     rtttl_->stop();
   }
+  if (speaker_ != nullptr) {
+    speaker_->stop();
+  }
   alarm_sound_active_ = true;
   alarm_pause_active_ = false;
   // On snooze re-fire, skip the volume ramp — user is already aware.
@@ -799,7 +835,14 @@ void AlarmClockComponent::start_alarm_sound_() {
   } else {
     alarm_sound_start_ms_ = ::esphome::millis();
   }
-  play_alarm_melody_();
+  if (get_alarm_sound_kind(selected_sound_index_) == SoundKind::kSample) {
+    const AlarmSound &sound = kAlarmSounds[selected_sound_index_];
+    sample_sound_index_ = selected_sound_index_;
+    sample_playback_.start(sound.sample_size, true, ::esphome::millis());
+    play_sample_chunk_();
+  } else {
+    play_alarm_melody_();
+  }
 }
 
 void AlarmClockComponent::stop_alarm_sound_() {
@@ -808,6 +851,10 @@ void AlarmClockComponent::stop_alarm_sound_() {
   alarm_pause_active_ = false;
   if (rtttl_ != nullptr) {
     rtttl_->stop();
+  }
+  sample_playback_.stop();
+  if (speaker_ != nullptr) {
+    speaker_->stop();
   }
 }
 
@@ -836,6 +883,36 @@ void AlarmClockComponent::play_alarm_melody_() {
   rtttl_->play(melody);
   ESP_LOGD(TAG, "Playing alarm melody '%s' (gain=%.2f, elapsed=%ums)",
            get_alarm_sound_name(selected_sound_index_), gain, elapsed);
+}
+
+size_t AlarmClockComponent::read_embedded_sample_(void *context, uint32_t offset,
+                                                   uint8_t *buffer,
+                                                   size_t buffer_size) {
+  const AlarmSound *sound = static_cast<const AlarmSound *>(context);
+  if (sound == nullptr || buffer == nullptr || offset >= sound->sample_size) {
+    return 0;
+  }
+  size_t available = sound->sample_size - offset;
+  if (available > buffer_size) {
+    available = buffer_size;
+  }
+  std::memcpy(buffer, sound->sample_data + offset, available);
+  return available;
+}
+
+void AlarmClockComponent::play_sample_chunk_() {
+  if (speaker_ == nullptr || !sample_playback_.active()) {
+    return;
+  }
+  const AlarmSound &sound = kAlarmSounds[sample_sound_index_];
+  size_t chunk_size = sample_playback_.read_next(
+      read_embedded_sample_, const_cast<AlarmSound *>(&sound),
+      sample_chunk_buffer_, sizeof(sample_chunk_buffer_));
+  if (chunk_size == 0) {
+    return;
+  }
+  size_t accepted = speaker_->play(sample_chunk_buffer_, chunk_size);
+  sample_playback_.accept(accepted, ::esphome::millis());
 }
 
 void AlarmClockComponent::on_rtttl_finished() {

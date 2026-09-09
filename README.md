@@ -58,6 +58,23 @@ The CrowPanel Advance 4.3" has a 4-position DIP switch used during flashing and 
 - **LVGL** — touchscreen UI rendering
 - **Custom C++ component** (`components/alarmclock/`) — alarm logic, backlight control, audio
 
+## Adding WAV Alarm Sounds
+
+Place a 16-bit PCM WAV file in the repository, then convert it to the embedded
+16 kHz mono format with the included script. The converter also accepts stereo
+or other sample rates and downmixes/resamples them:
+
+```bash
+python scripts/wav_to_pcm.py path/to/source.wav components/alarmclock/my_sound_pcm.h --symbol kMySoundPcm
+```
+
+Include the generated header from `components/alarmclock/alarmclock.h`, add a
+`SoundKind::kSample` entry to `kAlarmSounds[]` using the generated symbol and
+`sizeof`, and increase both `kAlarmSoundCount` and
+`kMaxStoredSoundIndex` in `storage.h` together. The generated PCM header is
+embedded in flash, so keep clips short.
+Add the generated PCM header file to Git as well.
+
 ## Assembly Notes
 
 1. The CrowPanel comes pre-assembled; no soldering required.

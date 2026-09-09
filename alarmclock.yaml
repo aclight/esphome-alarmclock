@@ -295,6 +295,7 @@ alarmclock:
   backlight_mode: ${backlight_mode}
   speaker_amp_mode: ${speaker_amp_mode}
   rtttl_id: alarm_rtttl
+  speaker_id: alarm_speaker
 
 # --- I2S audio output (MAX98357A) ---
 i2s_audio:

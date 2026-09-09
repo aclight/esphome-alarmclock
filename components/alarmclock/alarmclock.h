@@ -33,34 +33,56 @@ static constexpr uint32_t kVolumeRampDurationMs = 30000;
 // Starting fraction of configured volume at ramp start.
 static constexpr float kVolumeRampStartFraction = 0.1f;
 
-// Pause duration between RTTTL melody loops (milliseconds).
+// Pause duration between alarm sound loops (milliseconds).
 static constexpr uint32_t kAlarmPauseDurationMs = 2500;
+
+// Size of each non-blocking PCM write to the speaker.
+static constexpr size_t kSamplePlaybackChunkSize = 512;
 
 // Default RTTTL alarm melody (classic beep pattern).
 static constexpr const char *kDefaultAlarmMelody =
     "Alarm:d=8,o=6,b=400:c,p,c,p,c,4p,c,p,c,p,c";
 
 // ---------------------------------------------------------------------------
-// Alarm sound definitions — a menu of built-in RTTTL melodies.
+// Alarm sound definitions — a menu of built-in RTTTL melodies and samples.
 // ---------------------------------------------------------------------------
+
+enum class SoundKind : uint8_t {
+  kRtttl,
+  kSample,
+};
 
 struct AlarmSound {
   const char *name;
+  SoundKind kind;
   const char *rtttl;
+  const uint8_t *sample_data;
+  size_t sample_size;
 };
 
-static constexpr uint8_t kAlarmSoundCount = 9;
+static constexpr uint8_t kAlarmSoundCount = 10;
+
+#ifndef UNIT_TEST
+#if __has_include("rthawk_pcm.h")
+#include "rthawk_pcm.h"
+#else
+static constexpr uint8_t kRedTailedHawkPcm[] = {};
+#endif
+#else
+static constexpr uint8_t kRedTailedHawkPcm[] = {};
+#endif
 
 static const AlarmSound kAlarmSounds[kAlarmSoundCount] = {
-    {"Classic Beep", "Alarm:d=8,o=6,b=400:c,p,c,p,c,4p,c,p,c,p,c"},
-    {"Morning Rise", "Morning:d=4,o=5,b=160:c,e,g,8a,8g,e,c,2p,c,e,g,a"},
-    {"Gentle Chime", "Chime:d=8,o=6,b=200:e,g,a,g,e,4p,e,g,a,g,e"},
-    {"Digital Buzz", "Buzz:d=16,o=7,b=600:c,p,c,p,c,p,c,8p,c,p,c,p,c,p,c"},
-    {"Melody Wake", "Wake:d=8,o=5,b=180:g,a,b,d6,4b,a,g,4a,2g"},
-    {"Soft Bells", "Bells:d=8,o=6,b=140:e,4p,g,4p,b,2p,g,4p,e,2p"},
-    {"Sunrise", "Sunrise:d=8,o=5,b=150:c,e,g,c6,b,g,e,4g,2c6"},
-    {"Bright Steps", "Steps:d=8,o=5,b=190:c,d,e,g,a,c6,4a,4g,2c6"},
-    {"Urgent Pulse", "Pulse:d=16,o=6,b=480:c,c,p,c,c,p,g,g,p,g,g,4p"},
+    {"Classic Beep", SoundKind::kRtttl, "Alarm:d=8,o=6,b=400:c,p,c,p,c,4p,c,p,c,p,c", nullptr, 0},
+    {"Morning Rise", SoundKind::kRtttl, "Morning:d=4,o=5,b=160:c,e,g,8a,8g,e,c,2p,c,e,g,a", nullptr, 0},
+    {"Gentle Chime", SoundKind::kRtttl, "Chime:d=8,o=6,b=200:e,g,a,g,e,4p,e,g,a,g,e", nullptr, 0},
+    {"Digital Buzz", SoundKind::kRtttl, "Buzz:d=16,o=7,b=600:c,p,c,p,c,p,c,8p,c,p,c,p,c", nullptr, 0},
+    {"Melody Wake", SoundKind::kRtttl, "Wake:d=8,o=5,b=180:g,a,b,d6,4b,a,g,4a,2g", nullptr, 0},
+    {"Soft Bells", SoundKind::kRtttl, "Bells:d=8,o=6,b=140:e,4p,g,4p,b,2p,g,4p,e,2p", nullptr, 0},
+    {"Sunrise", SoundKind::kRtttl, "Sunrise:d=8,o=5,b=150:c,e,g,c6,b,g,e,4g,2c6", nullptr, 0},
+    {"Bright Steps", SoundKind::kRtttl, "Steps:d=8,o=5,b=190:c,d,e,g,a,c6,4a,4g,2c6", nullptr, 0},
+    {"Urgent Pulse", SoundKind::kRtttl, "Pulse:d=16,o=6,b=480:c,c,p,c,c,p,g,g,p,g,g,4p", nullptr, 0},
+    {"Red-tailed Hawk", SoundKind::kSample, nullptr, kRedTailedHawkPcm, sizeof(kRedTailedHawkPcm)},
 };
 
 static_assert(kMaxStoredSoundIndex == kAlarmSoundCount,
@@ -73,6 +95,95 @@ inline const char *get_alarm_sound_rtttl(uint8_t index) {
   }
   return kAlarmSounds[index].rtttl;
 }
+
+inline SoundKind get_alarm_sound_kind(uint8_t index) {
+  if (index >= kAlarmSoundCount) {
+    index = 0;
+  }
+  return kAlarmSounds[index].kind;
+}
+
+using SampleChunkReader = size_t (*)(void *context, uint32_t offset,
+                                     uint8_t *buffer, size_t buffer_size);
+
+// Pure state machine for non-blocking PCM playback. The reader can later be
+// backed by an SD file without changing the speaker integration.
+class SamplePlaybackState {
+ public:
+  void start(size_t total_size, bool loop, uint32_t now_ms) {
+    total_size_ = total_size;
+    loop_ = loop;
+    offset_ = 0;
+    pause_start_ms_ = now_ms;
+    active_ = total_size != 0;
+    paused_ = false;
+  }
+
+  void stop() {
+    active_ = false;
+    paused_ = false;
+    offset_ = 0;
+  }
+
+  bool active() const { return active_; }
+  bool paused() const { return paused_; }
+  size_t offset() const { return offset_; }
+
+  bool ready(uint32_t now_ms) {
+    if (!active_) {
+      return false;
+    }
+    if (paused_) {
+      if (now_ms - pause_start_ms_ < kAlarmPauseDurationMs) {
+        return false;
+      }
+      paused_ = false;
+      offset_ = 0;
+    }
+    return true;
+  }
+
+  size_t read_next(SampleChunkReader reader, void *context, uint8_t *buffer,
+                   size_t buffer_size) const {
+    if (!active_ || paused_ || reader == nullptr || buffer == nullptr ||
+        offset_ >= total_size_) {
+      return 0;
+    }
+    size_t requested = total_size_ - offset_;
+    if (requested > buffer_size) {
+      requested = buffer_size;
+    }
+    return reader(context, static_cast<uint32_t>(offset_), buffer, requested);
+  }
+
+  void accept(size_t bytes, uint32_t now_ms) {
+    if (!active_) {
+      return;
+    }
+    size_t remaining = total_size_ - offset_;
+    if (bytes > remaining) {
+      bytes = remaining;
+    }
+    offset_ += bytes;
+    if (offset_ < total_size_) {
+      return;
+    }
+    if (loop_) {
+      paused_ = true;
+      pause_start_ms_ = now_ms;
+    } else {
+      active_ = false;
+    }
+  }
+
+ private:
+  size_t total_size_ = 0;
+  size_t offset_ = 0;
+  uint32_t pause_start_ms_ = 0;
+  bool loop_ = false;
+  bool active_ = false;
+  bool paused_ = false;
+};
 
 // Get the name for a sound index (clamped to valid range).
 inline const char *get_alarm_sound_name(uint8_t index) {
@@ -618,6 +729,9 @@ namespace esphome {
 namespace rtttl {
 class Rtttl;
 }  // namespace rtttl
+namespace speaker {
+class Speaker;
+}  // namespace speaker
 }  // namespace esphome
 
 namespace alarmclock {
@@ -678,6 +792,7 @@ class AlarmClockComponent : public ::esphome::Component,
 
   // --- RTTTL audio ---
   void set_rtttl(::esphome::rtttl::Rtttl *rtttl) { rtttl_ = rtttl; }
+  void set_speaker(::esphome::speaker::Speaker *speaker) { speaker_ = speaker; }
   void set_backlight_mode(uint8_t mode) {
     backlight_mode_ = static_cast<BacklightMode>(mode);
   }
@@ -714,6 +829,10 @@ class AlarmClockComponent : public ::esphome::Component,
 
   // RTTTL audio.
   ::esphome::rtttl::Rtttl *rtttl_ = nullptr;
+  ::esphome::speaker::Speaker *speaker_ = nullptr;
+  SamplePlaybackState sample_playback_;
+  uint8_t sample_sound_index_ = 0;
+  uint8_t sample_chunk_buffer_[kSamplePlaybackChunkSize] = {};
   bool alarm_sound_active_ = false;
   bool alarm_pause_active_ = false;
   uint32_t alarm_sound_start_ms_ = 0;
@@ -759,6 +878,9 @@ class AlarmClockComponent : public ::esphome::Component,
   void stop_alarm_sound_();
   void finish_active_alarm_();
   void play_alarm_melody_();
+  void play_sample_chunk_();
+  static size_t read_embedded_sample_(void *context, uint32_t offset,
+                                      uint8_t *buffer, size_t buffer_size);
   void play_sound_preview_(uint8_t sound_index);
   void sync_ui_();
   void fire_ha_event_(const char *event_type);

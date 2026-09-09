@@ -3,8 +3,8 @@
 ## Custom Sound Assets, SD Card, and Skip-Next-Alarm
 
 
-### Next up — Embedded "shattering glass" alarm sound
-RTTTL can only synthesize monophonic tones, so a real shattering-glass effect
+### Next up — Embedded red-tailed hawk alarm sound
+RTTTL can only synthesize monophonic tones, so a real red-tailed hawk call
 needs sampled PCM audio played directly through the existing `i2s_audio` speaker,
 bypassing the `rtttl` component for that one sound. Build this so the playback
 mechanism is reusable once SD-card-based tones (below) exist, rather than a
@@ -27,14 +27,15 @@ one-off hack:
   interface/callback rather than hard-coding a flat in-memory array, so an
   SD-file reader can plug into the same state machine later instead of
   duplicating it.
-- Add a small offline conversion script (e.g. `scripts/wav_to_pcm.py`, or a
-  documented `ffmpeg` + `xxd -i` recipe) that converts a source clip to raw
-  16 kHz/16-bit mono PCM and emits a `const uint8_t[]` header — matches the
+- Add a small offline conversion script (`scripts/wav_to_pcm.py`) that converts
+  a source clip to raw 16 kHz/16-bit mono PCM and emits a `const uint8_t[]`
+  header — matches the
   existing `speaker:`/`rtttl:` sample rate so no resampling is needed at
   runtime. A short 1–2s clip is only tens of KB, trivial for the 16 MB flash.
 - Wire `preview_sound()` / `start_alarm_sound_()` to branch on `SoundKind`
   instead of assuming RTTTL.
-- **Open decision:** source/license the actual shattering-glass audio clip.
+- **Open decision:** confirm the source/license for the red-tailed hawk audio
+  clip before distributing the generated header.
 - **Open decision:** exact suffix/label conventions if more embedded-sample
   sounds get added later (avoid this becoming a one-off special case in the
   catalog).
@@ -56,7 +57,7 @@ is blocked on it.
    images).
 4. **Decision needed:** SD-stored alarm-tone format. Start with WAV/raw PCM at
    16 kHz mono (reuses the sample-playback state machine from the
-   shattering-glass work above with an SD-file "next chunk" source instead of
+  hawk-call work above with an SD-file "next chunk" source instead of
    an in-flash array); revisit compressed formats (mp3/flac via ESPHome's
    `audio` component) later if SD/flash space becomes a real constraint.
 5. **Decision needed:** upload mechanism. Home Assistant has no generic

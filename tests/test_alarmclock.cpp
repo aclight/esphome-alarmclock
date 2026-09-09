@@ -1554,14 +1554,14 @@ TEST(serialize_settings_version_byte) {
 // ===========================================================================
 
 TEST(alarm_sound_count) {
-    ASSERT_EQ(kAlarmSoundCount, (uint8_t)9);
+    ASSERT_EQ(kAlarmSoundCount, (uint8_t)10);
     ASSERT_EQ(kMaxStoredSoundIndex, kAlarmSoundCount);
     PASS();
 }
 
 TEST(get_alarm_sound_rtttl_valid) {
-    // Each valid index should return a non-null, non-empty string.
-    for (uint8_t i = 0; i < kAlarmSoundCount; ++i) {
+    // RTTTL entries should return a non-null, non-empty string.
+    for (uint8_t i = 0; i < kAlarmSoundCount - 1; ++i) {
         const char *rtttl = get_alarm_sound_rtttl(i);
         ASSERT_TRUE(rtttl != nullptr);
         ASSERT_TRUE(strlen(rtttl) > 0);
@@ -1590,6 +1590,47 @@ TEST(get_alarm_sound_name_valid) {
 TEST(get_alarm_sound_name_out_of_range) {
     const char *n = get_alarm_sound_name(kAlarmSoundCount);
     ASSERT_TRUE(n == kAlarmSounds[0].name);
+    PASS();
+}
+
+TEST(alarm_sound_sample_catalog_entry) {
+    ASSERT_EQ(get_alarm_sound_kind(kAlarmSoundCount - 1), SoundKind::kSample);
+    ASSERT_TRUE(kAlarmSounds[kAlarmSoundCount - 1].rtttl == nullptr);
+    ASSERT_TRUE(kAlarmSounds[kAlarmSoundCount - 1].sample_data != nullptr);
+    PASS();
+}
+
+static size_t sample_test_reader(void *, uint32_t offset, uint8_t *buffer,
+                                 size_t buffer_size) {
+    for (size_t i = 0; i < buffer_size; ++i) {
+        buffer[i] = static_cast<uint8_t>(offset + i);
+    }
+    return buffer_size;
+}
+
+TEST(sample_playback_one_shot) {
+    SamplePlaybackState playback;
+    uint8_t buffer[3] = {};
+    playback.start(5, false, 0);
+    ASSERT_TRUE(playback.ready(0));
+    ASSERT_EQ(playback.read_next(sample_test_reader, nullptr, buffer,
+                                 sizeof(buffer)), static_cast<size_t>(3));
+    playback.accept(3, 0);
+    ASSERT_EQ(playback.offset(), static_cast<size_t>(3));
+    playback.accept(2, 0);
+    ASSERT_FALSE(playback.active());
+    PASS();
+}
+
+TEST(sample_playback_loop_pause) {
+    SamplePlaybackState playback;
+    playback.start(4, true, 0);
+    playback.accept(4, 100);
+    ASSERT_TRUE(playback.active());
+    ASSERT_TRUE(playback.paused());
+    ASSERT_FALSE(playback.ready(100 + kAlarmPauseDurationMs - 1));
+    ASSERT_TRUE(playback.ready(100 + kAlarmPauseDurationMs));
+    ASSERT_EQ(playback.offset(), static_cast<size_t>(0));
     PASS();
 }
 
@@ -2236,6 +2277,9 @@ int main() {
     RUN(get_alarm_sound_rtttl_out_of_range);
     RUN(get_alarm_sound_name_valid);
     RUN(get_alarm_sound_name_out_of_range);
+    RUN(alarm_sound_sample_catalog_entry);
+    RUN(sample_playback_one_shot);
+    RUN(sample_playback_loop_pause);
 
     // Snooze duration options (Task 7)
     RUN(snooze_option_to_minutes_valid);
