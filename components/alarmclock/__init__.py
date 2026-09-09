@@ -9,6 +9,7 @@ DEPENDENCIES = ["i2c", "api"]
 AUTO_LOAD = ["sensor", "switch", "button", "number"]
 
 CONF_RTTTL_ID = "rtttl_id"
+CONF_SPEAKER_ID = "speaker_id"
 CONF_BACKLIGHT_MODE = "backlight_mode"
 CONF_SPEAKER_AMP_MODE = "speaker_amp_mode"
 
@@ -30,12 +31,15 @@ AlarmClockComponent = alarmclock_ns.class_(
 # Reference the RTTTL class from its namespace.
 rtttl_ns = cg.esphome_ns.namespace("rtttl")
 Rtttl = rtttl_ns.class_("Rtttl", cg.Component)
+speaker_ns = cg.esphome_ns.namespace("speaker")
+Speaker = speaker_ns.class_("Speaker", cg.Component)
 
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(AlarmClockComponent),
             cv.Optional(CONF_RTTTL_ID): cv.use_id(Rtttl),
+            cv.Optional(CONF_SPEAKER_ID): cv.use_id(Speaker),
             cv.Optional(CONF_BACKLIGHT_MODE, default="legacy_raw"): cv.enum(
                 BACKLIGHT_MODES, lower=True
             ),
@@ -57,6 +61,9 @@ async def to_code(config):
     if CONF_RTTTL_ID in config:
         rtttl = await cg.get_variable(config[CONF_RTTTL_ID])
         cg.add(var.set_rtttl(rtttl))
+    if CONF_SPEAKER_ID in config:
+        speaker = await cg.get_variable(config[CONF_SPEAKER_ID])
+        cg.add(var.set_speaker(speaker))
 
     cg.add(var.set_backlight_mode(config[CONF_BACKLIGHT_MODE]))
     cg.add(var.set_speaker_amp_mode(config[CONF_SPEAKER_AMP_MODE]))

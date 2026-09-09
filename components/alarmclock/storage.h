@@ -21,7 +21,7 @@ static constexpr uint8_t kStorageVersion = 2;
 
 // Maximum valid alarm sound index for storage validation.
 // Must be kept in sync with kAlarmSoundCount in alarmclock.h.
-static constexpr uint8_t kMaxStoredSoundIndex = 9;
+static constexpr uint8_t kMaxStoredSoundIndex = 10;
 
 // Serialized sizes (including the version byte).
 static constexpr size_t kLegacySerializedAlarmSize = 1 + 1 + 1 + 1 + 1 + kAlarmLabelMaxLen;  // 21
