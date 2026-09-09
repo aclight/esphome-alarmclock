@@ -34,6 +34,8 @@ struct AlarmTime {
   uint8_t days_of_week = 0; // bitmask of DayOfWeek
   bool enabled = false;
   char label[kAlarmLabelMaxLen] = "";  // User-defined label (e.g. "Work")
+  // Suppress just the next scheduled occurrence, then auto-clear.
+  bool skip_next = false;
 };
 
 // Set the label on an alarm, safely truncating to kAlarmLabelMaxLen-1 chars.
@@ -89,6 +91,8 @@ inline bool alarm_matches(const AlarmTime &alarm, uint8_t hour, uint8_t minute,
 // |now_day_index|: current day-of-week (0 = Sunday … 6 = Saturday).
 // Returns 0 if the alarm fires right now.
 // Returns -1 if the alarm is disabled or has no active days.
+// If |alarm.skip_next| is set, the earliest occurrence is suppressed and the
+// occurrence after it is reported instead.
 inline int32_t minutes_until_alarm(const AlarmTime &alarm, uint8_t now_hour,
                                    uint8_t now_minute, uint8_t now_day_index) {
   if (!alarm.enabled) {
@@ -97,6 +101,10 @@ inline int32_t minutes_until_alarm(const AlarmTime &alarm, uint8_t now_hour,
 
   // One-shot alarm: fires at next occurrence regardless of day.
   if (is_one_shot(alarm)) {
+    if (alarm.skip_next) {
+      // A one-shot alarm has only one occurrence to skip.
+      return -1;
+    }
     const uint16_t now_mins = time_to_minutes(now_hour, now_minute);
     const uint16_t alarm_mins = time_to_minutes(alarm.hour, alarm.minute);
     if (alarm_mins >= now_mins) {
@@ -109,6 +117,9 @@ inline int32_t minutes_until_alarm(const AlarmTime &alarm, uint8_t now_hour,
   const uint16_t now_mins = time_to_minutes(now_hour, now_minute);
   const uint16_t alarm_mins = time_to_minutes(alarm.hour, alarm.minute);
 
+  // Consumed when the earliest matching occurrence below is passed over.
+  bool pending_skip = alarm.skip_next;
+
   // Check up to 8 offsets: today through same-day-next-week.
   for (uint8_t offset = 0; offset <= 7; ++offset) {
     uint8_t check_day = static_cast<uint8_t>((now_day_index + offset) % 7);
@@ -118,11 +129,19 @@ inline int32_t minutes_until_alarm(const AlarmTime &alarm, uint8_t now_hour,
     if (offset == 0) {
       // Same day: alarm must be now or in the future.
       if (alarm_mins >= now_mins) {
+        if (pending_skip) {
+          pending_skip = false;
+          continue;
+        }
         return static_cast<int32_t>(alarm_mins - now_mins);
       }
       // Already passed today; continue to next matching day.
     } else {
       // Future day.
+      if (pending_skip) {
+        pending_skip = false;
+        continue;
+      }
       int32_t day_minutes = static_cast<int32_t>(offset) * 24 * 60;
       return day_minutes - static_cast<int32_t>(now_mins) +
              static_cast<int32_t>(alarm_mins);

@@ -117,6 +117,12 @@ static void on_alarm_delete(uint8_t index) {
   }
 }
 
+static void on_alarm_skip_toggle(uint8_t index, bool skip) {
+  if (instance_) {
+    instance_->set_alarm_skip_next(index, skip);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Component lifecycle.
 // ---------------------------------------------------------------------------
@@ -155,6 +161,7 @@ void AlarmClockComponent::setup() {
   cb.on_alarm_save = on_alarm_save;
   cb.on_alarm_edit = on_alarm_edit;
   cb.on_alarm_delete = on_alarm_delete;
+  cb.on_alarm_skip_toggle = on_alarm_skip_toggle;
   cb.on_sound_change = on_sound_change;
   cb.on_sound_preview = on_sound_preview;
   cb.on_sound_preview_cancel = on_sound_preview_cancel;
@@ -241,7 +248,8 @@ void AlarmClockComponent::set_alarm(uint8_t index, uint8_t hour, uint8_t minute,
 
   // Update the UI alarm list.
   ui_update_alarm_row(index, hour, minute, days_mask, enabled,
-                      time_format_24h_, alarms_[index].label);
+                      time_format_24h_, alarms_[index].label,
+                      alarms_[index].skip_next);
   sync_alarm_slots_ui_();
   mark_next_alarm_dirty_();
 
@@ -257,7 +265,8 @@ void AlarmClockComponent::enable_alarm(uint8_t index, bool enabled) {
   storage_save_alarm(index, alarms_[index]);
   ui_update_alarm_row(index, alarms_[index].hour, alarms_[index].minute,
                       alarms_[index].days_of_week, enabled,
-                      time_format_24h_, alarms_[index].label);
+                      time_format_24h_, alarms_[index].label,
+                      alarms_[index].skip_next);
   mark_next_alarm_dirty_();
 }
 
@@ -271,7 +280,7 @@ void AlarmClockComponent::update_alarm_time(uint8_t index, uint8_t hour,
   storage_save_alarm(index, alarms_[index]);
   ui_update_alarm_row(index, hour, minute, alarms_[index].days_of_week,
                       alarms_[index].enabled, time_format_24h_,
-                      alarms_[index].label);
+                      alarms_[index].label, alarms_[index].skip_next);
   sync_alarm_slots_ui_();
   mark_next_alarm_dirty_();
   ESP_LOGI(TAG, "Alarm %d time updated: %02d:%02d", index, hour, minute);
@@ -285,7 +294,7 @@ void AlarmClockComponent::update_alarm_days(uint8_t index, uint8_t days_mask) {
   storage_save_alarm(index, alarms_[index]);
   ui_update_alarm_row(index, alarms_[index].hour, alarms_[index].minute,
                       days_mask, alarms_[index].enabled, time_format_24h_,
-                      alarms_[index].label);
+                      alarms_[index].label, alarms_[index].skip_next);
   sync_alarm_slots_ui_();
   mark_next_alarm_dirty_();
   ESP_LOGI(TAG, "Alarm %d days updated: 0x%02X", index, days_mask);
@@ -299,7 +308,8 @@ void AlarmClockComponent::update_alarm_label(uint8_t index, const char *label) {
   storage_save_alarm(index, alarms_[index]);
   ui_update_alarm_row(index, alarms_[index].hour, alarms_[index].minute,
                       alarms_[index].days_of_week, alarms_[index].enabled,
-                      time_format_24h_, alarms_[index].label);
+                      time_format_24h_, alarms_[index].label,
+                      alarms_[index].skip_next);
   sync_alarm_slots_ui_();
   mark_next_alarm_dirty_();
   ESP_LOGI(TAG, "Alarm %d label updated: '%s'", index, alarms_[index].label);
@@ -320,7 +330,8 @@ void AlarmClockComponent::update_alarm(uint8_t index, uint8_t hour,
   storage_save_alarm(index, alarms_[index]);
   ui_update_alarm_row(index, alarms_[index].hour, alarms_[index].minute,
                       alarms_[index].days_of_week, alarms_[index].enabled,
-                      time_format_24h_, alarms_[index].label);
+                      time_format_24h_, alarms_[index].label,
+                      alarms_[index].skip_next);
   sync_alarm_slots_ui_();
   mark_next_alarm_dirty_();
   ESP_LOGI(TAG, "Alarm %d saved: %02d:%02d days=0x%02X label='%s'", index,
@@ -346,6 +357,19 @@ void AlarmClockComponent::edit_alarm(uint8_t index) {
                       alarms_[index].days_of_week, alarms_[index].label,
                       time_format_24h_);
   ESP_LOGI(TAG, "Editing alarm %d", index);
+}
+
+void AlarmClockComponent::set_alarm_skip_next(uint8_t index, bool skip) {
+  if (index >= kMaxAlarms) {
+    return;
+  }
+  alarms_[index].skip_next = skip;
+  storage_save_alarm(index, alarms_[index]);
+  ui_update_alarm_row(index, alarms_[index].hour, alarms_[index].minute,
+                      alarms_[index].days_of_week, alarms_[index].enabled,
+                      time_format_24h_, alarms_[index].label, skip);
+  mark_next_alarm_dirty_();
+  ESP_LOGI(TAG, "Alarm %d skip-next %s", index, skip ? "armed" : "cleared");
 }
 
 void AlarmClockComponent::delete_alarm(uint8_t index) {
@@ -564,6 +588,22 @@ void AlarmClockComponent::mark_next_alarm_dirty_() {
   next_alarm_dirty_ = true;
 }
 
+// Consumes a pending skip on |index| if armed. Returns true if the alarm's
+// current match should be suppressed (already-consumed skip).
+bool AlarmClockComponent::consume_alarm_skip_(uint8_t index) {
+  if (index >= kMaxAlarms || !alarms_[index].skip_next) {
+    return false;
+  }
+  alarms_[index].skip_next = false;
+  storage_save_alarm(index, alarms_[index]);
+  ui_update_alarm_row(index, alarms_[index].hour, alarms_[index].minute,
+                      alarms_[index].days_of_week, alarms_[index].enabled,
+                      time_format_24h_, alarms_[index].label, false);
+  mark_next_alarm_dirty_();
+  ESP_LOGI(TAG, "Alarm %d occurrence skipped", index);
+  return true;
+}
+
 void AlarmClockComponent::check_alarms_(uint8_t hour, uint8_t minute,
                                         uint8_t day_of_week) {
   // Store the latest time for use in loop() (e.g., snooze re-fire overlay).
@@ -619,6 +659,9 @@ void AlarmClockComponent::check_alarms_(uint8_t hour, uint8_t minute,
         continue;  // Don't re-queue the currently firing alarm.
       }
       if (alarm_matches(alarms_[i], hour, minute, day_of_week)) {
+        if (consume_alarm_skip_(i)) {
+          continue;
+        }
         pending_alarm_mask_ |= (1 << i);
         ESP_LOGI(TAG, "Alarm %d queued (another alarm is active)", i);
       }
@@ -667,6 +710,9 @@ void AlarmClockComponent::check_alarms_(uint8_t hour, uint8_t minute,
 
   for (uint8_t i = 0; i < kMaxAlarms; i++) {
     if (alarm_matches(alarms_[i], hour, minute, day_of_week)) {
+      if (consume_alarm_skip_(i)) {
+        continue;
+      }
       ESP_LOGW(TAG, "Alarm %d triggered!", i);
       fired_alarm_index_ = i;
       state_machine_.trigger();
@@ -809,7 +855,8 @@ void AlarmClockComponent::sync_ui_() {
     if (is_alarm_configured_(alarms_[i])) {
       ui_update_alarm_row(i, alarms_[i].hour, alarms_[i].minute,
                           alarms_[i].days_of_week, alarms_[i].enabled,
-                          time_format_24h_, alarms_[i].label);
+                          time_format_24h_, alarms_[i].label,
+                          alarms_[i].skip_next);
     } else {
       ui_hide_alarm_row(i);
     }
@@ -858,7 +905,8 @@ void AlarmClockComponent::auto_disable_one_shot_alarm_() {
                       alarms_[fired_alarm_index_].days_of_week,
                       false,
                       time_format_24h_,
-                      alarms_[fired_alarm_index_].label);
+                      alarms_[fired_alarm_index_].label,
+                      alarms_[fired_alarm_index_].skip_next);
   mark_next_alarm_dirty_();
 }
 

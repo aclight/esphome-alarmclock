@@ -53,7 +53,8 @@ void ui_update_pre_alarm_selection(uint8_t option_index);
 void ui_update_alarm_row(uint8_t index, uint8_t hour, uint8_t minute,
                          uint8_t days_mask, bool enabled,
                          bool time_format_24h = false,
-                         const char *label = nullptr);
+                         const char *label = nullptr,
+                         bool skip_next = false);
 void ui_hide_alarm_row(uint8_t index);
 void ui_set_alarm_slots_used(uint8_t used_slots, uint8_t max_slots);
 void ui_set_alarm_row_firing(uint8_t index);
@@ -87,6 +88,7 @@ struct UiCallbacks {
   void (*on_alarm_save)(uint8_t index, uint8_t hour, uint8_t minute,
                         uint8_t days_mask, const char *label) = nullptr;
   void (*on_alarm_delete)(uint8_t index) = nullptr;
+  void (*on_alarm_skip_toggle)(uint8_t index, bool skip) = nullptr;
   void (*on_sound_change)(uint8_t sound_index) = nullptr;
   void (*on_sound_preview)(uint8_t sound_index) = nullptr;
   void (*on_sound_preview_cancel)() = nullptr;
