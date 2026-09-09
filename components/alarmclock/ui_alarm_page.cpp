@@ -26,6 +26,8 @@ struct AlarmRow {
   lv_obj_t *alarm_label = nullptr;
   lv_obj_t *days_label = nullptr;
   lv_obj_t *toggle = nullptr;
+  lv_obj_t *skip_btn = nullptr;
+  lv_obj_t *skip_btn_label = nullptr;
 };
 
 struct RowTouchState {
@@ -83,6 +85,36 @@ static void alarm_toggle_cb(lv_event_t *e) {
   const auto &cb = ui_get_callbacks();
   if (cb.on_alarm_toggle) {
     cb.on_alarm_toggle(index, enabled);
+  }
+}
+
+// Applies the visual style for the skip-next button's armed/unarmed state.
+static void update_skip_btn_style_(uint8_t index, bool skipped) {
+  AlarmRow &row = alarm_rows_[index];
+  if (row.skip_btn == nullptr || row.skip_btn_label == nullptr) {
+    return;
+  }
+  if (skipped) {
+    lv_obj_add_state(row.skip_btn, LV_STATE_CHECKED);
+    lv_obj_set_style_bg_color(row.skip_btn, lv_color_hex(theme::kColorSnooze), 0);
+    lv_label_set_text(row.skip_btn_label, "Skipped");
+  } else {
+    lv_obj_clear_state(row.skip_btn, LV_STATE_CHECKED);
+    lv_obj_set_style_bg_color(row.skip_btn, lv_color_hex(theme::kColorMuted), 0);
+    lv_label_set_text(row.skip_btn_label, "Skip Next");
+  }
+}
+
+static void alarm_skip_btn_cb(lv_event_t *e) {
+  uint8_t index = reinterpret_cast<uintptr_t>(lv_event_get_user_data(e));
+  if (index >= kMaxAlarms) {
+    return;
+  }
+  bool skip = lv_obj_has_state(alarm_rows_[index].skip_btn, LV_STATE_CHECKED);
+  update_skip_btn_style_(index, skip);
+  const auto &cb = ui_get_callbacks();
+  if (cb.on_alarm_skip_toggle) {
+    cb.on_alarm_skip_toggle(index, skip);
   }
 }
 
@@ -219,10 +251,24 @@ void ui_build_alarm_page(lv_obj_t *parent) {
 
     // Toggle switch.
     row.toggle = lv_switch_create(row.container);
-    lv_obj_align(row.toggle, LV_ALIGN_RIGHT_MID, -20, 0);
+    lv_obj_align(row.toggle, LV_ALIGN_RIGHT_MID, -20, -30);
     lv_obj_set_size(row.toggle, 90, 48);
     lv_obj_add_event_cb(row.toggle, alarm_toggle_cb, LV_EVENT_VALUE_CHANGED,
                         reinterpret_cast<void *>(static_cast<uintptr_t>(i)));
+
+    // "Skip Next" button — suppresses just the next scheduled occurrence.
+    row.skip_btn = lv_button_create(row.container);
+    lv_obj_align(row.skip_btn, LV_ALIGN_RIGHT_MID, -20, 34);
+    lv_obj_set_size(row.skip_btn, 140, 44);
+    lv_obj_set_style_radius(row.skip_btn, theme::kButtonRadius, 0);
+    lv_obj_add_flag(row.skip_btn, LV_OBJ_FLAG_CHECKABLE);
+    lv_obj_add_event_cb(row.skip_btn, alarm_skip_btn_cb, LV_EVENT_CLICKED,
+                        reinterpret_cast<void *>(static_cast<uintptr_t>(i)));
+    row.skip_btn_label = lv_label_create(row.skip_btn);
+    lv_obj_center(row.skip_btn_label);
+    lv_obj_set_style_text_font(row.skip_btn_label, &lv_font_montserrat_20, 0);
+    lv_obj_set_style_text_color(row.skip_btn_label, lv_color_hex(theme::kColorPrimary), 0);
+    update_skip_btn_style_(i, false);
 
     // Initially hide all rows (shown when alarms are configured).
     lv_obj_add_flag(row.container, LV_OBJ_FLAG_HIDDEN);
@@ -252,7 +298,8 @@ void ui_build_alarm_page(lv_obj_t *parent) {
 void ui_update_alarm_row(uint8_t index, uint8_t hour, uint8_t minute,
                          uint8_t days_mask, bool enabled,
                          bool time_format_24h,
-                         const char *label) {
+                         const char *label,
+                         bool skip_next) {
   if (index >= kMaxAlarms) {
     return;
   }
@@ -298,6 +345,8 @@ void ui_update_alarm_row(uint8_t index, uint8_t hour, uint8_t minute,
   } else {
     lv_obj_clear_state(row.toggle, LV_STATE_CHECKED);
   }
+
+  update_skip_btn_style_(index, skip_next);
 }
 
 // Hide an alarm row (e.g. when deleted).

@@ -634,6 +634,7 @@ class AlarmClockComponent : public ::esphome::Component,
   void update_alarm_label(uint8_t index, const char *label);
   void update_alarm(uint8_t index, uint8_t hour, uint8_t minute,
                     uint8_t days_mask, const char *label);
+  void set_alarm_skip_next(uint8_t index, bool skip);
   void add_alarm();
   void edit_alarm(uint8_t index);
   void delete_alarm(uint8_t index);
@@ -738,6 +739,7 @@ class AlarmClockComponent : public ::esphome::Component,
   uint8_t configured_alarm_count_() const;
   void sync_alarm_slots_ui_();
   void mark_next_alarm_dirty_();
+  bool consume_alarm_skip_(uint8_t index);
   bool write_backlight_(float brightness);
   bool write_backlight_pwm_(uint8_t pwm);
   void update_backlight_();

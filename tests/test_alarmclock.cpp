@@ -430,6 +430,38 @@ TEST(minutes_until_alarm_every_day) {
     PASS();
 }
 
+TEST(minutes_until_alarm_skip_next_recurring_skips_to_next_week) {
+    // Only Monday is active; skipping this Monday should land on next Monday.
+    AlarmTime at{7, 30, kMonday, true};
+    at.skip_next = true;
+    int32_t expected = 7 * 24 * 60 - time_to_minutes(7, 0) + time_to_minutes(7, 30);
+    ASSERT_EQ(minutes_until_alarm(at, 7, 0, 1), expected);
+    PASS();
+}
+
+TEST(minutes_until_alarm_skip_next_recurring_skips_to_next_active_day) {
+    // Weekdays alarm; skipping today (Monday) should land on Tuesday.
+    AlarmTime at{7, 0, kWeekdays, true};
+    at.skip_next = true;
+    int32_t expected = 1 * 24 * 60 - time_to_minutes(6, 0) + time_to_minutes(7, 0);
+    ASSERT_EQ(minutes_until_alarm(at, 6, 0, 1), expected);
+    PASS();
+}
+
+TEST(minutes_until_alarm_skip_next_one_shot_has_no_next) {
+    AlarmTime at{7, 30, 0, true};
+    at.skip_next = true;
+    ASSERT_EQ(minutes_until_alarm(at, 7, 0, 1), -1);
+    PASS();
+}
+
+TEST(minutes_until_alarm_no_skip_unaffected) {
+    AlarmTime at{7, 30, kMonday, true};
+    ASSERT_FALSE(at.skip_next);
+    ASSERT_EQ(minutes_until_alarm(at, 7, 0, 1), 30);
+    PASS();
+}
+
 TEST(constants_weekdays) {
     ASSERT_EQ(kWeekdays, kMonday | kTuesday | kWednesday | kThursday | kFriday);
     ASSERT_FALSE(kWeekdays & kSaturday);
@@ -1199,7 +1231,8 @@ TEST(tick_firing_resets_on_reset) {
 // ===========================================================================
 
 TEST(serialized_alarm_size_constant) {
-    ASSERT_EQ(kSerializedAlarmSize, (size_t)21);
+    ASSERT_EQ(kLegacySerializedAlarmSize, (size_t)21);
+    ASSERT_EQ(kSerializedAlarmSize, (size_t)22);
     PASS();
 }
 
@@ -1343,6 +1376,43 @@ TEST(deserialize_alarm_wrong_version) {
     buf[0] = 99;  // wrong version
     AlarmTime alarm{};
     ASSERT_FALSE(deserialize_alarm(buf, sizeof(buf), &alarm));
+    PASS();
+}
+
+TEST(serialize_alarm_skip_next_roundtrip) {
+    AlarmTime orig{};
+    orig.hour = 7;
+    orig.minute = 30;
+    orig.days_of_week = kWeekdays;
+    orig.enabled = true;
+    orig.skip_next = true;
+
+    uint8_t buf[kSerializedAlarmSize];
+    size_t written = serialize_alarm(orig, buf, sizeof(buf));
+    ASSERT_EQ(written, kSerializedAlarmSize);
+
+    AlarmTime loaded{};
+    ASSERT_TRUE(deserialize_alarm(buf, written, &loaded));
+    ASSERT_TRUE(loaded.skip_next);
+    PASS();
+}
+
+TEST(deserialize_alarm_legacy_buffer_defaults_skip_next_false) {
+    // A record saved before skip_next existed is exactly kLegacySerializedAlarmSize
+    // bytes (no trailing skip byte) and must still load with skip_next=false.
+    AlarmTime orig{};
+    orig.hour = 7;
+    orig.minute = 30;
+    orig.days_of_week = kWeekdays;
+    orig.enabled = true;
+
+    uint8_t buf[kSerializedAlarmSize] = {};
+    size_t written = serialize_alarm(orig, buf, sizeof(buf));
+    ASSERT_EQ(written, kSerializedAlarmSize);
+
+    AlarmTime loaded{};
+    ASSERT_TRUE(deserialize_alarm(buf, kLegacySerializedAlarmSize, &loaded));
+    ASSERT_FALSE(loaded.skip_next);
     PASS();
 }
 
@@ -2003,6 +2073,10 @@ int main() {
     RUN(minutes_until_alarm_no_days);
     RUN(minutes_until_alarm_weekdays_on_friday_evening);
     RUN(minutes_until_alarm_every_day);
+    RUN(minutes_until_alarm_skip_next_recurring_skips_to_next_week);
+    RUN(minutes_until_alarm_skip_next_recurring_skips_to_next_active_day);
+    RUN(minutes_until_alarm_skip_next_one_shot_has_no_next);
+    RUN(minutes_until_alarm_no_skip_unaffected);
     RUN(constants_weekdays);
     RUN(constants_weekends);
     RUN(constants_every_day);
@@ -2122,6 +2196,8 @@ int main() {
     RUN(deserialize_alarm_null_alarm);
     RUN(deserialize_alarm_small_buf);
     RUN(deserialize_alarm_wrong_version);
+    RUN(serialize_alarm_skip_next_roundtrip);
+    RUN(deserialize_alarm_legacy_buffer_defaults_skip_next_false);
     RUN(serialize_settings_roundtrip);
     RUN(deserialize_legacy_settings_defaults_night_brightness);
     RUN(serialize_settings_defaults);

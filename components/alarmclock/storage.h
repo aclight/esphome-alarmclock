@@ -24,7 +24,8 @@ static constexpr uint8_t kStorageVersion = 2;
 static constexpr uint8_t kMaxStoredSoundIndex = 9;
 
 // Serialized sizes (including the version byte).
-static constexpr size_t kSerializedAlarmSize = 1 + 1 + 1 + 1 + 1 + kAlarmLabelMaxLen;  // 21
+static constexpr size_t kLegacySerializedAlarmSize = 1 + 1 + 1 + 1 + 1 + kAlarmLabelMaxLen;  // 21
+static constexpr size_t kSerializedAlarmSize = kLegacySerializedAlarmSize + 1;  // 22
 static constexpr size_t kLegacySerializedSettingsSize = 1 + 4 + 4 + 1 + 1 + 1 + 1;  // 13
 static constexpr size_t kSerializedSettingsSize =
     kLegacySerializedSettingsSize + 4;  // 17
@@ -61,13 +62,14 @@ inline size_t serialize_alarm(const AlarmTime &alarm, uint8_t *buf, size_t buf_s
   buf[offset++] = alarm.enabled ? 1 : 0;
   std::memcpy(&buf[offset], alarm.label, kAlarmLabelMaxLen);
   offset += kAlarmLabelMaxLen;
+  buf[offset++] = alarm.skip_next ? 1 : 0;
   return offset;
 }
 
-// Deserialize an AlarmTime from |buf| (must be >= kSerializedAlarmSize bytes).
+// Deserialize current alarm or a legacy record without skip_next.
 // Returns true on success.  Returns false if any field is out of range.
 inline bool deserialize_alarm(const uint8_t *buf, size_t buf_size, AlarmTime *alarm) {
-  if (buf == nullptr || alarm == nullptr || buf_size < kSerializedAlarmSize) {
+  if (buf == nullptr || alarm == nullptr || buf_size < kLegacySerializedAlarmSize) {
     return false;
   }
   size_t offset = 0;
@@ -91,6 +93,9 @@ inline bool deserialize_alarm(const uint8_t *buf, size_t buf_size, AlarmTime *al
   alarm->enabled = enabled;
   std::memcpy(alarm->label, &buf[offset], kAlarmLabelMaxLen);
   alarm->label[kAlarmLabelMaxLen - 1] = '\0';  // Ensure null termination.
+  offset += kAlarmLabelMaxLen;
+
+  alarm->skip_next = (buf_size >= kSerializedAlarmSize) ? (buf[offset] != 0) : false;
   return true;
 }
 
