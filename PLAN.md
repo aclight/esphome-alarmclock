@@ -44,10 +44,21 @@ one-off hack:
 Bigger, multi-stage effort. Do the hardware confirmation first; everything else
 is blocked on it.
 
-1. **Blocking:** confirm the P4 5" (and/or S3 4.3") board actually exposes a
-   physical TF/microSD slot and get its pin map/wiring mode (SDMMC 1-bit/4-bit
-   vs SPI) from Elecrow's schematic/wiki — not established anywhere in this
-   repo today.
+1. **Complete (hardware research):** both boards expose a physical card slot,
+  but they use different interfaces. The official sources are the [P4 wiki]
+  (https://www.elecrow.com/wiki/CrowPanel_Advanced_5inch_ESP32-P4_HMI_AI_Display_800x480_IPS_Touch_Screen_with_WiFi_6.html),
+  [P4 repository]
+  (https://github.com/Elecrow-RD/-CrowPanel-Advanced-5inch-ESP32-P4-HMI-AI-Display-800x480-IPS-Touch-Screen),
+  [S3 wiki]
+  (https://www.elecrow.com/wiki/CrowPanel_Advance_4.3-HMI_ESP32_AI_Display.html),
+  and [S3 repository]
+  (https://github.com/Elecrow-RD/CrowPanel-Advance-4.3-HMI-ESP32-S3-AI-Powered-IPS-Touch-Screen-800x480).
+  The P4 slot is documented as `SD1_CMD=GPIO44`, `SD1_SCK=GPIO43`,
+  `SD1_D0=GPIO39`, with `CS=GND`; the lack of D1-D3 indicates SDMMC 1-bit
+  wiring, although Elecrow does not state that mode explicitly. The P4 board
+  in hand is V1.0, matching the documented sources. The S3 slot is SPI:
+  `MOSI=GPIO6`, `MISO=GPIO4`, `SCK=GPIO5`, with CS fixed to 3.3 V / not routed
+  to an ESP32 GPIO. The S3 repository documents V1.3 as the latest revision.
 2. Mount the card with ESPHome's `sd_mmc_card` (or SPI-mode SD) component; get a
    basic file read working as a standalone proof before touching the UI.
 3. **Decision needed:** wallpaper image pipeline. Check whether this ESPHome/
