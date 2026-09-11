@@ -40,9 +40,15 @@ esp32:
       # trip the default 5s task watchdog on larger-than-800x480 images.
       CONFIG_ESP_TASK_WDT_TIMEOUT_S: "15"
       # Tried CONFIG_LCD_RGB_ISR_IRAM_SAFE / CONFIG_LCD_RGB_RESTART_IN_VSYNC
-      # (both off by default). One boot showed much worse streaking/fixed
-      # lines; a later reboot didn't reproduce that, but showed no
-      # improvement over baseline either. Reverted - no proven benefit.
+      # (both off by default). No proven benefit - RESTART_IN_VSYNC is dead
+      # code on the P4 anyway, since ESP-IDF compiles the restart path under
+      # #if CONFIG_IDF_TARGET_ESP32S3 only.
+      #
+      # Each RGB bounce-buffer refill ends in a Cache_Start_L2_Cache_Preload()
+      # of the whole buffer, which at the default 128KB L2 evicts most of the
+      # cache every few hundred microseconds. 256KB is the experiment; it
+      # costs 128KB of the 768KB L2MEM.
+      CONFIG_CACHE_L2_CACHE_256KB: "y"
 
 psram:
   mode: hex
@@ -91,13 +97,12 @@ display:
     update_interval: never
     color_order: RGB
     pclk_frequency: 18MHz
-    # The stock component hardcodes 10 scanlines per bounce buffer (~444us of
-    # scanout at 18MHz); 40 lines (~1.8ms) already eliminated the per-scanline
-    # tearing. 60 lines (~2.7ms) targets the residual whole-frame desyncs. The
-    # P4 has no auto-resync (ESP-IDF compiles that path for the S3 only), so
-    # every EOF-ISR overrun is permanent until the next one cancels it.
-    # Costs 2 x 800 x 60 x 2 = 192KB of internal SRAM. Must divide the height.
-    bounce_buffer_lines: 60
+    # Stock hardcodes 10 scanlines (~444us of scanout at 18MHz) and tears
+    # badly; 40 (~1.8ms) eliminated the tearing and is the only value with a
+    # confirmed result. 60 is untested - the runs believed to be 32 and 24
+    # were misbuilds that all ran 60, so that comparison was noise.
+    # Costs 2 x 800 x 40 x 2 = 128KB of internal SRAM. Must divide the height.
+    bounce_buffer_lines: 40
     dimensions:
       width: 800
       height: 480
