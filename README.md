@@ -157,3 +157,14 @@ esphome run alarmclock.yaml
 # Or compile and flash the 5-inch ESP32-P4 board
 esphome run alarmclock-p4-5inch.yaml
 ```
+
+## Licensing
+
+This project is MIT licensed (see `LICENSE`), with two exceptions:
+
+- `components/mipi_rgb/` is a modified copy of ESPHome's built-in `mipi_rgb`
+  component and keeps ESPHome's split licensing: the C++ files are
+  GPL-3.0-or-later and the Python files are MIT, both Copyright (c) 2019 ESPHome.
+  See `components/mipi_rgb/LICENSE` and `LICENSES/ESPHome-LICENSE.txt`.
+- Bundled fonts are licensed under the SIL Open Font License; see
+  `LICENSES/OFL-1.1.txt`.

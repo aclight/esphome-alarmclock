@@ -72,7 +72,9 @@ external_components:
       url: https://github.com/aclight/esphome-alarmclock.git
       ref: sd-card-proof-p4
       path: components
-    components: [sd_card_proof]
+    # mipi_rgb here is a vendored copy of the stock ESPHome component that
+    # overrides the built-in one, adding the bounce_buffer_lines option below.
+    components: [sd_card_proof, mipi_rgb]
     refresh: 0s
 
 i2c:
@@ -89,6 +91,12 @@ display:
     update_interval: never
     color_order: RGB
     pclk_frequency: 18MHz
+    # Experiment: the stock component hardcodes 10 scanlines per bounce buffer
+    # (~444us of scanout at 18MHz). Raising it to 40 gives the EOF ISR ~1.8ms
+    # of slack to refill from PSRAM before the DMA underruns, which is the
+    # suspected failure mode when Wi-Fi/SDIO traffic saturates the PSRAM bus.
+    # Costs 2 x 800 x 40 x 2 = 128KB of internal SRAM. Must divide the height.
+    bounce_buffer_lines: 40
     dimensions:
       width: 800
       height: 480
