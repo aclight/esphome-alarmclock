@@ -176,6 +176,9 @@ captive_portal:
 api:
   encryption:
     key: !secret encryption_key
+  # No HA client connects to this proof device, so the default 15min
+  # reboot_timeout was rebooting it on a 15min cycle during log captures.
+  reboot_timeout: 0s
 
 ota:
   - platform: esphome
