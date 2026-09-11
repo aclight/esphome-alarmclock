@@ -15,6 +15,13 @@ esphome:
             id(i2c_bus).write(0x2F, power, sizeof(power));
             id(i2c_bus).write(0x2F, brightness, sizeof(brightness));
 
+# Experiment: flash writes (default every 60s) briefly disable CPU cache and
+# interrupts on both cores system-wide - a well-known cause of RGB panel
+# glitches/watchdog panics, independent of any Wi-Fi/SDIO bus contention.
+# Stretched way out to isolate that from the wifi theory, wifi kept enabled.
+preferences:
+  flash_write_interval: 1h
+
 esp32:
   variant: esp32p4
   engineering_sample: true
