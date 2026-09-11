@@ -207,25 +207,32 @@ void MipiRgb::common_setup_() {
 bool IRAM_ATTR MipiRgb::vsync_cb_(esp_lcd_panel_handle_t /*panel*/,
                                   const esp_lcd_rgb_panel_event_data_t * /*edata*/, void *user_ctx) {
   auto *self = static_cast<MipiRgb *>(user_ctx);
-  const int64_t now = esp_timer_get_time();
+  const uint32_t now = static_cast<uint32_t>(esp_timer_get_time());
   self->vsync_count_.fetch_add(1, std::memory_order_relaxed);
 
-  const int64_t previous = self->last_vsync_us_;
-  self->last_vsync_us_ = now;
+  const uint32_t previous = self->last_vsync_us_.exchange(now, std::memory_order_relaxed);
   if (previous == 0) {
     return false;
   }
 
-  const uint32_t interval = static_cast<uint32_t>(now - previous);
+  const uint32_t sanity_limit = self->frame_period_us_ * 10;
+  const uint32_t interval = now - previous;
+  if (interval > sanity_limit) {
+    self->bogus_interval_count_.fetch_add(1, std::memory_order_relaxed);
+    return false;
+  }
   if (interval > self->max_interval_us_.load(std::memory_order_relaxed)) {
     self->max_interval_us_.store(interval, std::memory_order_relaxed);
   }
   // The scanout is still ~2 bounce buffers ahead here, so this is the margin
   // left at the end of the frame rather than the whole frame period.
   uint32_t slack = 0;
-  if (self->last_fb_complete_us_ != 0) {
-    slack = static_cast<uint32_t>(now - self->last_fb_complete_us_);
-    if (slack < self->min_slack_us_.load(std::memory_order_relaxed)) {
+  const uint32_t fb_complete = self->last_fb_complete_us_.load(std::memory_order_relaxed);
+  if (fb_complete != 0) {
+    slack = now - fb_complete;
+    if (slack > sanity_limit) {
+      slack = 0;
+    } else if (slack < self->min_slack_us_.load(std::memory_order_relaxed)) {
       self->min_slack_us_.store(slack, std::memory_order_relaxed);
     }
   }
@@ -247,7 +254,7 @@ bool IRAM_ATTR MipiRgb::vsync_cb_(esp_lcd_panel_handle_t /*panel*/,
 bool IRAM_ATTR MipiRgb::frame_complete_cb_(esp_lcd_panel_handle_t /*panel*/,
                                            const esp_lcd_rgb_panel_event_data_t * /*edata*/, void *user_ctx) {
   auto *self = static_cast<MipiRgb *>(user_ctx);
-  self->last_fb_complete_us_ = esp_timer_get_time();
+  self->last_fb_complete_us_.store(static_cast<uint32_t>(esp_timer_get_time()), std::memory_order_relaxed);
   self->frame_complete_count_.fetch_add(1, std::memory_order_relaxed);
   return false;
 }
@@ -278,11 +285,12 @@ void MipiRgb::report_desync_() {
   const uint32_t dropped = this->late_dropped_.exchange(0, std::memory_order_relaxed);
   const uint32_t max_interval = this->max_interval_us_.exchange(0, std::memory_order_relaxed);
   const uint32_t min_slack = this->min_slack_us_.exchange(UINT32_MAX, std::memory_order_relaxed);
+  const uint32_t bogus = this->bogus_interval_count_.exchange(0, std::memory_order_relaxed);
   ESP_LOGI(TAG,
            "Frames %" PRIu32 ", desync %+" PRId32 " (%" PRIu32 " total), late %" PRIu32 " (+%" PRIu32
-           " dropped), max VSYNC %" PRIu32 "us, min slack %" PRIu32 "us",
+           " dropped), max VSYNC %" PRIu32 "us, min slack %" PRIu32 "us, bogus %" PRIu32,
            vsyncs_this_period, delta, this->total_desyncs_, late, dropped, max_interval,
-           min_slack == UINT32_MAX ? 0 : min_slack);
+           min_slack == UINT32_MAX ? 0 : min_slack, bogus);
   this->last_drift_ = drift;
   this->last_vsync_count_ = vsyncs;
   this->last_frame_complete_count_ = frames;

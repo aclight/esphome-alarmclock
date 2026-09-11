@@ -111,7 +111,11 @@ display:
     # wire, which is the shift-and-wrap glitch. IDF still restarts on a real
     # underrun via its own bb_eof_count check, so recovery is retained.
     force_restart: false
-    desync_report_interval: 60s
+    # Instrumentation off for now: with it on, 12.6% of timestamps came back
+    # corrupt and the device took two interrupt-WDT panics in 7.5min. 0s means
+    # no callbacks are registered at all, which isolates force_restart from the
+    # measurement code as the cause. Set back to 60s once that is settled.
+    desync_report_interval: 0s
     dimensions:
       width: 800
       height: 480

@@ -112,9 +112,12 @@ class MipiRgb : public display::Display {
   std::atomic<uint8_t> late_write_{0};
   std::atomic<uint8_t> late_read_{0};
   LateFrame late_events_[LATE_EVENT_SLOTS]{};
-  // Only ever touched from the single LCD ISR, so no synchronisation needed.
-  int64_t last_vsync_us_{0};
-  int64_t last_fb_complete_us_{0};
+  // on_frame_buf_complete runs in the GDMA ISR and on_vsync in the LCD ISR, so
+  // these are cross-ISR and must stay 32-bit to avoid torn reads. Microsecond
+  // wraparound every ~71min is harmless for deltas.
+  std::atomic<uint32_t> last_vsync_us_{0};
+  std::atomic<uint32_t> last_fb_complete_us_{0};
+  std::atomic<uint32_t> bogus_interval_count_{0};
   uint32_t frame_period_us_{0};
   uint32_t late_threshold_us_{0};
   uint32_t late_frame_threshold_{200};
