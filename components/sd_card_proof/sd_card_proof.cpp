@@ -7,6 +7,7 @@
 #include "esp_err.h"
 #include "esp_log.h"
 #include "esp_vfs_fat.h"
+#include "esphome/core/hal.h"
 #include "sdmmc_cmd.h"
 
 namespace esphome {
@@ -39,30 +40,56 @@ void SdCardProof::setup() {
   const esp_err_t mount_result = esp_vfs_fat_sdmmc_mount(
       kMountPoint, &host, &slot_config, &mount_config, &this->card_);
   if (mount_result != ESP_OK) {
-    ESP_LOGE(TAG, "SD mount failed: %s (0x%x)", esp_err_to_name(mount_result),
-             static_cast<unsigned>(mount_result));
-    this->mark_failed();
+    this->result_ = ProofResult::kMountFailed;
+    this->mount_error_ = mount_result;
+    this->log_result_();
     return;
   }
 
-  const uint64_t size_mb =
+  this->size_mb_ =
       static_cast<uint64_t>(this->card_->csd.capacity) * this->card_->csd.sector_size /
       (1024U * 1024U);
-  ESP_LOGI(TAG, "SD mounted: %" PRIu64 " MB at %" PRIu32 " kHz", size_mb,
-           this->card_->real_freq_khz);
+  this->frequency_khz_ = this->card_->real_freq_khz;
 
   FILE *file = fopen(kProofFile, "r");
   if (file == nullptr) {
-    ESP_LOGE(TAG, "Mounted, but could not open %s", kProofFile);
-    this->mark_failed();
+    this->result_ = ProofResult::kOpenFailed;
+    this->log_result_();
     return;
   }
 
-  char contents[129] = {};
-  const size_t bytes_read = fread(contents, 1, sizeof(contents) - 1, file);
+  this->bytes_read_ = fread(this->contents_, 1, sizeof(this->contents_) - 1, file);
   fclose(file);
-  ESP_LOGI(TAG, "Read %u bytes from %s: %s", static_cast<unsigned>(bytes_read),
-           kProofFile, contents);
+  this->result_ = ProofResult::kReadSucceeded;
+  this->log_result_();
+}
+
+void SdCardProof::loop() {
+  const uint32_t now = millis();
+  if (now - this->last_log_ms_ >= 10000) {
+    this->last_log_ms_ = now;
+    this->log_result_();
+  }
+}
+
+void SdCardProof::log_result_() const {
+  if (this->result_ == ProofResult::kMountFailed) {
+    ESP_LOGE(TAG, "SD mount failed: %s (0x%x)", esp_err_to_name(this->mount_error_),
+             static_cast<unsigned>(this->mount_error_));
+    return;
+  }
+  if (this->result_ == ProofResult::kOpenFailed) {
+    ESP_LOGE(TAG, "SD mounted (%" PRIu64 " MB at %" PRIu32
+                  " kHz), but could not open %s",
+             this->size_mb_, this->frequency_khz_, kProofFile);
+    return;
+  }
+  if (this->result_ == ProofResult::kReadSucceeded) {
+    ESP_LOGI(TAG, "SD mounted (%" PRIu64 " MB at %" PRIu32
+                  " kHz); read %u bytes from %s: %s",
+             this->size_mb_, this->frequency_khz_,
+             static_cast<unsigned>(this->bytes_read_), kProofFile, this->contents_);
+  }
 }
 
 }  // namespace sd_card_proof
