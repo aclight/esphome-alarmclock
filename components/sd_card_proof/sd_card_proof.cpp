@@ -7,6 +7,7 @@
 #include "esp_err.h"
 #include "esp_log.h"
 #include "esp_vfs_fat.h"
+#include "esphome/components/wifi/wifi_component.h"
 #include "esphome/core/hal.h"
 #include "sdmmc_cmd.h"
 
@@ -17,7 +18,7 @@ static const char *const TAG = "sd_card_proof";
 static constexpr char kMountPoint[] = "/sdcard";
 static constexpr char kProofFile[] = "/sdcard/sd-proof.txt";
 
-void SdCardProof::setup() {
+void SdCardProof::mount_() {
   sdmmc_host_t host = SDMMC_HOST_DEFAULT();
   host.max_freq_khz = 10000;
 
@@ -64,9 +65,19 @@ void SdCardProof::setup() {
   this->log_result_();
 }
 
+void SdCardProof::setup() {
+  ESP_LOGI(TAG, "Waiting for ESP-Hosted Wi-Fi before mounting SD card");
+}
+
 void SdCardProof::loop() {
+  if (!this->mount_attempted_ && wifi::global_wifi_component != nullptr &&
+      wifi::global_wifi_component->is_connected()) {
+    this->mount_attempted_ = true;
+    this->mount_();
+  }
+
   const uint32_t now = millis();
-  if (now - this->last_log_ms_ >= 10000) {
+  if (this->result_ != ProofResult::kNotRun && now - this->last_log_ms_ >= 10000) {
     this->last_log_ms_ = now;
     this->log_result_();
   }

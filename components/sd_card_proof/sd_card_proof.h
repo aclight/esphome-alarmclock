@@ -18,7 +18,6 @@ class SdCardProof : public Component {
 
   void setup() override;
   void loop() override;
-  float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
  protected:
   enum class ProofResult : uint8_t {
@@ -28,6 +27,7 @@ class SdCardProof : public Component {
     kReadSucceeded,
   };
 
+  void mount_();
   void log_result_() const;
 
   int clk_pin_{-1};
@@ -39,6 +39,7 @@ class SdCardProof : public Component {
   uint64_t size_mb_{0};
   uint32_t frequency_khz_{0};
   uint32_t last_log_ms_{0};
+  bool mount_attempted_{false};
   size_t bytes_read_{0};
   char contents_[129]{};
 };

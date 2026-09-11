@@ -5,6 +5,8 @@ import esphome.config_validation as cv
 from esphome.components import esp32
 from esphome.const import CONF_ID
 
+DEPENDENCIES = ["wifi"]
+
 CONF_CLK_PIN = "clk_pin"
 CONF_CMD_PIN = "cmd_pin"
 CONF_DATA0_PIN = "data0_pin"
