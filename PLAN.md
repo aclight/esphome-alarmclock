@@ -66,11 +66,13 @@ is blocked on it.
   SDMMC slot 1. Coexistence requires explicitly selecting slot 0 and waiting
   for Hosted Wi-Fi to connect before mounting. The S3 SPI path remains
   untested.
-3. **Decision needed:** wallpaper image pipeline. Check whether this ESPHome/
-   LVGL version can decode a JPEG/PNG read live from the mounted filesystem, or
-   whether a custom `lv_fs` driver bridging LVGL to the SD FAT filesystem is
-   required for runtime-swappable wallpaper (vs. only compile-time-baked
-   images).
+3. **Implemented; hardware verification pending:** wallpaper image pipeline.
+  LVGL 9.5 requires an `lv_fs` bridge for filesystem image sources, but its
+  built-in stdio driver can bridge directly to ESP-IDF VFS, so no custom
+  driver is needed. The P4 proof enables that driver plus LVGL's streaming
+  JPEG decoder and displays `S:/wallpaper.jpg` (ESP-IDF path
+  `/sdcard/wallpaper.jpg`) after the existing post-Wi-Fi SD mount. Test with
+  an 800x480 baseline RGB JPEG in the card root.
 4. **Decision needed:** SD-stored alarm-tone format. Start with WAV/raw PCM at
    16 kHz mono (reuses the sample-playback state machine from the
   hawk-call work above with an SD-file "next chunk" source instead of
