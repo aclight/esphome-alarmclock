@@ -91,12 +91,13 @@ display:
     update_interval: never
     color_order: RGB
     pclk_frequency: 18MHz
-    # Experiment: the stock component hardcodes 10 scanlines per bounce buffer
-    # (~444us of scanout at 18MHz). Raising it to 40 gives the EOF ISR ~1.8ms
-    # of slack to refill from PSRAM before the DMA underruns, which is the
-    # suspected failure mode when Wi-Fi/SDIO traffic saturates the PSRAM bus.
-    # Costs 2 x 800 x 40 x 2 = 128KB of internal SRAM. Must divide the height.
-    bounce_buffer_lines: 40
+    # The stock component hardcodes 10 scanlines per bounce buffer (~444us of
+    # scanout at 18MHz); 40 lines (~1.8ms) already eliminated the per-scanline
+    # tearing. 60 lines (~2.7ms) targets the residual whole-frame desyncs. The
+    # P4 has no auto-resync (ESP-IDF compiles that path for the S3 only), so
+    # every EOF-ISR overrun is permanent until the next one cancels it.
+    # Costs 2 x 800 x 60 x 2 = 192KB of internal SRAM. Must divide the height.
+    bounce_buffer_lines: 60
     dimensions:
       width: 800
       height: 480
