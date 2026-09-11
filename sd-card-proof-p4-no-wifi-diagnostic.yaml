@@ -1,0 +1,125 @@
+# TEMPORARY diagnostic only - not part of the finished proof. Delete once the
+# Wi-Fi/SDIO tearing question is answered. No wifi/esp32_hosted/api/ota, so it
+# must be installed via USB, not Home Assistant OTA.
+esphome:
+  name: alarmclock-p4
+  friendly_name: Alarm Clock P4 SD Wallpaper Proof (no wifi)
+  project:
+    name: aclight.alarmclock-sd-wallpaper-proof
+    version: "1.0.0"
+  # Turn on the STC8 backlight (0x1B enables the panel, 0x20 sets brightness)
+  # once i2c_bus is up.
+  on_boot:
+    - priority: -100.0
+      then:
+        - lambda: |-
+            const uint8_t power[] = {0x1B, 1};
+            const uint8_t brightness[] = {0x20, 100};
+            id(i2c_bus).write(0x2F, power, sizeof(power));
+            id(i2c_bus).write(0x2F, brightness, sizeof(brightness));
+
+esp32:
+  variant: esp32p4
+  engineering_sample: true
+  flash_size: 16MB
+  cpu_frequency: 360MHz
+  framework:
+    type: esp-idf
+    advanced:
+      enable_idf_experimental_features: true
+    sdkconfig_options:
+      CONFIG_ESP_MAIN_TASK_STACK_SIZE: "8192"
+      # ESP-IDF's FATFS disables long filenames by default (8.3 short names
+      # only), which can't resolve "wallpaper.jpg" (9-char base name).
+      CONFIG_FATFS_LFN_HEAP: "y"
+      # The one-time JPEG decode+draw blocks the main loop long enough to
+      # trip the default 5s task watchdog on larger-than-800x480 images.
+      CONFIG_ESP_TASK_WDT_TIMEOUT_S: "15"
+
+psram:
+  mode: hex
+  speed: 200MHz
+
+# No esp32_hosted here: the ESP32-C6 co-processor stays in reset, so there is
+# zero Wi-Fi/SDIO traffic to contend with the display's PSRAM DMA.
+
+external_components:
+  - source:
+      type: git
+      url: https://github.com/aclight/esphome-alarmclock.git
+      ref: sd-card-proof-p4
+      path: components
+    components: [sd_card_proof]
+    refresh: 0s
+
+i2c:
+  id: i2c_bus
+  sda: GPIO45
+  scl: GPIO46
+
+# Display timings copied from the known-good alarmclock-p4-5inch.yaml config.
+display:
+  - platform: mipi_rgb
+    model: RPI
+    id: main_display
+    auto_clear_enabled: false
+    update_interval: never
+    color_order: RGB
+    pclk_frequency: 18MHz
+    dimensions:
+      width: 800
+      height: 480
+    de_pin: GPIO2
+    vsync_pin: GPIO41
+    hsync_pin: GPIO40
+    pclk_pin: GPIO3
+    data_pins:
+      red:
+        - GPIO19
+        - GPIO18
+        - GPIO17
+        - GPIO16
+        - GPIO15
+      green:
+        - GPIO14
+        - GPIO13
+        - GPIO12
+        - GPIO11
+        - GPIO10
+        - GPIO9
+      blue:
+        - GPIO8
+        - GPIO7
+        - GPIO6
+        - GPIO5
+        - GPIO4
+    hsync_front_porch: "8"
+    hsync_pulse_width: "8"
+    hsync_back_porch: "4"
+    vsync_front_porch: "8"
+    vsync_pulse_width: "8"
+    vsync_back_porch: "4"
+
+# Minimal LVGL page; sd_card_proof replaces its contents with the wallpaper
+# image once the SD card is mounted.
+lvgl:
+  displays:
+    - main_display
+  buffer_size: 100%
+  pages:
+    - id: wallpaper_page
+      widgets: []
+
+logger:
+  level: DEBUG
+  hardware_uart: UART0
+
+# The card must be formatted FAT32 and contain /wallpaper.jpg, an 800x480
+# baseline RGB JPEG, in its root directory.
+sd_card_proof:
+  clk_pin: 43
+  cmd_pin: 44
+  data0_pin: 39
+  # No wifi: component exists in this file at all, so this just mounts as
+  # soon as setup() runs instead of waiting for ESP-Hosted to connect.
+  wait_for_wifi: false
