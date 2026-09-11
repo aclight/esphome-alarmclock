@@ -40,9 +40,10 @@ esp32:
       # trip the default 5s task watchdog on larger-than-800x480 images.
       CONFIG_ESP_TASK_WDT_TIMEOUT_S: "15"
       # Tried CONFIG_LCD_RGB_ISR_IRAM_SAFE / CONFIG_LCD_RGB_RESTART_IN_VSYNC
-      # (both off by default). No proven benefit - RESTART_IN_VSYNC is dead
-      # code on the P4 anyway, since ESP-IDF compiles the restart path under
-      # #if CONFIG_IDF_TARGET_ESP32S3 only.
+      # (both off by default). No proven benefit yet, but note that
+      # RESTART_IN_VSYNC is NOT dead code on the P4: only the separate restart
+      # DMA link is S3-only, and lcd_rgb_panel_try_restart_transmission() has a
+      # working non-S3 branch that runs from the VSYNC_END ISR.
       #
       # Each RGB bounce-buffer refill ends in a Cache_Start_L2_Cache_Preload()
       # of the whole buffer, which at the default 128KB L2 evicts most of the
@@ -103,6 +104,7 @@ display:
     # were misbuilds that all ran 60, so that comparison was noise.
     # Costs 2 x 800 x 40 x 2 = 128KB of internal SRAM. Must divide the height.
     bounce_buffer_lines: 40
+    desync_report_interval: 60s
     dimensions:
       width: 800
       height: 480

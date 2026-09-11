@@ -2,15 +2,19 @@
 // Copyright (c) 2019 ESPHome
 //
 // Modified copy of esphome/components/mipi_rgb/mipi_rgb.h from ESPHome 2026.7.4.
-// Change vs upstream: adds the bounce_buffer_lines_ member and its setter.
+// Changes vs upstream: configurable bounce_buffer_lines, an opt-out for the
+// per-loop esp_lcd_rgb_panel_restart() call, and VSYNC/frame-complete counters
+// used to measure DMA desyncs.
 // See LICENSES/ESPHome-LICENSE.txt and components/mipi_rgb/LICENSE.
 
 #pragma once
 
 #if defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4)
+#include <atomic>
 #include "esphome/core/gpio.h"
 #include "esphome/components/display/display.h"
 #include "esp_lcd_panel_ops.h"
+#include "esp_lcd_panel_rgb.h"
 #ifdef USE_SPI
 #include "esphome/components/spi/spi.h"
 #endif
@@ -52,6 +56,8 @@ class MipiRgb : public display::Display {
   void set_pclk_frequency(uint32_t pclk_frequency) { this->pclk_frequency_ = pclk_frequency; }
   void set_pclk_inverted(bool inverted) { this->pclk_inverted_ = inverted; }
   void set_bounce_buffer_lines(uint16_t lines) { this->bounce_buffer_lines_ = lines; }
+  void set_force_restart(bool force_restart) { this->force_restart_ = force_restart; }
+  void set_desync_report_interval(uint32_t ms) { this->desync_report_interval_ = ms; }
   void set_model(const char *model) { this->model_ = model; }
   int get_width() override;
   int get_height() override;
@@ -76,6 +82,24 @@ class MipiRgb : public display::Display {
   void dump_pins_(uint8_t start, uint8_t end, const char *name, uint8_t offset);
   void setup_enables_();
   void common_setup_();
+  void report_desync_();
+
+  // Both fire once per frame: on_vsync from the hardware VSYNC_END interrupt,
+  // on_frame_buf_complete when the driver's software bounce position wraps.
+  // Any divergence between the two counts is a DMA desync.
+  static bool vsync_cb_(esp_lcd_panel_handle_t panel, const esp_lcd_rgb_panel_event_data_t *edata, void *user_ctx);
+  static bool frame_complete_cb_(esp_lcd_panel_handle_t panel, const esp_lcd_rgb_panel_event_data_t *edata,
+                                 void *user_ctx);
+
+  std::atomic<uint32_t> vsync_count_{0};
+  std::atomic<uint32_t> frame_complete_count_{0};
+  uint32_t last_vsync_count_{0};
+  uint32_t last_frame_complete_count_{0};
+  int32_t last_drift_{0};
+  uint32_t total_desyncs_{0};
+  uint32_t last_report_ms_{0};
+  uint32_t desync_report_interval_{0};
+  bool force_restart_{true};
   InternalGPIOPin *de_pin_{nullptr};
   InternalGPIOPin *pclk_pin_{nullptr};
   InternalGPIOPin *hsync_pin_{nullptr};

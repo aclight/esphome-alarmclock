@@ -88,6 +88,15 @@ DEPENDENCIES = ["esp32"]
 # in internal SRAM; the stock component hardcodes 10.
 CONF_BOUNCE_BUFFER_LINES = "bounce_buffer_lines"
 
+# Stock calls esp_lcd_rgb_panel_restart() every loop, which makes ESP-IDF reset
+# the DMA on every VSYNC; IDF's own comment says that can itself cause
+# single-frame desyncs. Set false to restart only on a detected underrun.
+CONF_FORCE_RESTART = "force_restart"
+
+# Interval for logging the VSYNC vs frame-complete drift. 0s disables the
+# counters entirely (no callbacks registered).
+CONF_DESYNC_REPORT_INTERVAL = "desync_report_interval"
+
 mipi_rgb_ns = cg.esphome_ns.namespace("mipi_rgb")
 mipi_rgb = mipi_rgb_ns.class_("MipiRgb", display.Display, cg.Component)
 mipi_rgb_spi = mipi_rgb_ns.class_(
@@ -175,6 +184,10 @@ def model_schema(config):
             ),
             model.option(CONF_PCLK_INVERTED, True): cv.boolean,
             model.option(CONF_BOUNCE_BUFFER_LINES, 10): cv.int_range(min=1, max=480),
+            model.option(CONF_FORCE_RESTART, True): cv.boolean,
+            model.option(
+                CONF_DESYNC_REPORT_INTERVAL, "0s"
+            ): cv.positive_time_period_milliseconds,
             iseqconf: cv.ensure_list(map_sequence),
             model.option(CONF_BYTE_ORDER, BYTE_ORDER_BIG): cv.one_of(
                 BYTE_ORDER_LITTLE, BYTE_ORDER_BIG, lower=True
@@ -311,6 +324,10 @@ async def to_code(config):
     cg.add(var.set_pclk_inverted(config[CONF_PCLK_INVERTED]))
     cg.add(var.set_pclk_frequency(config[CONF_PCLK_FREQUENCY]))
     cg.add(var.set_bounce_buffer_lines(config[CONF_BOUNCE_BUFFER_LINES]))
+    cg.add(var.set_force_restart(config[CONF_FORCE_RESTART]))
+    cg.add(
+        var.set_desync_report_interval(config[CONF_DESYNC_REPORT_INTERVAL].total_milliseconds)
+    )
     dpins = []
     if CONF_RED in config[CONF_DATA_PINS]:
         red_pins = config[CONF_DATA_PINS][CONF_RED]

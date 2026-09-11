@@ -9,6 +9,14 @@ ESPHome's split licensing:
 
 The full upstream license text is in ../../LICENSES/ESPHome-LICENSE.txt.
 
-Modification vs upstream: the hardcoded `bounce_buffer_size_px = width * 10` is
-replaced by a configurable `bounce_buffer_lines` YAML option (default 10, which
-reproduces upstream behaviour). Everything else is unchanged.
+Modifications vs upstream (all default to upstream behaviour):
+
+  1. The hardcoded `bounce_buffer_size_px = width * 10` is replaced by a
+     configurable `bounce_buffer_lines` YAML option (default 10).
+  2. The unconditional per-loop `esp_lcd_rgb_panel_restart()` call can be
+     disabled with the `force_restart` YAML option (default true).
+  3. Optional `on_vsync` / `on_frame_buf_complete` counters log the drift
+     between hardware and software frame boundaries, enabled by the
+     `desync_report_interval` YAML option (default 0s = disabled).
+
+Everything else is unchanged.

@@ -2,7 +2,9 @@
 // Copyright (c) 2019 ESPHome
 //
 // Modified copy of esphome/components/mipi_rgb/mipi_rgb.cpp from ESPHome 2026.7.4.
-// Change vs upstream: bounce_buffer_size_px is configurable via bounce_buffer_lines.
+// Changes vs upstream: configurable bounce_buffer_lines, an opt-out for the
+// per-loop esp_lcd_rgb_panel_restart() call, and VSYNC/frame-complete counters
+// used to measure DMA desyncs.
 // See LICENSES/ESPHome-LICENSE.txt and components/mipi_rgb/LICENSE.
 
 #if defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4)
@@ -11,6 +13,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 #include <driver/gpio.h>
 #include <esp_lcd_panel_rgb.h>
 #include <span>
@@ -177,6 +180,15 @@ void MipiRgb::common_setup_() {
     err = esp_lcd_panel_reset(this->handle_);
   if (err == ESP_OK)
     err = esp_lcd_panel_init(this->handle_);
+  if (err == ESP_OK && this->desync_report_interval_ != 0) {
+    esp_lcd_rgb_panel_event_callbacks_t callbacks{};
+    callbacks.on_vsync = MipiRgb::vsync_cb_;
+    callbacks.on_frame_buf_complete = MipiRgb::frame_complete_cb_;
+    const esp_err_t cb_err = esp_lcd_rgb_panel_register_event_callbacks(this->handle_, &callbacks, this);
+    if (cb_err != ESP_OK) {
+      ESP_LOGE(TAG, "desync counters unavailable: %s", esp_err_to_name(cb_err));
+    }
+  }
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "lcd setup failed: %s", esp_err_to_name(err));
     this->mark_failed(LOG_STR("lcd setup failed"));
@@ -184,9 +196,47 @@ void MipiRgb::common_setup_() {
   ESP_LOGCONFIG(TAG, "MipiRgb setup complete");
 }
 
+bool IRAM_ATTR MipiRgb::vsync_cb_(esp_lcd_panel_handle_t /*panel*/,
+                                  const esp_lcd_rgb_panel_event_data_t * /*edata*/, void *user_ctx) {
+  static_cast<MipiRgb *>(user_ctx)->vsync_count_.fetch_add(1, std::memory_order_relaxed);
+  return false;
+}
+
+bool IRAM_ATTR MipiRgb::frame_complete_cb_(esp_lcd_panel_handle_t /*panel*/,
+                                           const esp_lcd_rgb_panel_event_data_t * /*edata*/, void *user_ctx) {
+  static_cast<MipiRgb *>(user_ctx)->frame_complete_count_.fetch_add(1, std::memory_order_relaxed);
+  return false;
+}
+
+void MipiRgb::report_desync_() {
+  const uint32_t vsyncs = this->vsync_count_.load(std::memory_order_relaxed);
+  const uint32_t frames = this->frame_complete_count_.load(std::memory_order_relaxed);
+  const int32_t drift = static_cast<int32_t>(frames - vsyncs);
+  const int32_t delta = drift - this->last_drift_;
+  if (delta != 0) {
+    this->total_desyncs_ += static_cast<uint32_t>(delta < 0 ? -delta : delta);
+  }
+  const uint32_t vsyncs_this_period = vsyncs - this->last_vsync_count_;
+  ESP_LOGI(TAG, "Desync: %+" PRId32 " this period, %" PRIu32 " total, %" PRIu32 " frames (%" PRIu32
+                " vsync, %" PRIu32 " fb_complete)",
+           delta, this->total_desyncs_, vsyncs_this_period, vsyncs, frames);
+  this->last_drift_ = drift;
+  this->last_vsync_count_ = vsyncs;
+  this->last_frame_complete_count_ = frames;
+}
+
 void MipiRgb::loop() {
-  if (this->handle_ != nullptr)
+  if (this->handle_ == nullptr)
+    return;
+  if (this->force_restart_)
     esp_lcd_rgb_panel_restart(this->handle_);
+  if (this->desync_report_interval_ != 0) {
+    const uint32_t now = millis();
+    if (now - this->last_report_ms_ >= this->desync_report_interval_) {
+      this->last_report_ms_ = now;
+      this->report_desync_();
+    }
+  }
 }
 
 void MipiRgb::update() {
@@ -389,6 +439,7 @@ void MipiRgb::dump_config() {
                 "\n  Invert Colors: %s"
                 "\n  Pixel Clock: %uMHz"
                 "\n  Bounce Buffer Lines: %u"
+                "\n  Force Restart: %s"
                 "\n  Reset Pin: %s"
                 "\n  DE Pin: %s"
                 "\n  PCLK Pin: %s"
@@ -398,7 +449,7 @@ void MipiRgb::dump_config() {
                 this->hsync_pulse_width_, this->hsync_back_porch_, this->hsync_front_porch_, this->vsync_pulse_width_,
                 this->vsync_back_porch_, this->vsync_front_porch_, YESNO(this->invert_colors_),
                 (unsigned) (this->pclk_frequency_ / 1000000), this->bounce_buffer_lines_,
-                get_pin_name(this->reset_pin_, reset_buf),
+                YESNO(this->force_restart_), get_pin_name(this->reset_pin_, reset_buf),
                 get_pin_name(this->de_pin_, de_buf), get_pin_name(this->pclk_pin_, pclk_buf),
                 get_pin_name(this->hsync_pin_, hsync_buf), get_pin_name(this->vsync_pin_, vsync_buf));
 
