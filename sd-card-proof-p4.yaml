@@ -1,9 +1,19 @@
 esphome:
   name: alarmclock-p4
-  friendly_name: Alarm Clock P4 SD Proof
+  friendly_name: Alarm Clock P4 SD Wallpaper Proof
   project:
-    name: aclight.alarmclock-sd-proof
+    name: aclight.alarmclock-sd-wallpaper-proof
     version: "1.0.0"
+  # Turn on the STC8 backlight (0x1B enables the panel, 0x20 sets brightness)
+  # once i2c_bus is up.
+  on_boot:
+    - priority: -100.0
+      then:
+        - lambda: |-
+            const uint8_t power[] = {0x1B, 1};
+            const uint8_t brightness[] = {0x20, 100};
+            id(i2c_bus).write(0x2F, power, sizeof(power));
+            id(i2c_bus).write(0x2F, brightness, sizeof(brightness));
 
 esp32:
   variant: esp32p4
@@ -16,6 +26,10 @@ esp32:
       enable_idf_experimental_features: true
     sdkconfig_options:
       CONFIG_ESP_MAIN_TASK_STACK_SIZE: "8192"
+
+psram:
+  mode: hex
+  speed: 200MHz
 
 esp32_hosted:
   type: sdio
@@ -40,6 +54,64 @@ external_components:
       path: components
     components: [sd_card_proof]
     refresh: 0s
+
+i2c:
+  id: i2c_bus
+  sda: GPIO45
+  scl: GPIO46
+
+# Display timings copied from the known-good alarmclock-p4-5inch.yaml config.
+display:
+  - platform: mipi_rgb
+    model: RPI
+    id: main_display
+    auto_clear_enabled: false
+    update_interval: never
+    color_order: RGB
+    pclk_frequency: 18MHz
+    dimensions:
+      width: 800
+      height: 480
+    de_pin: GPIO2
+    vsync_pin: GPIO41
+    hsync_pin: GPIO40
+    pclk_pin: GPIO3
+    data_pins:
+      red:
+        - GPIO19
+        - GPIO18
+        - GPIO17
+        - GPIO16
+        - GPIO15
+      green:
+        - GPIO14
+        - GPIO13
+        - GPIO12
+        - GPIO11
+        - GPIO10
+        - GPIO9
+      blue:
+        - GPIO8
+        - GPIO7
+        - GPIO6
+        - GPIO5
+        - GPIO4
+    hsync_front_porch: "8"
+    hsync_pulse_width: "8"
+    hsync_back_porch: "4"
+    vsync_front_porch: "8"
+    vsync_pulse_width: "8"
+    vsync_back_porch: "4"
+
+# Minimal LVGL page; sd_card_proof replaces its contents with the wallpaper
+# image once the SD card is mounted.
+lvgl:
+  displays:
+    - main_display
+  buffer_size: 12%
+  pages:
+    - id: wallpaper_page
+      widgets: []
 
 wifi:
   ssid: !secret wifi_ssid
@@ -66,7 +138,8 @@ dashboard_import:
   package_import_url: github://aclight/esphome-alarmclock/sd-card-proof-p4.yaml@sd-card-proof-p4
   import_full_config: true
 
-# Format the card as FAT32 and create /sd-proof.txt before booting this proof.
+# The card must be formatted FAT32 and contain /wallpaper.jpg, an 800x480
+# baseline RGB JPEG, in its root directory.
 sd_card_proof:
   clk_pin: 43
   cmd_pin: 44

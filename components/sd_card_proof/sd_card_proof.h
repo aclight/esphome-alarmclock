@@ -1,11 +1,9 @@
 #pragma once
 
-#include <cstddef>
 #include <cstdint>
 
-#include "esphome/core/component.h"
-
 #include "driver/sdmmc_types.h"
+#include "esphome/core/component.h"
 
 namespace esphome {
 namespace sd_card_proof {
@@ -23,11 +21,12 @@ class SdCardProof : public Component {
   enum class ProofResult : uint8_t {
     kNotRun,
     kMountFailed,
-    kOpenFailed,
-    kReadSucceeded,
+    kWallpaperFailed,
+    kWallpaperReady,
   };
 
   void mount_();
+  void show_wallpaper_();
   void log_result_() const;
 
   int clk_pin_{-1};
@@ -40,8 +39,8 @@ class SdCardProof : public Component {
   uint32_t frequency_khz_{0};
   uint32_t last_log_ms_{0};
   bool mount_attempted_{false};
-  size_t bytes_read_{0};
-  char contents_[129]{};
+  uint32_t wallpaper_width_{0};
+  uint32_t wallpaper_height_{0};
 };
 
 }  // namespace sd_card_proof

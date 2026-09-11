@@ -1,12 +1,12 @@
 #include "sd_card_proof.h"
 
 #include <cinttypes>
-#include <cstdio>
 
 #include "driver/sdmmc_host.h"
 #include "esp_err.h"
 #include "esp_log.h"
 #include "esp_vfs_fat.h"
+#include "esphome/components/lvgl/lvgl_esphome.h"
 #include "esphome/components/wifi/wifi_component.h"
 #include "esphome/core/hal.h"
 #include "sdmmc_cmd.h"
@@ -16,7 +16,7 @@ namespace sd_card_proof {
 
 static const char *const TAG = "sd_card_proof";
 static constexpr char kMountPoint[] = "/sdcard";
-static constexpr char kProofFile[] = "/sdcard/sd-proof.txt";
+static constexpr char kWallpaperPath[] = "S:/wallpaper.jpg";
 
 void SdCardProof::mount_() {
   sdmmc_host_t host = SDMMC_HOST_DEFAULT();
@@ -52,18 +52,27 @@ void SdCardProof::mount_() {
       static_cast<uint64_t>(this->card_->csd.capacity) * this->card_->csd.sector_size /
       (1024U * 1024U);
   this->frequency_khz_ = this->card_->real_freq_khz;
+  this->show_wallpaper_();
+  this->log_result_();
+}
 
-  FILE *file = fopen(kProofFile, "r");
-  if (file == nullptr) {
-    this->result_ = ProofResult::kOpenFailed;
-    this->log_result_();
+void SdCardProof::show_wallpaper_() {
+  lv_image_header_t header;
+  if (lv_image_decoder_get_info(kWallpaperPath, &header) != LV_RESULT_OK) {
+    this->result_ = ProofResult::kWallpaperFailed;
     return;
   }
 
-  this->bytes_read_ = fread(this->contents_, 1, sizeof(this->contents_) - 1, file);
-  fclose(file);
-  this->result_ = ProofResult::kReadSucceeded;
-  this->log_result_();
+  this->wallpaper_width_ = header.w;
+  this->wallpaper_height_ = header.h;
+
+  lv_obj_t *screen = lv_screen_active();
+  lv_obj_clean(screen);
+  lv_obj_set_style_bg_color(screen, lv_color_black(), LV_PART_MAIN);
+  lv_obj_t *wallpaper = lv_image_create(screen);
+  lv_image_set_src(wallpaper, kWallpaperPath);
+  lv_obj_center(wallpaper);
+  this->result_ = ProofResult::kWallpaperReady;
 }
 
 void SdCardProof::setup() {
@@ -91,17 +100,17 @@ void SdCardProof::log_result_() const {
              static_cast<unsigned>(this->mount_error_));
     return;
   }
-  if (this->result_ == ProofResult::kOpenFailed) {
+  if (this->result_ == ProofResult::kWallpaperFailed) {
     ESP_LOGE(TAG, "SD mounted (%" PRIu64 " MB at %" PRIu32
-                  " kHz), but could not open %s",
-             this->size_mb_, this->frequency_khz_, kProofFile);
+                  " kHz), but LVGL could not decode %s",
+             this->size_mb_, this->frequency_khz_, kWallpaperPath);
     return;
   }
-  if (this->result_ == ProofResult::kReadSucceeded) {
+  if (this->result_ == ProofResult::kWallpaperReady) {
     ESP_LOGI(TAG, "SD mounted (%" PRIu64 " MB at %" PRIu32
-                  " kHz); read %u bytes from %s: %s",
-             this->size_mb_, this->frequency_khz_,
-             static_cast<unsigned>(this->bytes_read_), kProofFile, this->contents_);
+                  " kHz); displaying %" PRIu32 "x%" PRIu32 " JPEG from %s",
+             this->size_mb_, this->frequency_khz_, this->wallpaper_width_,
+             this->wallpaper_height_, kWallpaperPath);
   }
 }
 
