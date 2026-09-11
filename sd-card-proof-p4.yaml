@@ -50,10 +50,11 @@ esp32_hosted:
   d3_pin: GPIO49
   bus_width: 4
   slot: 1
-  # Lowered from the 40MHz default as a tearing experiment: throttling the
-  # P4<->C6 SDIO link reduces its peak DMA burst rate, which may be
-  # contending with the RGB panel's continuous PSRAM-fed scanout.
-  sdio_frequency: 20MHz
+  # 20MHz (down from the 40MHz default) made no difference / possibly worse.
+  # Reasoning it backwards: a slower clock makes each transfer take LONGER,
+  # holding the shared bus longer per transaction, not less. Trying the max
+  # supported speed instead, to shorten each transaction's contention window.
+  sdio_frequency: 50MHz
 
 external_components:
   - source:
