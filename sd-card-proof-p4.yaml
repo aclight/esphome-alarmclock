@@ -131,6 +131,10 @@ wifi:
   ap:
     ssid: "AlarmClock SD Proof Fallback"
     password: !secret wifi_fallback_password
+  # Experiment: default on esp32 is "light" (periodic modem sleep/wake).
+  # That cycling could itself be the bursty SDIO activity contending with
+  # the display; "none" keeps the radio link in one steady state instead.
+  power_save_mode: none
 
 # Experiment: mDNS is auto-loaded by the network component and joins the
 # 224.0.0.251 multicast group, so this device processes every mDNS message
