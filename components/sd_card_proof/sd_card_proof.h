@@ -26,6 +26,7 @@ class SdCardProof : public Component {
   };
 
   void mount_();
+  void list_root_() const;
   void show_wallpaper_();
   void log_result_() const;
 

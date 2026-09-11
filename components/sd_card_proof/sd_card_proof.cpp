@@ -1,6 +1,7 @@
 #include "sd_card_proof.h"
 
 #include <cinttypes>
+#include <dirent.h>
 
 #include "driver/sdmmc_host.h"
 #include "esp_err.h"
@@ -16,7 +17,9 @@ namespace sd_card_proof {
 
 static const char *const TAG = "sd_card_proof";
 static constexpr char kMountPoint[] = "/sdcard";
-static constexpr char kWallpaperPath[] = "S:/wallpaper.jpg";
+// No leading '/' after the drive letter: LV_FS_STDIO_PATH already ends in
+// '/', and LVGL docs warn against doubling the separator.
+static constexpr char kWallpaperPath[] = "S:wallpaper.jpg";
 
 void SdCardProof::mount_() {
   sdmmc_host_t host = SDMMC_HOST_DEFAULT();
@@ -52,8 +55,22 @@ void SdCardProof::mount_() {
       static_cast<uint64_t>(this->card_->csd.capacity) * this->card_->csd.sector_size /
       (1024U * 1024U);
   this->frequency_khz_ = this->card_->real_freq_khz;
+  this->list_root_();
   this->show_wallpaper_();
   this->log_result_();
+}
+
+void SdCardProof::list_root_() const {
+  DIR *dir = opendir(kMountPoint);
+  if (dir == nullptr) {
+    ESP_LOGW(TAG, "Could not list %s", kMountPoint);
+    return;
+  }
+  struct dirent *entry;
+  while ((entry = readdir(dir)) != nullptr) {
+    ESP_LOGI(TAG, "SD card root entry: %s", entry->d_name);
+  }
+  closedir(dir);
 }
 
 void SdCardProof::show_wallpaper_() {
