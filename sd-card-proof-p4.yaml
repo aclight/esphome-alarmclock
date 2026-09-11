@@ -132,6 +132,13 @@ wifi:
     ssid: "AlarmClock SD Proof Fallback"
     password: !secret wifi_fallback_password
 
+# Experiment: mDNS is auto-loaded by the network component and joins the
+# 224.0.0.251 multicast group, so this device processes every mDNS message
+# from every other device on the subnet, not just its own - extra background
+# SDIO traffic to rule out as a tearing contributor.
+mdns:
+  disabled: true
+
 captive_portal:
 
 api:
