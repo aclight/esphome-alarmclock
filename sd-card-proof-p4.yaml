@@ -100,10 +100,17 @@ display:
     pclk_frequency: 18MHz
     # Stock hardcodes 10 scanlines (~444us of scanout at 18MHz) and tears
     # badly; 40 (~1.8ms) eliminated the tearing and is the only value with a
-    # confirmed result. 60 is untested - the runs believed to be 32 and 24
-    # were misbuilds that all ran 60, so that comparison was noise.
+    # confirmed result. Raising it further is pointless: measured end-of-frame
+    # slack never drops below ~2.4ms, so the DMA is never close to starving.
     # Costs 2 x 800 x 40 x 2 = 128KB of internal SRAM. Must divide the height.
     bounce_buffer_lines: 40
+    # Upstream resets the FIFO and GDMA on every VSYNC. The ISR has only the
+    # 4-line vertical back porch (~182us) to do that before the panel starts
+    # clocking out pixels, and all 315 late frames measured over 31min missed
+    # it (min 203us, mean 530us) - so each one re-sent bytes already on the
+    # wire, which is the shift-and-wrap glitch. IDF still restarts on a real
+    # underrun via its own bb_eof_count check, so recovery is retained.
+    force_restart: false
     desync_report_interval: 60s
     dimensions:
       width: 800
