@@ -39,14 +39,10 @@ esp32:
       # The one-time JPEG decode+draw blocks the main loop long enough to
       # trip the default 5s task watchdog on larger-than-800x480 images.
       CONFIG_ESP_TASK_WDT_TIMEOUT_S: "15"
-      # Both off by default (confirmed via cached sdkconfig, not assumed).
-      # ISR_IRAM_SAFE keeps the RGB panel's interrupt handler responsive even
-      # if flash cache is briefly disabled; RESTART_IN_VSYNC auto-resyncs the
-      # panel on the next frame if a stall causes drift, instead of leaving a
-      # persistent tear. (SPIRAM_FETCH_INSTRUCTIONS/RODATA were also
-      # suggested but are already "y" by default on this P4 build.)
-      CONFIG_LCD_RGB_ISR_IRAM_SAFE: "y"
-      CONFIG_LCD_RGB_RESTART_IN_VSYNC: "y"
+      # Tried CONFIG_LCD_RGB_ISR_IRAM_SAFE / CONFIG_LCD_RGB_RESTART_IN_VSYNC
+      # (both off by default). One boot showed much worse streaking/fixed
+      # lines; a later reboot didn't reproduce that, but showed no
+      # improvement over baseline either. Reverted - no proven benefit.
 
 psram:
   mode: hex
