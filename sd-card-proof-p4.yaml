@@ -39,6 +39,14 @@ esp32:
       # The one-time JPEG decode+draw blocks the main loop long enough to
       # trip the default 5s task watchdog on larger-than-800x480 images.
       CONFIG_ESP_TASK_WDT_TIMEOUT_S: "15"
+      # Both off by default (confirmed via cached sdkconfig, not assumed).
+      # ISR_IRAM_SAFE keeps the RGB panel's interrupt handler responsive even
+      # if flash cache is briefly disabled; RESTART_IN_VSYNC auto-resyncs the
+      # panel on the next frame if a stall causes drift, instead of leaving a
+      # persistent tear. (SPIRAM_FETCH_INSTRUCTIONS/RODATA were also
+      # suggested but are already "y" by default on this P4 build.)
+      CONFIG_LCD_RGB_ISR_IRAM_SAFE: "y"
+      CONFIG_LCD_RGB_RESTART_IN_VSYNC: "y"
 
 psram:
   mode: hex
@@ -177,8 +185,8 @@ sd_card_proof:
   clk_pin: 43
   cmd_pin: 44
   data0_pin: 39
-  # Experiment: skip the JPEG decode/draw entirely (still mounts the card and
-  # lists its contents), leaving a plain black screen like production's
-  # clock UI background, to isolate whether tearing needs the wallpaper
-  # draw at all or happens on a bare screen too.
-  show_wallpaper: false
+  # Re-enabled to test the real symptom against the RESTART_IN_VSYNC fix;
+  # the black-screen test wasn't conclusive (a corrupted line over solid
+  # black may just look black, so it couldn't reliably show tearing either
+  # way).
+  show_wallpaper: true
