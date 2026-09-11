@@ -97,6 +97,10 @@ CONF_FORCE_RESTART = "force_restart"
 # counters entirely (no callbacks registered).
 CONF_DESYNC_REPORT_INTERVAL = "desync_report_interval"
 
+# How far past the nominal frame period a VSYNC callback must land to be logged
+# as a late frame.
+CONF_LATE_FRAME_THRESHOLD = "late_frame_threshold"
+
 mipi_rgb_ns = cg.esphome_ns.namespace("mipi_rgb")
 mipi_rgb = mipi_rgb_ns.class_("MipiRgb", display.Display, cg.Component)
 mipi_rgb_spi = mipi_rgb_ns.class_(
@@ -188,6 +192,9 @@ def model_schema(config):
             model.option(
                 CONF_DESYNC_REPORT_INTERVAL, "0s"
             ): cv.positive_time_period_milliseconds,
+            model.option(
+                CONF_LATE_FRAME_THRESHOLD, "200us"
+            ): cv.positive_time_period_microseconds,
             iseqconf: cv.ensure_list(map_sequence),
             model.option(CONF_BYTE_ORDER, BYTE_ORDER_BIG): cv.one_of(
                 BYTE_ORDER_LITTLE, BYTE_ORDER_BIG, lower=True
@@ -327,6 +334,9 @@ async def to_code(config):
     cg.add(var.set_force_restart(config[CONF_FORCE_RESTART]))
     cg.add(
         var.set_desync_report_interval(config[CONF_DESYNC_REPORT_INTERVAL].total_milliseconds)
+    )
+    cg.add(
+        var.set_late_frame_threshold(config[CONF_LATE_FRAME_THRESHOLD].total_microseconds)
     )
     dpins = []
     if CONF_RED in config[CONF_DATA_PINS]:

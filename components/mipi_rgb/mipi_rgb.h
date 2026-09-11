@@ -11,6 +11,7 @@
 
 #if defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4)
 #include <atomic>
+#include <cstdint>
 #include "esphome/core/gpio.h"
 #include "esphome/components/display/display.h"
 #include "esp_lcd_panel_ops.h"
@@ -58,6 +59,7 @@ class MipiRgb : public display::Display {
   void set_bounce_buffer_lines(uint16_t lines) { this->bounce_buffer_lines_ = lines; }
   void set_force_restart(bool force_restart) { this->force_restart_ = force_restart; }
   void set_desync_report_interval(uint32_t ms) { this->desync_report_interval_ = ms; }
+  void set_late_frame_threshold(uint32_t us) { this->late_frame_threshold_ = us; }
   void set_model(const char *model) { this->model_ = model; }
   int get_width() override;
   int get_height() override;
@@ -83,6 +85,7 @@ class MipiRgb : public display::Display {
   void setup_enables_();
   void common_setup_();
   void report_desync_();
+  void drain_late_frames_();
 
   // Both fire once per frame: on_vsync from the hardware VSYNC_END interrupt,
   // on_frame_buf_complete when the driver's software bounce position wraps.
@@ -91,8 +94,30 @@ class MipiRgb : public display::Display {
   static bool frame_complete_cb_(esp_lcd_panel_handle_t panel, const esp_lcd_rgb_panel_event_data_t *edata,
                                  void *user_ctx);
 
+  // Hardware VSYNC is exactly periodic, so jitter in the timestamp taken inside
+  // the callback is interrupt latency - the condition ESP-IDF blames for the
+  // single-frame shift its own DMA restart can cause.
+  struct LateFrame {
+    uint32_t interval_us;
+    uint32_t slack_us;
+  };
+  static constexpr uint8_t LATE_EVENT_SLOTS = 16;
+
   std::atomic<uint32_t> vsync_count_{0};
   std::atomic<uint32_t> frame_complete_count_{0};
+  std::atomic<uint32_t> late_frame_count_{0};
+  std::atomic<uint32_t> late_dropped_{0};
+  std::atomic<uint32_t> max_interval_us_{0};
+  std::atomic<uint32_t> min_slack_us_{UINT32_MAX};
+  std::atomic<uint8_t> late_write_{0};
+  std::atomic<uint8_t> late_read_{0};
+  LateFrame late_events_[LATE_EVENT_SLOTS]{};
+  // Only ever touched from the single LCD ISR, so no synchronisation needed.
+  int64_t last_vsync_us_{0};
+  int64_t last_fb_complete_us_{0};
+  uint32_t frame_period_us_{0};
+  uint32_t late_threshold_us_{0};
+  uint32_t late_frame_threshold_{200};
   uint32_t last_vsync_count_{0};
   uint32_t last_frame_complete_count_{0};
   int32_t last_drift_{0};

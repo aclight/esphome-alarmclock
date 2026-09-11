@@ -15,8 +15,9 @@ Modifications vs upstream (all default to upstream behaviour):
      configurable `bounce_buffer_lines` YAML option (default 10).
   2. The unconditional per-loop `esp_lcd_rgb_panel_restart()` call can be
      disabled with the `force_restart` YAML option (default true).
-  3. Optional `on_vsync` / `on_frame_buf_complete` counters log the drift
-     between hardware and software frame boundaries, enabled by the
-     `desync_report_interval` YAML option (default 0s = disabled).
+  3. Optional instrumentation: `on_vsync` / `on_frame_buf_complete` counters
+     plus VSYNC interrupt-latency and end-of-frame slack measurement, enabled
+     by the `desync_report_interval` YAML option (default 0s = disabled) and
+     tuned by `late_frame_threshold`.
 
 Everything else is unchanged.

@@ -16,6 +16,7 @@
 #include <cinttypes>
 #include <driver/gpio.h>
 #include <esp_lcd_panel_rgb.h>
+#include <esp_timer.h>
 #include <span>
 
 namespace esphome::mipi_rgb {
@@ -181,6 +182,13 @@ void MipiRgb::common_setup_() {
   if (err == ESP_OK)
     err = esp_lcd_panel_init(this->handle_);
   if (err == ESP_OK && this->desync_report_interval_ != 0) {
+    const uint32_t total_h =
+        this->width_ + this->hsync_pulse_width_ + this->hsync_back_porch_ + this->hsync_front_porch_;
+    const uint32_t total_v =
+        this->height_ + this->vsync_pulse_width_ + this->vsync_back_porch_ + this->vsync_front_porch_;
+    this->frame_period_us_ =
+        static_cast<uint32_t>((uint64_t) total_h * total_v * 1000000ULL / this->pclk_frequency_);
+    this->late_threshold_us_ = this->frame_period_us_ + this->late_frame_threshold_;
     esp_lcd_rgb_panel_event_callbacks_t callbacks{};
     callbacks.on_vsync = MipiRgb::vsync_cb_;
     callbacks.on_frame_buf_complete = MipiRgb::frame_complete_cb_;
@@ -198,14 +206,63 @@ void MipiRgb::common_setup_() {
 
 bool IRAM_ATTR MipiRgb::vsync_cb_(esp_lcd_panel_handle_t /*panel*/,
                                   const esp_lcd_rgb_panel_event_data_t * /*edata*/, void *user_ctx) {
-  static_cast<MipiRgb *>(user_ctx)->vsync_count_.fetch_add(1, std::memory_order_relaxed);
+  auto *self = static_cast<MipiRgb *>(user_ctx);
+  const int64_t now = esp_timer_get_time();
+  self->vsync_count_.fetch_add(1, std::memory_order_relaxed);
+
+  const int64_t previous = self->last_vsync_us_;
+  self->last_vsync_us_ = now;
+  if (previous == 0) {
+    return false;
+  }
+
+  const uint32_t interval = static_cast<uint32_t>(now - previous);
+  if (interval > self->max_interval_us_.load(std::memory_order_relaxed)) {
+    self->max_interval_us_.store(interval, std::memory_order_relaxed);
+  }
+  // The scanout is still ~2 bounce buffers ahead here, so this is the margin
+  // left at the end of the frame rather than the whole frame period.
+  uint32_t slack = 0;
+  if (self->last_fb_complete_us_ != 0) {
+    slack = static_cast<uint32_t>(now - self->last_fb_complete_us_);
+    if (slack < self->min_slack_us_.load(std::memory_order_relaxed)) {
+      self->min_slack_us_.store(slack, std::memory_order_relaxed);
+    }
+  }
+  if (interval <= self->late_threshold_us_) {
+    return false;
+  }
+
+  self->late_frame_count_.fetch_add(1, std::memory_order_relaxed);
+  const uint8_t write = self->late_write_.load(std::memory_order_relaxed);
+  if (static_cast<uint8_t>(write - self->late_read_.load(std::memory_order_relaxed)) >= LATE_EVENT_SLOTS) {
+    self->late_dropped_.fetch_add(1, std::memory_order_relaxed);
+    return false;
+  }
+  self->late_events_[write % LATE_EVENT_SLOTS] = {interval, slack};
+  self->late_write_.store(static_cast<uint8_t>(write + 1), std::memory_order_release);
   return false;
 }
 
 bool IRAM_ATTR MipiRgb::frame_complete_cb_(esp_lcd_panel_handle_t /*panel*/,
                                            const esp_lcd_rgb_panel_event_data_t * /*edata*/, void *user_ctx) {
-  static_cast<MipiRgb *>(user_ctx)->frame_complete_count_.fetch_add(1, std::memory_order_relaxed);
+  auto *self = static_cast<MipiRgb *>(user_ctx);
+  self->last_fb_complete_us_ = esp_timer_get_time();
+  self->frame_complete_count_.fetch_add(1, std::memory_order_relaxed);
   return false;
+}
+
+void MipiRgb::drain_late_frames_() {
+  uint8_t read = this->late_read_.load(std::memory_order_relaxed);
+  while (read != this->late_write_.load(std::memory_order_acquire)) {
+    const LateFrame event = this->late_events_[read % LATE_EVENT_SLOTS];
+    read = static_cast<uint8_t>(read + 1);
+    this->late_read_.store(read, std::memory_order_release);
+    ESP_LOGW(TAG, "Late frame: VSYNC %" PRIu32 "us (nominal %" PRIu32 "us, %+" PRId32 "us), end-of-frame slack %" PRIu32
+                  "us",
+             event.interval_us, this->frame_period_us_,
+             static_cast<int32_t>(event.interval_us - this->frame_period_us_), event.slack_us);
+  }
 }
 
 void MipiRgb::report_desync_() {
@@ -217,9 +274,15 @@ void MipiRgb::report_desync_() {
     this->total_desyncs_ += static_cast<uint32_t>(delta < 0 ? -delta : delta);
   }
   const uint32_t vsyncs_this_period = vsyncs - this->last_vsync_count_;
-  ESP_LOGI(TAG, "Desync: %+" PRId32 " this period, %" PRIu32 " total, %" PRIu32 " frames (%" PRIu32
-                " vsync, %" PRIu32 " fb_complete)",
-           delta, this->total_desyncs_, vsyncs_this_period, vsyncs, frames);
+  const uint32_t late = this->late_frame_count_.exchange(0, std::memory_order_relaxed);
+  const uint32_t dropped = this->late_dropped_.exchange(0, std::memory_order_relaxed);
+  const uint32_t max_interval = this->max_interval_us_.exchange(0, std::memory_order_relaxed);
+  const uint32_t min_slack = this->min_slack_us_.exchange(UINT32_MAX, std::memory_order_relaxed);
+  ESP_LOGI(TAG,
+           "Frames %" PRIu32 ", desync %+" PRId32 " (%" PRIu32 " total), late %" PRIu32 " (+%" PRIu32
+           " dropped), max VSYNC %" PRIu32 "us, min slack %" PRIu32 "us",
+           vsyncs_this_period, delta, this->total_desyncs_, late, dropped, max_interval,
+           min_slack == UINT32_MAX ? 0 : min_slack);
   this->last_drift_ = drift;
   this->last_vsync_count_ = vsyncs;
   this->last_frame_complete_count_ = frames;
@@ -231,6 +294,7 @@ void MipiRgb::loop() {
   if (this->force_restart_)
     esp_lcd_rgb_panel_restart(this->handle_);
   if (this->desync_report_interval_ != 0) {
+    this->drain_late_frames_();
     const uint32_t now = millis();
     if (now - this->last_report_ms_ >= this->desync_report_interval_) {
       this->last_report_ms_ = now;
