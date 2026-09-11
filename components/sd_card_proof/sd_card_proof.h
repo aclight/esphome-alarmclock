@@ -18,6 +18,7 @@ class SdCardProof : public Component {
 
   void setup() override;
   void loop() override;
+  float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
  protected:
   enum class ProofResult : uint8_t {
