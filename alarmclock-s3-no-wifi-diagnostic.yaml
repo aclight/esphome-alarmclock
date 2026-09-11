@@ -3,7 +3,7 @@
 # the S3 board's mipi_rgb panel tear/glitch with zero networking present,
 # using the same known-good display timings as the real alarmclock.yaml?
 esphome:
-  name: alarmclock-s3-no-wifi-diagnostic
+  name: alarmclock-s3-diag
   friendly_name: Alarm Clock S3 No-Wifi Tearing Diagnostic
   # Turn the legacy backlight controller on at full brightness (0 = brightest
   # in this board's inverted raw scale) once i2c_bus is up.
