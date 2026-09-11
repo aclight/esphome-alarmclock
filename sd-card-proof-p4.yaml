@@ -111,10 +111,13 @@ display:
 
 # Minimal LVGL page; sd_card_proof replaces its contents with the wallpaper
 # image once the SD card is mounted.
+# 100% forces a single full-screen draw buffer (one flush) instead of ~8
+# chunked strip flushes, each of which raced the RGB panel's single, always-
+# scanning framebuffer and produced visible tear lines.
 lvgl:
   displays:
     - main_display
-  buffer_size: 12%
+  buffer_size: 100%
   pages:
     - id: wallpaper_page
       widgets: []
