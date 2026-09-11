@@ -75,6 +75,7 @@ void SdCardProof::loop() {
       wifi::global_wifi_component->is_connected()) {
     this->mount_attempted_ = true;
     this->mount_();
+    this->last_log_ms_ = millis();
   }
 
   const uint32_t now = millis();

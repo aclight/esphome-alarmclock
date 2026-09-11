@@ -59,8 +59,13 @@ is blocked on it.
   in hand is V1.0, matching the documented sources. The S3 slot is SPI:
   `MOSI=GPIO6`, `MISO=GPIO4`, `SCK=GPIO5`, with CS fixed to 3.3 V / not routed
   to an ESP32 GPIO. The S3 repository documents V1.3 as the latest revision.
-2. Mount the card with ESPHome's `sd_mmc_card` (or SPI-mode SD) component; get a
-   basic file read working as a standalone proof before touching the UI.
+2. **Complete (P4 mount/read proof):** the standalone `sd_card_proof` component
+  mounts the FAT32 card on SDMMC slot 0 in 1-bit mode at 10 MHz and reads
+  `/sdcard/sd-proof.txt`. Hardware testing detected a 29,820 MB card and read
+  the expected 26-byte contents while ESP-Hosted Wi-Fi remained connected on
+  SDMMC slot 1. Coexistence requires explicitly selecting slot 0 and waiting
+  for Hosted Wi-Fi to connect before mounting. The S3 SPI path remains
+  untested.
 3. **Decision needed:** wallpaper image pipeline. Check whether this ESPHome/
    LVGL version can decode a JPEG/PNG read live from the mounted filesystem, or
    whether a custom `lv_fs` driver bridging LVGL to the SD FAT filesystem is
