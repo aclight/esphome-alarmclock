@@ -26,6 +26,9 @@ esp32:
       enable_idf_experimental_features: true
     sdkconfig_options:
       CONFIG_ESP_MAIN_TASK_STACK_SIZE: "8192"
+      # ESP-IDF's FATFS disables long filenames by default (8.3 short names
+      # only), which can't resolve "wallpaper.jpg" (9-char base name).
+      CONFIG_FATFS_LFN_HEAP: "y"
 
 psram:
   mode: hex
