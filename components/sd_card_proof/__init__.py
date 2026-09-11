@@ -6,11 +6,14 @@ from esphome.components import esp32
 from esphome.components.lvgl import defines as lv_defines
 from esphome.const import CONF_ID
 
-DEPENDENCIES = ["wifi", "lvgl"]
+DEPENDENCIES = ["lvgl"]
 
 CONF_CLK_PIN = "clk_pin"
 CONF_CMD_PIN = "cmd_pin"
 CONF_DATA0_PIN = "data0_pin"
+# Diagnostic-only knob: set false to mount immediately with no wifi: present
+# at all, isolating whether Wi-Fi/SDIO traffic contributes to display tearing.
+CONF_WAIT_FOR_WIFI = "wait_for_wifi"
 
 sd_card_proof_ns = cg.esphome_ns.namespace("sd_card_proof")
 SdCardProof = sd_card_proof_ns.class_("SdCardProof", cg.Component)
@@ -43,6 +46,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_CLK_PIN): cv.int_range(min=0),
             cv.Required(CONF_CMD_PIN): cv.int_range(min=0),
             cv.Required(CONF_DATA0_PIN): cv.int_range(min=0),
+            cv.Optional(CONF_WAIT_FOR_WIFI, default=True): cv.boolean,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     _configure_dependencies,
@@ -57,3 +61,4 @@ async def to_code(config):
     cg.add(var.set_clk_pin(config[CONF_CLK_PIN]))
     cg.add(var.set_cmd_pin(config[CONF_CMD_PIN]))
     cg.add(var.set_data0_pin(config[CONF_DATA0_PIN]))
+    cg.add(var.set_wait_for_wifi(config[CONF_WAIT_FOR_WIFI]))

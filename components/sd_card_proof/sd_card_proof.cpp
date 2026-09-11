@@ -8,9 +8,12 @@
 #include "esp_log.h"
 #include "esp_vfs_fat.h"
 #include "esphome/components/lvgl/lvgl_esphome.h"
-#include "esphome/components/wifi/wifi_component.h"
 #include "esphome/core/hal.h"
 #include "sdmmc_cmd.h"
+
+#ifdef USE_WIFI
+#include "esphome/components/wifi/wifi_component.h"
+#endif
 
 namespace esphome {
 namespace sd_card_proof {
@@ -96,9 +99,17 @@ void SdCardProof::setup() {
   ESP_LOGI(TAG, "Waiting for ESP-Hosted Wi-Fi before mounting SD card");
 }
 
+bool SdCardProof::wifi_ready_() const {
+#ifdef USE_WIFI
+  if (this->wait_for_wifi_) {
+    return wifi::global_wifi_component != nullptr && wifi::global_wifi_component->is_connected();
+  }
+#endif
+  return true;
+}
+
 void SdCardProof::loop() {
-  if (!this->mount_attempted_ && wifi::global_wifi_component != nullptr &&
-      wifi::global_wifi_component->is_connected()) {
+  if (!this->mount_attempted_ && this->wifi_ready_()) {
     this->mount_attempted_ = true;
     this->mount_();
     this->last_log_ms_ = millis();
