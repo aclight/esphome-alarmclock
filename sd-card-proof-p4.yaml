@@ -107,7 +107,10 @@ display:
         - GPIO4
     hsync_front_porch: "8"
     hsync_pulse_width: "8"
-    hsync_back_porch: "4"
+    # Experiment: nudged up from 4 to test whether the constant left-edge
+    # wrap line is a DE/HSYNC alignment issue (ESP-IDF's esp_lcd_rgb_panel
+    # driver vs. the LovyanGFX reference these porches were matched against).
+    hsync_back_porch: "5"
     vsync_front_porch: "8"
     vsync_pulse_width: "8"
     vsync_back_porch: "4"
