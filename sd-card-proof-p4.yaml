@@ -50,11 +50,10 @@ esp32_hosted:
   d3_pin: GPIO49
   bus_width: 4
   slot: 1
-  # 20MHz (down from the 40MHz default) made no difference / possibly worse.
-  # Reasoning it backwards: a slower clock makes each transfer take LONGER,
-  # holding the shared bus longer per transaction, not less. Trying the max
-  # supported speed instead, to shorten each transaction's contention window.
-  sdio_frequency: 50MHz
+  # Neither 20MHz nor 50MHz (vs. the 40MHz default) made a clear difference,
+  # so frequency isn't the controlling variable here. Back to default to
+  # isolate the mdns: disabled experiment below on its own.
+  sdio_frequency: 40MHz
 
 external_components:
   - source:
