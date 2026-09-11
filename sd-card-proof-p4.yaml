@@ -29,6 +29,9 @@ esp32:
       # ESP-IDF's FATFS disables long filenames by default (8.3 short names
       # only), which can't resolve "wallpaper.jpg" (9-char base name).
       CONFIG_FATFS_LFN_HEAP: "y"
+      # The one-time JPEG decode+draw blocks the main loop long enough to
+      # trip the default 5s task watchdog on larger-than-800x480 images.
+      CONFIG_ESP_TASK_WDT_TIMEOUT_S: "15"
 
 psram:
   mode: hex
