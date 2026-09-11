@@ -14,6 +14,10 @@ CONF_DATA0_PIN = "data0_pin"
 # Diagnostic-only knob: set false to mount immediately with no wifi: present
 # at all, isolating whether Wi-Fi/SDIO traffic contributes to display tearing.
 CONF_WAIT_FOR_WIFI = "wait_for_wifi"
+# Diagnostic-only knob: set false to skip decoding/drawing the wallpaper
+# image, isolating whether tearing needs that draw or happens on a bare
+# black screen too (matching the production alarmclock UI's background).
+CONF_SHOW_WALLPAPER = "show_wallpaper"
 
 sd_card_proof_ns = cg.esphome_ns.namespace("sd_card_proof")
 SdCardProof = sd_card_proof_ns.class_("SdCardProof", cg.Component)
@@ -47,6 +51,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_CMD_PIN): cv.int_range(min=0),
             cv.Required(CONF_DATA0_PIN): cv.int_range(min=0),
             cv.Optional(CONF_WAIT_FOR_WIFI, default=True): cv.boolean,
+            cv.Optional(CONF_SHOW_WALLPAPER, default=True): cv.boolean,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     _configure_dependencies,
@@ -62,3 +67,4 @@ async def to_code(config):
     cg.add(var.set_cmd_pin(config[CONF_CMD_PIN]))
     cg.add(var.set_data0_pin(config[CONF_DATA0_PIN]))
     cg.add(var.set_wait_for_wifi(config[CONF_WAIT_FOR_WIFI]))
+    cg.add(var.set_show_wallpaper(config[CONF_SHOW_WALLPAPER]))

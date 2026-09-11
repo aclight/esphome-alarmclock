@@ -177,3 +177,8 @@ sd_card_proof:
   clk_pin: 43
   cmd_pin: 44
   data0_pin: 39
+  # Experiment: skip the JPEG decode/draw entirely (still mounts the card and
+  # lists its contents), leaving a plain black screen like production's
+  # clock UI background, to isolate whether tearing needs the wallpaper
+  # draw at all or happens on a bare screen too.
+  show_wallpaper: false

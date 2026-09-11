@@ -59,7 +59,14 @@ void SdCardProof::mount_() {
       (1024U * 1024U);
   this->frequency_khz_ = this->card_->real_freq_khz;
   this->list_root_();
-  this->show_wallpaper_();
+  if (this->show_wallpaper_enabled_) {
+    this->show_wallpaper_();
+  } else {
+    lv_obj_t *screen = lv_screen_active();
+    lv_obj_clean(screen);
+    lv_obj_set_style_bg_color(screen, lv_color_black(), LV_PART_MAIN);
+    this->result_ = ProofResult::kWallpaperSkipped;
+  }
   this->log_result_();
 }
 
@@ -139,6 +146,12 @@ void SdCardProof::log_result_() const {
                   " kHz); displaying %" PRIu32 "x%" PRIu32 " JPEG from %s",
              this->size_mb_, this->frequency_khz_, this->wallpaper_width_,
              this->wallpaper_height_, kWallpaperPath);
+    return;
+  }
+  if (this->result_ == ProofResult::kWallpaperSkipped) {
+    ESP_LOGI(TAG, "SD mounted (%" PRIu64 " MB at %" PRIu32
+                  " kHz); wallpaper draw skipped (diagnostic mode)",
+             this->size_mb_, this->frequency_khz_);
   }
 }
 
