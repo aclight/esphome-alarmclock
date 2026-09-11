@@ -16,9 +16,11 @@ sd_card_proof_ns = cg.esphome_ns.namespace("sd_card_proof")
 SdCardProof = sd_card_proof_ns.class_("SdCardProof", cg.Component)
 
 
-def _add_lvgl_defines(config):
+def _configure_dependencies(config):
     # Runs during schema validation, which always precedes every component's
-    # to_code(), so these land in lv_conf.h regardless of to_code ordering.
+    # to_code() - including esp32's own, which reads require_fatfs()/
+    # require_vfs_dir() from a plain (non-FINAL-priority) to_code and would
+    # miss calls made from our to_code() if it happens to run first.
     lv_defines.add_define("LV_USE_IMAGE", "1")
     # lv_image.h hard-requires the label widget even though our page has none.
     lv_defines.add_define("LV_USE_LABEL", "1")
@@ -26,6 +28,11 @@ def _add_lvgl_defines(config):
     lv_defines.add_define("LV_USE_FS_STDIO", "1")
     lv_defines.add_define("LV_FS_STDIO_LETTER", "'S'")
     lv_defines.add_define("LV_FS_STDIO_PATH", '"/sdcard/"')
+
+    # Both default to disabled; without these, FATFS falls back to 8.3-only
+    # short filenames and opendir()/readdir() are compiled out entirely.
+    esp32.require_fatfs()
+    esp32.require_vfs_dir()
     return config
 
 
@@ -38,16 +45,12 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_DATA0_PIN): cv.int_range(min=0),
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    _add_lvgl_defines,
+    _configure_dependencies,
 )
 
 
 async def to_code(config):
     esp32.include_builtin_idf_component("fatfs")
-    # Both default to disabled; without these, FATFS falls back to 8.3-only
-    # short filenames and opendir()/readdir() are compiled out entirely.
-    esp32.require_fatfs()
-    esp32.require_vfs_dir()
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
