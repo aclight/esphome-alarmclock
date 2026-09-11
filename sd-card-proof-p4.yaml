@@ -1,0 +1,73 @@
+esphome:
+  name: alarmclock-p4
+  friendly_name: Alarm Clock P4 SD Proof
+  project:
+    name: aclight.alarmclock-sd-proof
+    version: "1.0.0"
+
+esp32:
+  variant: esp32p4
+  engineering_sample: true
+  flash_size: 16MB
+  cpu_frequency: 360MHz
+  framework:
+    type: esp-idf
+    advanced:
+      enable_idf_experimental_features: true
+    sdkconfig_options:
+      CONFIG_ESP_MAIN_TASK_STACK_SIZE: "8192"
+
+esp32_hosted:
+  type: sdio
+  variant: ESP32C6
+  reset_pin: GPIO20
+  active_high: true
+  clk_pin: GPIO53
+  cmd_pin: GPIO54
+  d0_pin: GPIO52
+  d1_pin: GPIO51
+  d2_pin: GPIO50
+  d3_pin: GPIO49
+  bus_width: 4
+  slot: 1
+  sdio_frequency: 40MHz
+
+external_components:
+  - source:
+      type: git
+      url: https://github.com/aclight/esphome-alarmclock.git
+      ref: sd-card-proof-p4
+      path: components
+    components: [sd_card_proof]
+    refresh: 0s
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "AlarmClock SD Proof Fallback"
+    password: !secret wifi_fallback_password
+
+captive_portal:
+
+api:
+  encryption:
+    key: !secret encryption_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+logger:
+  level: DEBUG
+  hardware_uart: UART0
+
+dashboard_import:
+  package_import_url: github://aclight/esphome-alarmclock/sd-card-proof-p4.yaml@sd-card-proof-p4
+  import_full_config: true
+
+# Format the card as FAT32 and create /sd-proof.txt before booting this proof.
+sd_card_proof:
+  clk_pin: 43
+  cmd_pin: 44
+  data0_pin: 39
