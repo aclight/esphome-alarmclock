@@ -20,6 +20,7 @@ static constexpr char kProofFile[] = "/sdcard/sd-proof.txt";
 
 void SdCardProof::mount_() {
   sdmmc_host_t host = SDMMC_HOST_DEFAULT();
+  host.slot = SDMMC_HOST_SLOT_0;
   host.max_freq_khz = 10000;
 
   sdmmc_slot_config_t slot_config = SDMMC_SLOT_CONFIG_DEFAULT();
