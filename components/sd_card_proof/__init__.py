@@ -20,6 +20,8 @@ def _add_lvgl_defines(config):
     # Runs during schema validation, which always precedes every component's
     # to_code(), so these land in lv_conf.h regardless of to_code ordering.
     lv_defines.add_define("LV_USE_IMAGE", "1")
+    # lv_image.h hard-requires the label widget even though our page has none.
+    lv_defines.add_define("LV_USE_LABEL", "1")
     lv_defines.add_define("LV_USE_TJPGD", "1")
     lv_defines.add_define("LV_USE_FS_STDIO", "'S'")
     lv_defines.add_define("LV_FS_STDIO_PATH", '"/sdcard/"')
