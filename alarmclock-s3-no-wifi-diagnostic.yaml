@@ -1,0 +1,95 @@
+# TEMPORARY diagnostic only - not the real alarmclock.yaml. No wifi/api/ota at
+# all, so it must be installed via USB, not Home Assistant OTA. Purpose: does
+# the S3 board's mipi_rgb panel tear/glitch with zero networking present,
+# using the same known-good display timings as the real alarmclock.yaml?
+esphome:
+  name: alarmclock-s3-no-wifi-diagnostic
+  friendly_name: Alarm Clock S3 No-Wifi Tearing Diagnostic
+  # Turn the legacy backlight controller on at full brightness (0 = brightest
+  # in this board's inverted raw scale) once i2c_bus is up.
+  on_boot:
+    - priority: -100.0
+      then:
+        - lambda: |-
+            const uint8_t brightness = 0;
+            id(i2c_bus).write(0x30, &brightness, 1);
+
+esp32:
+  variant: esp32s3
+  flash_size: 16MB
+  cpu_frequency: 240MHz
+  framework:
+    type: esp-idf
+
+psram:
+  mode: octal
+  speed: 80MHz
+
+i2c:
+  id: i2c_bus
+  sda: GPIO15
+  scl: GPIO16
+
+# Display timings and pins copied as-is from the known-good alarmclock.yaml.
+display:
+  - platform: mipi_rgb
+    model: RPI
+    id: main_display
+    auto_clear_enabled: false
+    update_interval: never
+    color_order: RGB
+    pclk_frequency: 18MHz
+    dimensions:
+      width: 800
+      height: 480
+    de_pin: GPIO42
+    vsync_pin: GPIO41
+    hsync_pin: GPIO40
+    pclk_pin: GPIO39
+    data_pins:
+      red:
+        - GPIO7
+        - GPIO17
+        - GPIO18
+        - GPIO3
+        - GPIO46
+      green:
+        - GPIO9
+        - GPIO10
+        - GPIO11
+        - GPIO12
+        - GPIO13
+        - GPIO14
+      blue:
+        - GPIO21
+        - GPIO47
+        - GPIO48
+        - GPIO45
+        - GPIO38
+    hsync_front_porch: "8"
+    hsync_pulse_width: "4"
+    hsync_back_porch: "43"
+    vsync_front_porch: "8"
+    vsync_pulse_width: "4"
+    vsync_back_porch: "12"
+
+# Minimal LVGL page: a plain full-screen color plus a static label, just
+# enough visible detail to spot tearing without needing the SD card or the
+# real alarmclock UI.
+lvgl:
+  displays:
+    - main_display
+  buffer_size: 100%
+  pages:
+    - id: diagnostic_page
+      bg_color: 0x2050A0
+      widgets:
+        - label:
+            align: CENTER
+            text: "No-Wifi Tearing Diagnostic"
+            text_color: 0xFFFFFF
+            text_font: montserrat_48
+
+logger:
+  level: DEBUG
+  hardware_uart: UART0
