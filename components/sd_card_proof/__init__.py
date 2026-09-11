@@ -44,6 +44,10 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config):
     esp32.include_builtin_idf_component("fatfs")
+    # Both default to disabled; without these, FATFS falls back to 8.3-only
+    # short filenames and opendir()/readdir() are compiled out entirely.
+    esp32.require_fatfs()
+    esp32.require_vfs_dir()
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
