@@ -52,8 +52,57 @@ jobs:
 
       - name: Use checked-out component
         run: |
-          grep -Fq "url: https://github.com/aclight/esphome-alarmclock.git" alarmclock.yaml
-          sed -i '/^      type: git$/,/^      path: components$/c\      type: local\n      path: components' alarmclock.yaml
+          for f in alarmclock.yaml alarmclock-p4-5inch.yaml; do
+            grep -Fq "url: https://github.com/aclight/esphome-alarmclock.git" "$f"
+            sed -i '/^      type: git$/,/^      path: components$/c\      type: local\n      path: components' "$f"
+            ! grep -Fq "type: git" "$f"
+          done
 
       - name: Compile ESPHome config
         run: esphome compile "${{ matrix.config }}"
+
+  # ESP-IDF asserts at runtime if the frame buffer is not an exact multiple of
+  # the bounce buffer, so the component rejects it at config time instead.
+  bounce-buffer-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ESPHome
+        run: pip install esphome
+
+      - name: Create dummy secrets
+        run: |
+          cat > secrets.yaml <<'EOF'
+          wifi_ssid: "TestSSID"
+          wifi_password: "TestPassword"
+          wifi_fallback_password: "TestFallback123"
+          encryption_key: "qQpfEIA1sPWVORMZ3QJKuRYAigxlOyParAwrqBm95Hg="
+          ota_password: "testotapassword"
+          EOF
+
+      - name: Use checked-out component
+        run: |
+          for f in alarmclock.yaml alarmclock-p4-5inch.yaml; do
+            sed -i '/^      type: git$/,/^      path: components$/c\      type: local\n      path: components' "$f"
+          done
+
+      - name: Rejects a bounce_buffer_lines that does not divide the height
+        run: |
+          sed 's/^    bounce_buffer_lines: 40$/    bounce_buffer_lines: 9/' \
+            alarmclock-p4-5inch.yaml > invalid.yaml
+          grep -Fq "bounce_buffer_lines: 9" invalid.yaml
+          if esphome config invalid.yaml > out.log 2>&1; then
+            echo "::error::expected config validation to fail"
+            cat out.log
+            exit 1
+          fi
+          grep -Fq "must divide the display height" out.log
+
+      - name: Accepts the production value
+        run: esphome config alarmclock-p4-5inch.yaml > /dev/null

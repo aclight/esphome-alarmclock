@@ -1,0 +1,23 @@
+This directory is NOT covered by the MIT license in the repository root.
+
+It is a modified copy of the `mipi_rgb` component from ESPHome 2026.7.4
+(https://github.com/esphome/esphome), Copyright (c) 2019 ESPHome, and it keeps
+ESPHome's split licensing:
+
+  mipi_rgb.cpp, mipi_rgb.h        GPL-3.0-or-later
+  *.py                            MIT
+
+The full upstream license text is in ../../LICENSES/ESPHome-LICENSE.txt.
+
+Modifications vs upstream (all default to upstream behaviour):
+
+  1. The hardcoded `bounce_buffer_size_px = width * 10` is replaced by a
+     configurable `bounce_buffer_lines` YAML option (default 10).
+  2. The unconditional per-loop `esp_lcd_rgb_panel_restart()` call can be
+     disabled with the `force_restart` YAML option (default true).
+  3. Optional instrumentation: `on_vsync` / `on_frame_buf_complete` counters
+     plus VSYNC interrupt-latency and end-of-frame slack measurement, enabled
+     by the `desync_report_interval` YAML option (default 0s = disabled) and
+     tuned by `late_frame_threshold`.
+
+Everything else is unchanged.

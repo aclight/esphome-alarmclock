@@ -76,12 +76,37 @@ esp32_hosted:
   slot: 1
   sdio_frequency: 40MHz
 
+# Vendored copy of the stock component that shadows the built-in one and adds
+# the two options set on the display below.
+external_components:
+  - source:
+      type: git
+      url: https://github.com/aclight/esphome-alarmclock.git
+      ref: main
+      path: components
+    components: [mipi_rgb]
+    refresh: 0s
+
 touchscreen:
   - id: !extend touch
     reset_pin:
       number: GPIO36
       ignore_strapping_warning: true
     interrupt_pin: GPIO42
+
+# Extended here rather than in alarmclock.yaml because the S3 takes a different
+# restart path in ESP-IDF and is unverified; it keeps the stock behaviour.
+display:
+  - id: !extend main_display
+    # Stock hardcodes 10 scanlines (~456us of scanout at 18MHz) and tears.
+    # Must divide the height. Costs 2 x 800 x 40 x 2 = 128KB of internal SRAM.
+    bounce_buffer_lines: 40
+    # Upstream restarts the FIFO and GDMA every VSYNC, but the ISR only has the
+    # 4-line back porch (~182us) to do it, and all 315 late frames measured over
+    # 31min missed that deadline - each one re-sending bytes already on the wire,
+    # which is the shift-and-wrap glitch. IDF still restarts on a real underrun
+    # via its own bb_eof_count check, so recovery is retained.
+    force_restart: false
 
 dashboard_import:
   package_import_url: github://aclight/esphome-alarmclock/alarmclock-p4-5inch.yaml@main
