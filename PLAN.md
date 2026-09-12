@@ -59,13 +59,34 @@ is blocked on it.
   in hand is V1.0, matching the documented sources. The S3 slot is SPI:
   `MOSI=GPIO6`, `MISO=GPIO4`, `SCK=GPIO5`, with CS fixed to 3.3 V / not routed
   to an ESP32 GPIO. The S3 repository documents V1.3 as the latest revision.
-2. Mount the card with ESPHome's `sd_mmc_card` (or SPI-mode SD) component; get a
-   basic file read working as a standalone proof before touching the UI.
-3. **Decision needed:** wallpaper image pipeline. Check whether this ESPHome/
-   LVGL version can decode a JPEG/PNG read live from the mounted filesystem, or
-   whether a custom `lv_fs` driver bridging LVGL to the SD FAT filesystem is
-   required for runtime-swappable wallpaper (vs. only compile-time-baked
-   images).
+2. **Complete (P4 mount/read proof):** the standalone `sd_card_proof` component
+  mounts the FAT32 card on SDMMC slot 0 in 1-bit mode at 10 MHz and reads
+  `/sdcard/sd-proof.txt`. Hardware testing detected a 29,820 MB card and read
+  the expected 26-byte contents while ESP-Hosted Wi-Fi remained connected on
+  SDMMC slot 1. Coexistence requires explicitly selecting slot 0 and waiting
+  for Hosted Wi-Fi to connect before mounting. The S3 SPI path remains
+  untested.
+3. **Complete (P4 wallpaper proof):** wallpaper image pipeline. LVGL 9.5
+  requires an `lv_fs` bridge for filesystem image sources, but its built-in
+  stdio driver can bridge directly to ESP-IDF VFS, so no custom driver is
+  needed. The P4 proof enables that driver plus LVGL's streaming JPEG decoder
+  and displays `S:wallpaper.jpg` (ESP-IDF path `/sdcard/wallpaper.jpg`) after
+  the existing post-Wi-Fi SD mount. Hardware testing confirmed the mount,
+  root directory listing, and JPEG decode all succeed, and the photo renders
+  on the panel. Required non-obvious fixes: force `LV_USE_LABEL` (a hard
+  dependency of `lv_image` even without label widgets), set the FS driver's
+  drive-letter macro (`LV_FS_STDIO_LETTER`, not `LV_USE_FS_STDIO`), call
+  `esp32.require_fatfs()`/`require_vfs_dir()` from a schema validator (ESP-IDF
+  disables FATFS long filenames and directory listing by default), and raise
+  `CONFIG_ESP_TASK_WDT_TIMEOUT_S` since the synchronous JPEG decode can
+  exceed the default 5s watchdog on larger-than-800x480 images. The proof
+  config (`sd-card-proof-p4.yaml`) and its `components/sd_card_proof/` live on
+  the **`sd-card-proof-p4` branch**, which must not be deleted — that component
+  exists nowhere else. Displaying a photo is also what made the RGB panel
+  tearing and shift/wrap glitches obvious; those are fixed on `main` now (see
+  "RGB Panel Tuning" in `README.md`), but note that a flat LVGL clock face
+  exercises that fix far less than a wallpaper does, so resuming this work is
+  also the real test of it.
 4. **Decision needed:** SD-stored alarm-tone format. Start with WAV/raw PCM at
    16 kHz mono (reuses the sample-playback state machine from the
   hawk-call work above with an SD-file "next chunk" source instead of
