@@ -332,10 +332,17 @@ void AlarmClockComponent::update_alarm(uint8_t index, uint8_t hour,
     return;
   }
 
+  // A slot with no prior configuration is being created for the first time,
+  // so it should start out enabled rather than keeping the default false.
+  bool is_new_alarm = !is_alarm_configured_(alarms_[index]);
+
   alarms_[index].hour = hour;
   alarms_[index].minute = minute;
   alarms_[index].days_of_week = days_mask;
   alarm_set_label(alarms_[index], label);
+  if (is_new_alarm) {
+    alarms_[index].enabled = true;
+  }
 
   storage_save_alarm(index, alarms_[index]);
   ui_update_alarm_row(index, alarms_[index].hour, alarms_[index].minute,
