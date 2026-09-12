@@ -79,7 +79,14 @@ is blocked on it.
   `esp32.require_fatfs()`/`require_vfs_dir()` from a schema validator (ESP-IDF
   disables FATFS long filenames and directory listing by default), and raise
   `CONFIG_ESP_TASK_WDT_TIMEOUT_S` since the synchronous JPEG decode can
-  exceed the default 5s watchdog on larger-than-800x480 images.
+  exceed the default 5s watchdog on larger-than-800x480 images. The proof
+  config (`sd-card-proof-p4.yaml`) and its `components/sd_card_proof/` live on
+  the **`sd-card-proof-p4` branch**, which must not be deleted — that component
+  exists nowhere else. Displaying a photo is also what made the RGB panel
+  tearing and shift/wrap glitches obvious; those are fixed on `main` now (see
+  "RGB Panel Tuning" in `README.md`), but note that a flat LVGL clock face
+  exercises that fix far less than a wallpaper does, so resuming this work is
+  also the real test of it.
 4. **Decision needed:** SD-stored alarm-tone format. Start with WAV/raw PCM at
    16 kHz mono (reuses the sample-playback state machine from the
   hawk-call work above with an SD-file "next chunk" source instead of
