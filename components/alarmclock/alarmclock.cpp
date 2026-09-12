@@ -259,7 +259,8 @@ void AlarmClockComponent::set_alarm(uint8_t index, uint8_t hour, uint8_t minute,
   // Update the UI alarm list.
   ui_update_alarm_row(index, hour, minute, days_mask, enabled,
                       time_format_24h_, alarms_[index].label,
-                      alarms_[index].skip_next);
+                      alarms_[index].skip_next, last_known_hour_,
+                      last_known_minute_);
   sync_alarm_slots_ui_();
   mark_next_alarm_dirty_();
 
@@ -276,7 +277,8 @@ void AlarmClockComponent::enable_alarm(uint8_t index, bool enabled) {
   ui_update_alarm_row(index, alarms_[index].hour, alarms_[index].minute,
                       alarms_[index].days_of_week, enabled,
                       time_format_24h_, alarms_[index].label,
-                      alarms_[index].skip_next);
+                      alarms_[index].skip_next, last_known_hour_,
+                      last_known_minute_);
   mark_next_alarm_dirty_();
 }
 
@@ -290,7 +292,8 @@ void AlarmClockComponent::update_alarm_time(uint8_t index, uint8_t hour,
   storage_save_alarm(index, alarms_[index]);
   ui_update_alarm_row(index, hour, minute, alarms_[index].days_of_week,
                       alarms_[index].enabled, time_format_24h_,
-                      alarms_[index].label, alarms_[index].skip_next);
+                      alarms_[index].label, alarms_[index].skip_next,
+                      last_known_hour_, last_known_minute_);
   sync_alarm_slots_ui_();
   mark_next_alarm_dirty_();
   ESP_LOGI(TAG, "Alarm %d time updated: %02d:%02d", index, hour, minute);
@@ -304,7 +307,8 @@ void AlarmClockComponent::update_alarm_days(uint8_t index, uint8_t days_mask) {
   storage_save_alarm(index, alarms_[index]);
   ui_update_alarm_row(index, alarms_[index].hour, alarms_[index].minute,
                       days_mask, alarms_[index].enabled, time_format_24h_,
-                      alarms_[index].label, alarms_[index].skip_next);
+                      alarms_[index].label, alarms_[index].skip_next,
+                      last_known_hour_, last_known_minute_);
   sync_alarm_slots_ui_();
   mark_next_alarm_dirty_();
   ESP_LOGI(TAG, "Alarm %d days updated: 0x%02X", index, days_mask);
@@ -319,7 +323,8 @@ void AlarmClockComponent::update_alarm_label(uint8_t index, const char *label) {
   ui_update_alarm_row(index, alarms_[index].hour, alarms_[index].minute,
                       alarms_[index].days_of_week, alarms_[index].enabled,
                       time_format_24h_, alarms_[index].label,
-                      alarms_[index].skip_next);
+                      alarms_[index].skip_next, last_known_hour_,
+                      last_known_minute_);
   sync_alarm_slots_ui_();
   mark_next_alarm_dirty_();
   ESP_LOGI(TAG, "Alarm %d label updated: '%s'", index, alarms_[index].label);
@@ -332,23 +337,20 @@ void AlarmClockComponent::update_alarm(uint8_t index, uint8_t hour,
     return;
   }
 
-  // A slot with no prior configuration is being created for the first time,
-  // so it should start out enabled rather than keeping the default false.
-  bool is_new_alarm = !is_alarm_configured_(alarms_[index]);
-
   alarms_[index].hour = hour;
   alarms_[index].minute = minute;
   alarms_[index].days_of_week = days_mask;
   alarm_set_label(alarms_[index], label);
-  if (is_new_alarm) {
-    alarms_[index].enabled = true;
-  }
+  // update_alarm() only runs when the user taps Save in the time picker
+  // (not Cancel/Delete), so saving an edit always (re-)enables the alarm.
+  alarms_[index].enabled = true;
 
   storage_save_alarm(index, alarms_[index]);
   ui_update_alarm_row(index, alarms_[index].hour, alarms_[index].minute,
                       alarms_[index].days_of_week, alarms_[index].enabled,
                       time_format_24h_, alarms_[index].label,
-                      alarms_[index].skip_next);
+                      alarms_[index].skip_next, last_known_hour_,
+                      last_known_minute_);
   sync_alarm_slots_ui_();
   mark_next_alarm_dirty_();
   ESP_LOGI(TAG, "Alarm %d saved: %02d:%02d days=0x%02X label='%s'", index,
@@ -384,7 +386,8 @@ void AlarmClockComponent::set_alarm_skip_next(uint8_t index, bool skip) {
   storage_save_alarm(index, alarms_[index]);
   ui_update_alarm_row(index, alarms_[index].hour, alarms_[index].minute,
                       alarms_[index].days_of_week, alarms_[index].enabled,
-                      time_format_24h_, alarms_[index].label, skip);
+                      time_format_24h_, alarms_[index].label, skip,
+                      last_known_hour_, last_known_minute_);
   mark_next_alarm_dirty_();
   ESP_LOGI(TAG, "Alarm %d skip-next %s", index, skip ? "armed" : "cleared");
 }
@@ -638,7 +641,8 @@ bool AlarmClockComponent::consume_alarm_skip_(uint8_t index) {
   storage_save_alarm(index, alarms_[index]);
   ui_update_alarm_row(index, alarms_[index].hour, alarms_[index].minute,
                       alarms_[index].days_of_week, alarms_[index].enabled,
-                      time_format_24h_, alarms_[index].label, false);
+                      time_format_24h_, alarms_[index].label, false,
+                      last_known_hour_, last_known_minute_);
   mark_next_alarm_dirty_();
   ESP_LOGI(TAG, "Alarm %d occurrence skipped", index);
   return true;
@@ -947,7 +951,8 @@ void AlarmClockComponent::sync_ui_() {
       ui_update_alarm_row(i, alarms_[i].hour, alarms_[i].minute,
                           alarms_[i].days_of_week, alarms_[i].enabled,
                           time_format_24h_, alarms_[i].label,
-                          alarms_[i].skip_next);
+                          alarms_[i].skip_next, last_known_hour_,
+                          last_known_minute_);
     } else {
       ui_hide_alarm_row(i);
     }
@@ -997,7 +1002,8 @@ void AlarmClockComponent::auto_disable_one_shot_alarm_() {
                       false,
                       time_format_24h_,
                       alarms_[fired_alarm_index_].label,
-                      alarms_[fired_alarm_index_].skip_next);
+                      alarms_[fired_alarm_index_].skip_next,
+                      last_known_hour_, last_known_minute_);
   mark_next_alarm_dirty_();
 }
 

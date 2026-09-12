@@ -86,6 +86,15 @@ inline bool alarm_matches(const AlarmTime &alarm, uint8_t hour, uint8_t minute,
   return (alarm.days_of_week & day_index_to_flag(day_index)) != 0;
 }
 
+// For a one-shot alarm, returns true if its time-of-day hasn't passed yet
+// today (so it will fire later today), false if it has already passed
+// (so it will fire tomorrow instead).
+inline bool one_shot_fires_today(uint8_t alarm_hour, uint8_t alarm_minute,
+                                 uint8_t now_hour, uint8_t now_minute) {
+  return time_to_minutes(alarm_hour, alarm_minute) >=
+         time_to_minutes(now_hour, now_minute);
+}
+
 // Compute the number of minutes until the next occurrence of |alarm|.
 // |now_hour|, |now_minute|: current time of day.
 // |now_day_index|: current day-of-week (0 = Sunday … 6 = Saturday).

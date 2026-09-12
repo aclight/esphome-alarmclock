@@ -299,7 +299,8 @@ void ui_update_alarm_row(uint8_t index, uint8_t hour, uint8_t minute,
                          uint8_t days_mask, bool enabled,
                          bool time_format_24h,
                          const char *label,
-                         bool skip_next) {
+                         bool skip_next,
+                         uint8_t now_hour, uint8_t now_minute) {
   if (index >= kMaxAlarms) {
     return;
   }
@@ -311,6 +312,13 @@ void ui_update_alarm_row(uint8_t index, uint8_t hour, uint8_t minute,
   format_clock_time(hour, minute, time_format_24h, buf, sizeof(buf));
   lv_label_set_text(row.time_label, buf);
 
+  // Dim the time when the alarm won't actually go off, as a visual cue
+  // distinct from the enable toggle itself.
+  lv_obj_set_style_text_color(
+      row.time_label,
+      lv_color_hex(enabled ? theme::kColorPrimary : theme::kColorSecondary),
+      0);
+
   // Show alarm label (e.g. "Work").
   if (label != nullptr && label[0] != '\0') {
     lv_label_set_text(row.alarm_label, label);
@@ -321,8 +329,14 @@ void ui_update_alarm_row(uint8_t index, uint8_t hour, uint8_t minute,
   // Format days.
   static const char *kShortDays[] = {"Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"};
   if (days_mask == 0) {
-    // One-shot alarm — show "Once" indicator.
-    lv_label_set_text(row.days_label, "Once");
+    // One-shot alarm — indicate whether/when it will actually fire.
+    if (!enabled) {
+      lv_label_set_text(row.days_label, "Not Scheduled");
+    } else if (one_shot_fires_today(hour, minute, now_hour, now_minute)) {
+      lv_label_set_text(row.days_label, "Today");
+    } else {
+      lv_label_set_text(row.days_label, "Tomorrow");
+    }
   } else {
     char days_buf[22] = "";
     int pos = 0;
