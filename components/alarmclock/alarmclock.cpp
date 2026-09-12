@@ -904,6 +904,13 @@ void AlarmClockComponent::play_sample_chunk_() {
   if (speaker_ == nullptr || !sample_playback_.active()) {
     return;
   }
+  if (alarm_sound_active_) {
+    // Ramp volume up gradually, same as the RTTTL path, so WAV/sample alarm
+    // sounds also escalate instead of playing at whatever level the speaker
+    // was last left at.
+    uint32_t elapsed = ::esphome::millis() - alarm_sound_start_ms_;
+    speaker_->set_volume(compute_ramp_volume(volume_, elapsed));
+  }
   const AlarmSound &sound = kAlarmSounds[sample_sound_index_];
   size_t chunk_size = sample_playback_.read_next(
       read_embedded_sample_, const_cast<AlarmSound *>(&sound),
