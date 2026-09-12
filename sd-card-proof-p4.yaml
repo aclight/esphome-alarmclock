@@ -98,11 +98,14 @@ display:
     update_interval: never
     color_order: RGB
     pclk_frequency: 18MHz
-    # Back to the stock 10 scanlines to find out whether the bump to 40 is
-    # still needed. The tearing that motivated it was measured with the forced
-    # per-VSYNC restart still on, so the two were never separated. 10 costs
-    # 32KB of internal SRAM against 128KB at 40. Must divide the height.
-    bounce_buffer_lines: 10
+    # Stock hardcodes 10 scanlines (~456us of scanout at 18MHz) and tears. This
+    # and force_restart fix two independent defects: 10 lines tears with the
+    # restart either on or off, and 40 lines still glitches with it on, so both
+    # are necessary and neither is sufficient. Raising past 40 is pointless -
+    # measured end-of-frame slack never drops below ~2.4ms, so the DMA is never
+    # close to starving. Costs 2 x 800 x 40 x 2 = 128KB of internal SRAM.
+    # Must divide the height.
+    bounce_buffer_lines: 40
     # Upstream resets the FIFO and GDMA on every VSYNC. The ISR has only the
     # 4-line vertical back porch (~182us) to do that before the panel starts
     # clocking out pixels, and all 315 late frames measured over 31min missed
