@@ -109,6 +109,90 @@ dimming are bypassed. On the 4.3-inch controller, 0 is full brightness and 244
 is minimum brightness. On the 5-inch controller, 0 is minimum and 100 is full
 brightness. The override always starts disabled after a reboot.
 
+## RGB Panel Tuning (ESP32-P4)
+
+The panel has no frame memory of its own, so the ESP32 clocks out every pixel in
+real time from a pair of small bounce buffers kept fed by DMA. Two options in
+`alarmclock-p4-5inch.yaml` are needed to make that reliable, and they fix two
+independent defects — both are required, neither alone is sufficient:
+
+- `bounce_buffer_lines: 40` — scanlines per bounce buffer. Upstream ESPHome
+  hardcodes 10, which starves the DMA and tears constantly. Must divide the
+  display height. Costs 2 × 800 × 40 × 2 = 128 KB of internal SRAM.
+- `force_restart: false` — upstream otherwise resets the FIFO and GDMA on every
+  VSYNC, but the interrupt handler has only the 4-line vertical back porch
+  (~182 µs at 18 MHz) to finish. Every late frame measured missed that deadline,
+  so the restart re-sent pixels that were already on the wire, giving a
+  shifted/wrapped image and a fixed horizontal offset. ESP-IDF still restarts on
+  a genuine underrun via its own `bb_eof_count` check, so recovery is retained.
+
+Both options come from the vendored `components/mipi_rgb/`, which is why
+`alarmclock-p4-5inch.yaml` declares its own `external_components` entry. The
+S3 config deliberately does not use them — see the note at the end of this
+section.
+
+### If tearing comes back: `CONFIG_CACHE_L2_CACHE_256KB`
+
+Every bounce-buffer refill ends with an L2 cache preload of the whole buffer. At
+40 scanlines that is 800 × 40 × 2 = 64 KB, which evicts half of the P4's default
+128 KB L2 cache roughly every 1.8 ms, slowing down everything else including the
+refills themselves.
+
+This is the **first thing to try if tearing returns**, because it is the one
+setting that was present throughout the original validation but was left out of
+the production config on purpose, to find out whether it was actually needed.
+Add it to the existing `sdkconfig_options` in `alarmclock-p4-5inch.yaml`:
+
+```yaml
+esp32:
+  framework:
+    sdkconfig_options:
+      CONFIG_ESP_MAIN_TASK_STACK_SIZE: "8192"
+      CONFIG_CACHE_L2_CACHE_256KB: "y"   # add this line
+```
+
+It costs 128 KB of the P4's 768 KB L2MEM. The mutually exclusive alternatives
+are `CONFIG_CACHE_L2_CACHE_128KB` (the ESP-IDF default) and
+`CONFIG_CACHE_L2_CACHE_512KB`.
+
+If that is not enough, try `preferences: flash_write_interval: 1h` — flash
+writes briefly disable the cache and the default writes every 60 s.
+
+The symptom tells you which half regressed: **tearing** points at bounce-buffer
+starvation, so start with the cache and `bounce_buffer_lines`. A **shifted or
+wrapped** image points at the restart path instead, which `force_restart: false`
+should have removed entirely rather than merely widened the margin on.
+
+### Upgrading ESPHome
+
+`components/mipi_rgb/` is a modified copy of ESPHome's built-in component,
+forked at **2026.7.4**. ESPHome's external-component loader installs itself at
+the front of `sys.meta_path`, so the local copy **always shadows the built-in
+one**. Bumping the ESPHome version therefore never picks up upstream changes to
+`mipi_rgb`; the fork has to be rebased deliberately.
+
+1. Diff upstream's `esphome/components/mipi_rgb/` at the new version against the
+   2026.7.4 baseline and reapply the fork's changes, which are listed in
+   `components/mipi_rgb/LICENSE`. That file has changed rarely, so this is
+   usually a small job.
+2. Make the upgrade its own change with its own soak. Do not combine it with
+   hardware or display-config changes — the two knobs above took a 2×2 matrix on
+   real hardware to separate, and that is not worth repeating.
+3. Keep `force_restart` even once it looks redundant. Upstream removed the P4
+   restart in esphome/esphome#18929 (first released in 2026.9.0b1), but only
+   incidentally, as a side effect of unrelated ESP32-S31 work — so it is not
+   documented behaviour to rely on, and it is still needed on the S3.
+4. `bounce_buffer_lines` has no upstream equivalent; upstream still hardcodes
+   `width * 10`. Until that is upstreamed, the fork stays necessary.
+
+### ESP32-S3
+
+The 4.3-inch S3 config uses stock upstream behaviour and is untouched by the
+above. It takes a different restart path inside ESP-IDF
+(`RGB_LCD_NEEDS_SEPARATE_RESTART_LINK`), and upstream deliberately kept the
+per-VSYNC restart there, so `force_restart: false` on the S3 is an untested
+hypothesis rather than a port of a known-good fix.
+
 ## Open Questions
 
 - Optimal PCLK frequency for 800×480 @ 60 Hz — Elecrow examples suggest 12–16 MHz.
@@ -127,6 +211,7 @@ components/alarmclock/       # Custom ESPHome component
   alarmclock.cpp             # Implementation
   alarm_time.h               # Alarm time representation and scheduling
   alarm_state.h              # Alarm state machine
+components/mipi_rgb/         # Vendored RGB display component (see RGB Panel Tuning)
 tests/
   test_framework.h           # Minimal test macros
   test_alarmclock.cpp        # Host-side unit tests
@@ -157,3 +242,14 @@ esphome run alarmclock.yaml
 # Or compile and flash the 5-inch ESP32-P4 board
 esphome run alarmclock-p4-5inch.yaml
 ```
+
+## Licensing
+
+This project is MIT licensed (see `LICENSE`), with two exceptions:
+
+- `components/mipi_rgb/` is a modified copy of ESPHome's built-in `mipi_rgb`
+  component and keeps ESPHome's split licensing: the C++ files are
+  GPL-3.0-or-later and the Python files are MIT, both Copyright (c) 2019 ESPHome.
+  See `components/mipi_rgb/LICENSE` and `LICENSES/ESPHome-LICENSE.txt`.
+- Bundled fonts are licensed under the SIL Open Font License; see
+  `LICENSES/OFL-1.1.txt`.
