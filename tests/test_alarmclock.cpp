@@ -865,6 +865,21 @@ TEST(one_shot_minutes_until_disabled) {
     PASS();
 }
 
+TEST(one_shot_fires_today_when_time_not_passed) {
+    ASSERT_TRUE(one_shot_fires_today(9, 0, 7, 30));
+    PASS();
+}
+
+TEST(one_shot_fires_today_at_exact_time) {
+    ASSERT_TRUE(one_shot_fires_today(7, 30, 7, 30));
+    PASS();
+}
+
+TEST(one_shot_fires_tomorrow_when_time_passed) {
+    ASSERT_FALSE(one_shot_fires_today(6, 0, 22, 0));
+    PASS();
+}
+
 // ===========================================================================
 // find_next_alarm_index tests (Task 15)
 // ===========================================================================
@@ -2193,6 +2208,9 @@ int main() {
     RUN(one_shot_minutes_until_later_today);
     RUN(one_shot_minutes_until_tomorrow);
     RUN(one_shot_minutes_until_disabled);
+    RUN(one_shot_fires_today_when_time_not_passed);
+    RUN(one_shot_fires_today_at_exact_time);
+    RUN(one_shot_fires_tomorrow_when_time_passed);
 
     // find_next_alarm_index (Task 15)
     RUN(find_next_alarm_none_enabled);

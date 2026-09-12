@@ -50,11 +50,14 @@ void ui_update_time_format(bool time_format_24h);
 void ui_update_pre_alarm_selection(uint8_t option_index);
 
 // Alarm list management.
+// |now_hour|/|now_minute| are the current time-of-day, used to label a
+// one-shot alarm as "Today"/"Tomorrow"/"Not Scheduled" instead of "Once".
 void ui_update_alarm_row(uint8_t index, uint8_t hour, uint8_t minute,
                          uint8_t days_mask, bool enabled,
                          bool time_format_24h = false,
                          const char *label = nullptr,
-                         bool skip_next = false);
+                         bool skip_next = false,
+                         uint8_t now_hour = 0, uint8_t now_minute = 0);
 void ui_hide_alarm_row(uint8_t index);
 void ui_set_alarm_slots_used(uint8_t used_slots, uint8_t max_slots);
 void ui_set_alarm_row_firing(uint8_t index);
