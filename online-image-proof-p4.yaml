@@ -866,7 +866,7 @@ wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
   ap:
-    ssid: "AlarmClock Online Image Proof Fallback"
+    ssid: "AlarmClock Proof Fallback"
     password: !secret wifi_fallback_password
 
 mdns:
