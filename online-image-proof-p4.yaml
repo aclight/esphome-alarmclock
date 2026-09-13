@@ -198,6 +198,10 @@ image:
     update_interval: never
     on_download_finished:
       - lambda: |-
+          // get_lv_image_dsc() lazily rebuilds LVGL's cached descriptor (data
+          // pointer + dimensions); nothing else calls it after the initial
+          // (empty) setup, so this must run before the widget is invalidated.
+          id(preview_img)->get_lv_image_dsc();
           uint32_t elapsed = millis() - id(preview_start_ms);
           ESP_LOGI("proof", "%s finished in %ums (cached=%d), free PSRAM=%u B",
                    id(preview_test_name).c_str(), elapsed, cached,
@@ -251,6 +255,7 @@ image:
     update_interval: never
     on_download_finished:
       - lambda: |-
+          id(soak_img)->get_lv_image_dsc();
           uint32_t elapsed = millis() - id(preview_start_ms);
           ESP_LOGI("proof", "TEST2 soak slot %d: %ums (cached=%d), free PSRAM=%u B",
                    id(soak_slot), elapsed, cached,
@@ -272,6 +277,7 @@ image:
     update_interval: never
     on_download_finished:
       - lambda: |-
+          id(grid_img_00)->get_lv_image_dsc();
           ESP_LOGI("proof", "grid[00] loaded (cached=%d), free PSRAM=%u B", cached,
                    (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
           id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
@@ -293,6 +299,7 @@ image:
     update_interval: never
     on_download_finished:
       - lambda: |-
+          id(grid_img_01)->get_lv_image_dsc();
           ESP_LOGI("proof", "grid[01] loaded (cached=%d), free PSRAM=%u B", cached,
                    (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
           id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
@@ -314,6 +321,7 @@ image:
     update_interval: never
     on_download_finished:
       - lambda: |-
+          id(grid_img_02)->get_lv_image_dsc();
           ESP_LOGI("proof", "grid[02] loaded (cached=%d), free PSRAM=%u B", cached,
                    (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
           id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
@@ -335,6 +343,7 @@ image:
     update_interval: never
     on_download_finished:
       - lambda: |-
+          id(grid_img_03)->get_lv_image_dsc();
           ESP_LOGI("proof", "grid[03] loaded (cached=%d), free PSRAM=%u B", cached,
                    (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
           id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
@@ -356,6 +365,7 @@ image:
     update_interval: never
     on_download_finished:
       - lambda: |-
+          id(grid_img_04)->get_lv_image_dsc();
           ESP_LOGI("proof", "grid[04] loaded (cached=%d), free PSRAM=%u B", cached,
                    (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
           id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
@@ -377,6 +387,7 @@ image:
     update_interval: never
     on_download_finished:
       - lambda: |-
+          id(grid_img_05)->get_lv_image_dsc();
           ESP_LOGI("proof", "grid[05] loaded (cached=%d), free PSRAM=%u B", cached,
                    (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
           id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
@@ -398,6 +409,7 @@ image:
     update_interval: never
     on_download_finished:
       - lambda: |-
+          id(grid_img_06)->get_lv_image_dsc();
           ESP_LOGI("proof", "grid[06] loaded (cached=%d), free PSRAM=%u B", cached,
                    (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
           id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
@@ -419,6 +431,7 @@ image:
     update_interval: never
     on_download_finished:
       - lambda: |-
+          id(grid_img_07)->get_lv_image_dsc();
           ESP_LOGI("proof", "grid[07] loaded (cached=%d), free PSRAM=%u B", cached,
                    (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
           id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
@@ -440,6 +453,7 @@ image:
     update_interval: never
     on_download_finished:
       - lambda: |-
+          id(grid_img_08)->get_lv_image_dsc();
           ESP_LOGI("proof", "grid[08] loaded (cached=%d), free PSRAM=%u B", cached,
                    (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
           id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
@@ -461,6 +475,7 @@ image:
     update_interval: never
     on_download_finished:
       - lambda: |-
+          id(grid_img_09)->get_lv_image_dsc();
           ESP_LOGI("proof", "grid[09] loaded (cached=%d), free PSRAM=%u B", cached,
                    (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
           id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
@@ -482,6 +497,7 @@ image:
     update_interval: never
     on_download_finished:
       - lambda: |-
+          id(grid_img_10)->get_lv_image_dsc();
           ESP_LOGI("proof", "grid[10] loaded (cached=%d), free PSRAM=%u B", cached,
                    (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
           id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
@@ -503,6 +519,7 @@ image:
     update_interval: never
     on_download_finished:
       - lambda: |-
+          id(grid_img_11)->get_lv_image_dsc();
           ESP_LOGI("proof", "grid[11] loaded (cached=%d), free PSRAM=%u B", cached,
                    (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
           id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
@@ -524,6 +541,7 @@ image:
     update_interval: never
     on_download_finished:
       - lambda: |-
+          id(grid_img_12)->get_lv_image_dsc();
           ESP_LOGI("proof", "grid[12] loaded (cached=%d), free PSRAM=%u B", cached,
                    (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
           id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
@@ -545,6 +563,7 @@ image:
     update_interval: never
     on_download_finished:
       - lambda: |-
+          id(grid_img_13)->get_lv_image_dsc();
           ESP_LOGI("proof", "grid[13] loaded (cached=%d), free PSRAM=%u B", cached,
                    (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
           id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
@@ -566,6 +585,7 @@ image:
     update_interval: never
     on_download_finished:
       - lambda: |-
+          id(grid_img_14)->get_lv_image_dsc();
           ESP_LOGI("proof", "grid[14] loaded (cached=%d), free PSRAM=%u B", cached,
                    (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
           id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
@@ -587,6 +607,7 @@ image:
     update_interval: never
     on_download_finished:
       - lambda: |-
+          id(grid_img_15)->get_lv_image_dsc();
           ESP_LOGI("proof", "grid[15] loaded (cached=%d), free PSRAM=%u B", cached,
                    (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
           id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
@@ -608,6 +629,7 @@ image:
     update_interval: never
     on_download_finished:
       - lambda: |-
+          id(grid_img_16)->get_lv_image_dsc();
           ESP_LOGI("proof", "grid[16] loaded (cached=%d), free PSRAM=%u B", cached,
                    (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
           id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
@@ -629,6 +651,7 @@ image:
     update_interval: never
     on_download_finished:
       - lambda: |-
+          id(grid_img_17)->get_lv_image_dsc();
           ESP_LOGI("proof", "grid[17] loaded (cached=%d), free PSRAM=%u B", cached,
                    (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
           id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
