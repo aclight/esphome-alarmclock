@@ -14,7 +14,10 @@ esphome:
     name: aclight.alarmclock-online-image-proof
     version: "1.0.0"
   includes:
-    - esp_heap_caps.h
+    # Angle brackets tell ESPHome this is a system header, not a local file
+    # to copy in - a bare "esp_heap_caps.h" is looked up relative to the
+    # config directory and fails validation.
+    - <esp_heap_caps.h>
   # Turn on the STC8 backlight (0x1B enables the panel, 0x20 sets brightness)
   # once i2c_bus is up. Copied from sd-card-proof-p4 — same board, same chip.
   on_boot:
