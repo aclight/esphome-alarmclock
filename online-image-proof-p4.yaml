@@ -1,0 +1,891 @@
+substitutions:
+  name: "alarmclock-p4"
+  image_base_url: "http://192.168.1.142:8000"
+  # Deliberately unreachable LAN address (nothing listens here) so
+  # http_request has to hit its own client-side timeout rather than getting
+  # an instant connection-refused. Pick a different free address if this one
+  # is ever claimed on your LAN.
+  timeout_test_url: "http://192.168.1.250:8000/p00.png"
+
+esphome:
+  name: ${name}
+  friendly_name: "Alarm Clock P4 Online Image Proof"
+  project:
+    name: aclight.alarmclock-online-image-proof
+    version: "1.0.0"
+  includes:
+    - esp_heap_caps.h
+  # Turn on the STC8 backlight (0x1B enables the panel, 0x20 sets brightness)
+  # once i2c_bus is up. Copied from sd-card-proof-p4 — same board, same chip.
+  on_boot:
+    - priority: -100.0
+      then:
+        - lambda: |-
+            const uint8_t power[] = {0x1B, 1};
+            const uint8_t brightness[] = {0x20, 100};
+            id(i2c_bus).write(0x2F, power, sizeof(power));
+            id(i2c_bus).write(0x2F, brightness, sizeof(brightness));
+
+preferences:
+  flash_write_interval: 1h
+
+esp32:
+  variant: esp32p4
+  engineering_sample: true
+  flash_size: 16MB
+  cpu_frequency: 360MHz
+  framework:
+    type: esp-idf
+    advanced:
+      execute_from_psram: true
+      enable_idf_experimental_features: true
+    sdkconfig_options:
+      # Workaround for espressif/esp-idf#19020 (P4 SPM 8KB pool bootloop assert).
+      CONFIG_ESP_MAIN_TASK_STACK_SIZE: "8192"
+      # A big JPEG/PNG decode is fully synchronous within one loopTask
+      # iteration and doesn't feed the watchdog mid-decode; raise the
+      # default 5s task WDT so the 18-slot grid refresh can't trip it.
+      CONFIG_ESP_TASK_WDT_TIMEOUT_S: "15"
+
+psram:
+  mode: hex
+  speed: 200MHz
+
+esp32_hosted:
+  type: sdio
+  variant: ESP32C6
+  reset_pin: GPIO20
+  active_high: true
+  clk_pin: GPIO53
+  cmd_pin: GPIO54
+  d0_pin: GPIO52
+  d1_pin: GPIO51
+  d2_pin: GPIO50
+  d3_pin: GPIO49
+  bus_width: 4
+  slot: 1
+  sdio_frequency: 40MHz
+
+# Vendored mipi_rgb (already merged to main) — provides bounce_buffer_lines
+# and force_restart, both required on this board to avoid tearing/glitches.
+external_components:
+  - source:
+      type: git
+      url: https://github.com/aclight/esphome-alarmclock.git
+      ref: main
+      path: components
+    components: [mipi_rgb]
+    refresh: 0s
+
+i2c:
+  id: i2c_bus
+  sda: GPIO45
+  scl: GPIO46
+
+# Display timings copied verbatim from the known-good alarmclock-p4-5inch.yaml.
+display:
+  - platform: mipi_rgb
+    model: RPI
+    id: main_display
+    auto_clear_enabled: false
+    update_interval: never
+    color_order: RGB
+    pclk_frequency: 18MHz
+    bounce_buffer_lines: 40
+    force_restart: false
+    dimensions:
+      width: 800
+      height: 480
+    de_pin: GPIO2
+    vsync_pin: GPIO41
+    hsync_pin: GPIO40
+    pclk_pin: GPIO3
+    data_pins:
+      red:
+        - GPIO19
+        - GPIO18
+        - GPIO17
+        - GPIO16
+        - GPIO15
+      green:
+        - GPIO14
+        - GPIO13
+        - GPIO12
+        - GPIO11
+        - GPIO10
+        - GPIO9
+      blue:
+        - GPIO8
+        - GPIO7
+        - GPIO6
+        - GPIO5
+        - GPIO4
+    hsync_front_porch: "8"
+    hsync_pulse_width: "8"
+    hsync_back_porch: "4"
+    vsync_front_porch: "8"
+    vsync_pulse_width: "8"
+    vsync_back_porch: "4"
+
+touchscreen:
+  - platform: gt911
+    id: touch
+    display: main_display
+    update_interval: 16ms
+    reset_pin:
+      number: GPIO36
+      ignore_strapping_warning: true
+    interrupt_pin: GPIO42
+
+http_request:
+  id: http_req
+  timeout: 8s
+  watchdog_timeout: 15s
+
+# --- Timing/bookkeeping state, all read/written from the test buttons below ---
+globals:
+  - id: preview_test_name
+    type: std::string
+    restore_value: false
+    initial_value: '""'
+  - id: preview_start_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: "0"
+  - id: cycle_index
+    type: int
+    restore_value: false
+    initial_value: "0"
+  - id: timing_png_start_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: "0"
+  - id: timing_jpeg_start_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: "0"
+  - id: grid_pending
+    type: int
+    restore_value: false
+    initial_value: "0"
+  - id: grid_test_start_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: "0"
+  - id: soak_running
+    type: bool
+    restore_value: false
+    initial_value: "false"
+  - id: soak_slot
+    type: int
+    restore_value: false
+    initial_value: "0"
+
+image:
+  # --- Test 1 / 4 / 6: a single reusable slot for the manual one-off tests
+  # (fetch-once, runtime set_url cycling, 404, timeout, mid-download drop).
+  # They share one online_image + widget so all of them exercise the same
+  # "set_url + update, repaint on_download_finished" path.
+  - platform: online_image
+    id: preview_img
+    url: "${image_base_url}/real/r00.png"
+    format: PNG
+    type: RGB565
+    resize: 96x96
+    update_interval: never
+    on_download_finished:
+      - lambda: |-
+          uint32_t elapsed = millis() - id(preview_start_ms);
+          ESP_LOGI("proof", "%s finished in %ums (cached=%d), free PSRAM=%u B",
+                   id(preview_test_name).c_str(), elapsed, cached,
+                   (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+      - lvgl.widget.redraw: preview_widget
+    on_error:
+      - lambda: |-
+          uint32_t elapsed = millis() - id(preview_start_ms);
+          ESP_LOGW("proof", "%s FAILED after %ums", id(preview_test_name).c_str(), elapsed);
+
+  # --- Test 3: PNG vs JPEG decode time + PSRAM cost, same source image.
+  - platform: online_image
+    id: timing_png
+    url: "${image_base_url}/real/r00.png"
+    format: PNG
+    type: RGB565
+    resize: 124x190
+    update_interval: never
+    on_download_finished:
+      - lambda: |-
+          uint32_t elapsed = millis() - id(timing_png_start_ms);
+          ESP_LOGI("proof", "TEST3 PNG decode: %ums (cached=%d), free PSRAM=%u B",
+                   elapsed, cached, (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+    on_error:
+      - lambda: 'ESP_LOGW("proof", "TEST3 PNG fetch failed");'
+  - platform: online_image
+    id: timing_jpeg
+    url: "${image_base_url}/real/r00.jpg"
+    format: JPEG
+    type: RGB565
+    resize: 124x190
+    update_interval: never
+    on_download_finished:
+      - lambda: |-
+          uint32_t elapsed = millis() - id(timing_jpeg_start_ms);
+          ESP_LOGI("proof", "TEST3 JPEG decode: %ums (cached=%d), free PSRAM=%u B",
+                   elapsed, cached, (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+    on_error:
+      - lambda: 'ESP_LOGW("proof", "TEST3 JPEG fetch failed");'
+
+  # --- Test 2: soak — continuously re-fetches+decodes real thumbnails while
+  # soak_running is true, to see whether sustained HTTP+decode load
+  # destabilizes the RGB panel (the tearing fixes were only ever soaked
+  # against a static clock face, never this kind of traffic).
+  - platform: online_image
+    id: soak_img
+    url: "${image_base_url}/real/r00.png"
+    format: PNG
+    type: RGB565
+    resize: 64x64
+    update_interval: never
+    on_download_finished:
+      - lambda: |-
+          uint32_t elapsed = millis() - id(preview_start_ms);
+          ESP_LOGI("proof", "TEST2 soak slot %d: %ums (cached=%d), free PSRAM=%u B",
+                   id(soak_slot), elapsed, cached,
+                   (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+      - lvgl.widget.redraw: soak_widget
+    on_error:
+      - lambda: |-
+          ESP_LOGW("proof", "TEST2 soak slot %d FAILED", id(soak_slot));
+
+  # --- Test 5: 18 simultaneous instances, wall-clock time for a full
+  # page refresh. Only 10 distinct real/ thumbnails exist, so slots repeat
+  # after r09 — that's fine, this test is about plumbing/timing, not content.
+  - platform: online_image
+    id: grid_img_00
+    url: "${image_base_url}/real/r00.png"
+    format: PNG
+    type: RGB565
+    resize: 118x118
+    update_interval: never
+    on_download_finished:
+      - lambda: |-
+          ESP_LOGI("proof", "grid[00] loaded (cached=%d), free PSRAM=%u B", cached,
+                   (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+          id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
+          if (id(grid_pending) == 0) {
+            ESP_LOGI("proof", "TEST5: full grid refresh took %ums",
+                     (unsigned) (millis() - id(grid_test_start_ms)));
+          }
+      - lvgl.widget.redraw: grid_widget_00
+    on_error:
+      - lambda: |-
+          ESP_LOGW("proof", "grid[00] FAILED");
+          id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
+  - platform: online_image
+    id: grid_img_01
+    url: "${image_base_url}/real/r01.png"
+    format: PNG
+    type: RGB565
+    resize: 118x118
+    update_interval: never
+    on_download_finished:
+      - lambda: |-
+          ESP_LOGI("proof", "grid[01] loaded (cached=%d), free PSRAM=%u B", cached,
+                   (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+          id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
+          if (id(grid_pending) == 0) {
+            ESP_LOGI("proof", "TEST5: full grid refresh took %ums",
+                     (unsigned) (millis() - id(grid_test_start_ms)));
+          }
+      - lvgl.widget.redraw: grid_widget_01
+    on_error:
+      - lambda: |-
+          ESP_LOGW("proof", "grid[01] FAILED");
+          id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
+  - platform: online_image
+    id: grid_img_02
+    url: "${image_base_url}/real/r02.png"
+    format: PNG
+    type: RGB565
+    resize: 118x118
+    update_interval: never
+    on_download_finished:
+      - lambda: |-
+          ESP_LOGI("proof", "grid[02] loaded (cached=%d), free PSRAM=%u B", cached,
+                   (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+          id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
+          if (id(grid_pending) == 0) {
+            ESP_LOGI("proof", "TEST5: full grid refresh took %ums",
+                     (unsigned) (millis() - id(grid_test_start_ms)));
+          }
+      - lvgl.widget.redraw: grid_widget_02
+    on_error:
+      - lambda: |-
+          ESP_LOGW("proof", "grid[02] FAILED");
+          id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
+  - platform: online_image
+    id: grid_img_03
+    url: "${image_base_url}/real/r03.png"
+    format: PNG
+    type: RGB565
+    resize: 118x118
+    update_interval: never
+    on_download_finished:
+      - lambda: |-
+          ESP_LOGI("proof", "grid[03] loaded (cached=%d), free PSRAM=%u B", cached,
+                   (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+          id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
+          if (id(grid_pending) == 0) {
+            ESP_LOGI("proof", "TEST5: full grid refresh took %ums",
+                     (unsigned) (millis() - id(grid_test_start_ms)));
+          }
+      - lvgl.widget.redraw: grid_widget_03
+    on_error:
+      - lambda: |-
+          ESP_LOGW("proof", "grid[03] FAILED");
+          id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
+  - platform: online_image
+    id: grid_img_04
+    url: "${image_base_url}/real/r04.png"
+    format: PNG
+    type: RGB565
+    resize: 118x118
+    update_interval: never
+    on_download_finished:
+      - lambda: |-
+          ESP_LOGI("proof", "grid[04] loaded (cached=%d), free PSRAM=%u B", cached,
+                   (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+          id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
+          if (id(grid_pending) == 0) {
+            ESP_LOGI("proof", "TEST5: full grid refresh took %ums",
+                     (unsigned) (millis() - id(grid_test_start_ms)));
+          }
+      - lvgl.widget.redraw: grid_widget_04
+    on_error:
+      - lambda: |-
+          ESP_LOGW("proof", "grid[04] FAILED");
+          id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
+  - platform: online_image
+    id: grid_img_05
+    url: "${image_base_url}/real/r05.png"
+    format: PNG
+    type: RGB565
+    resize: 118x118
+    update_interval: never
+    on_download_finished:
+      - lambda: |-
+          ESP_LOGI("proof", "grid[05] loaded (cached=%d), free PSRAM=%u B", cached,
+                   (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+          id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
+          if (id(grid_pending) == 0) {
+            ESP_LOGI("proof", "TEST5: full grid refresh took %ums",
+                     (unsigned) (millis() - id(grid_test_start_ms)));
+          }
+      - lvgl.widget.redraw: grid_widget_05
+    on_error:
+      - lambda: |-
+          ESP_LOGW("proof", "grid[05] FAILED");
+          id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
+  - platform: online_image
+    id: grid_img_06
+    url: "${image_base_url}/real/r06.png"
+    format: PNG
+    type: RGB565
+    resize: 118x118
+    update_interval: never
+    on_download_finished:
+      - lambda: |-
+          ESP_LOGI("proof", "grid[06] loaded (cached=%d), free PSRAM=%u B", cached,
+                   (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+          id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
+          if (id(grid_pending) == 0) {
+            ESP_LOGI("proof", "TEST5: full grid refresh took %ums",
+                     (unsigned) (millis() - id(grid_test_start_ms)));
+          }
+      - lvgl.widget.redraw: grid_widget_06
+    on_error:
+      - lambda: |-
+          ESP_LOGW("proof", "grid[06] FAILED");
+          id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
+  - platform: online_image
+    id: grid_img_07
+    url: "${image_base_url}/real/r07.png"
+    format: PNG
+    type: RGB565
+    resize: 118x118
+    update_interval: never
+    on_download_finished:
+      - lambda: |-
+          ESP_LOGI("proof", "grid[07] loaded (cached=%d), free PSRAM=%u B", cached,
+                   (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+          id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
+          if (id(grid_pending) == 0) {
+            ESP_LOGI("proof", "TEST5: full grid refresh took %ums",
+                     (unsigned) (millis() - id(grid_test_start_ms)));
+          }
+      - lvgl.widget.redraw: grid_widget_07
+    on_error:
+      - lambda: |-
+          ESP_LOGW("proof", "grid[07] FAILED");
+          id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
+  - platform: online_image
+    id: grid_img_08
+    url: "${image_base_url}/real/r08.png"
+    format: PNG
+    type: RGB565
+    resize: 118x118
+    update_interval: never
+    on_download_finished:
+      - lambda: |-
+          ESP_LOGI("proof", "grid[08] loaded (cached=%d), free PSRAM=%u B", cached,
+                   (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+          id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
+          if (id(grid_pending) == 0) {
+            ESP_LOGI("proof", "TEST5: full grid refresh took %ums",
+                     (unsigned) (millis() - id(grid_test_start_ms)));
+          }
+      - lvgl.widget.redraw: grid_widget_08
+    on_error:
+      - lambda: |-
+          ESP_LOGW("proof", "grid[08] FAILED");
+          id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
+  - platform: online_image
+    id: grid_img_09
+    url: "${image_base_url}/real/r09.png"
+    format: PNG
+    type: RGB565
+    resize: 118x118
+    update_interval: never
+    on_download_finished:
+      - lambda: |-
+          ESP_LOGI("proof", "grid[09] loaded (cached=%d), free PSRAM=%u B", cached,
+                   (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+          id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
+          if (id(grid_pending) == 0) {
+            ESP_LOGI("proof", "TEST5: full grid refresh took %ums",
+                     (unsigned) (millis() - id(grid_test_start_ms)));
+          }
+      - lvgl.widget.redraw: grid_widget_09
+    on_error:
+      - lambda: |-
+          ESP_LOGW("proof", "grid[09] FAILED");
+          id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
+  - platform: online_image
+    id: grid_img_10
+    url: "${image_base_url}/real/r00.png"
+    format: PNG
+    type: RGB565
+    resize: 118x118
+    update_interval: never
+    on_download_finished:
+      - lambda: |-
+          ESP_LOGI("proof", "grid[10] loaded (cached=%d), free PSRAM=%u B", cached,
+                   (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+          id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
+          if (id(grid_pending) == 0) {
+            ESP_LOGI("proof", "TEST5: full grid refresh took %ums",
+                     (unsigned) (millis() - id(grid_test_start_ms)));
+          }
+      - lvgl.widget.redraw: grid_widget_10
+    on_error:
+      - lambda: |-
+          ESP_LOGW("proof", "grid[10] FAILED");
+          id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
+  - platform: online_image
+    id: grid_img_11
+    url: "${image_base_url}/real/r01.png"
+    format: PNG
+    type: RGB565
+    resize: 118x118
+    update_interval: never
+    on_download_finished:
+      - lambda: |-
+          ESP_LOGI("proof", "grid[11] loaded (cached=%d), free PSRAM=%u B", cached,
+                   (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+          id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
+          if (id(grid_pending) == 0) {
+            ESP_LOGI("proof", "TEST5: full grid refresh took %ums",
+                     (unsigned) (millis() - id(grid_test_start_ms)));
+          }
+      - lvgl.widget.redraw: grid_widget_11
+    on_error:
+      - lambda: |-
+          ESP_LOGW("proof", "grid[11] FAILED");
+          id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
+  - platform: online_image
+    id: grid_img_12
+    url: "${image_base_url}/real/r02.png"
+    format: PNG
+    type: RGB565
+    resize: 118x118
+    update_interval: never
+    on_download_finished:
+      - lambda: |-
+          ESP_LOGI("proof", "grid[12] loaded (cached=%d), free PSRAM=%u B", cached,
+                   (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+          id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
+          if (id(grid_pending) == 0) {
+            ESP_LOGI("proof", "TEST5: full grid refresh took %ums",
+                     (unsigned) (millis() - id(grid_test_start_ms)));
+          }
+      - lvgl.widget.redraw: grid_widget_12
+    on_error:
+      - lambda: |-
+          ESP_LOGW("proof", "grid[12] FAILED");
+          id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
+  - platform: online_image
+    id: grid_img_13
+    url: "${image_base_url}/real/r03.png"
+    format: PNG
+    type: RGB565
+    resize: 118x118
+    update_interval: never
+    on_download_finished:
+      - lambda: |-
+          ESP_LOGI("proof", "grid[13] loaded (cached=%d), free PSRAM=%u B", cached,
+                   (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+          id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
+          if (id(grid_pending) == 0) {
+            ESP_LOGI("proof", "TEST5: full grid refresh took %ums",
+                     (unsigned) (millis() - id(grid_test_start_ms)));
+          }
+      - lvgl.widget.redraw: grid_widget_13
+    on_error:
+      - lambda: |-
+          ESP_LOGW("proof", "grid[13] FAILED");
+          id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
+  - platform: online_image
+    id: grid_img_14
+    url: "${image_base_url}/real/r04.png"
+    format: PNG
+    type: RGB565
+    resize: 118x118
+    update_interval: never
+    on_download_finished:
+      - lambda: |-
+          ESP_LOGI("proof", "grid[14] loaded (cached=%d), free PSRAM=%u B", cached,
+                   (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+          id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
+          if (id(grid_pending) == 0) {
+            ESP_LOGI("proof", "TEST5: full grid refresh took %ums",
+                     (unsigned) (millis() - id(grid_test_start_ms)));
+          }
+      - lvgl.widget.redraw: grid_widget_14
+    on_error:
+      - lambda: |-
+          ESP_LOGW("proof", "grid[14] FAILED");
+          id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
+  - platform: online_image
+    id: grid_img_15
+    url: "${image_base_url}/real/r05.png"
+    format: PNG
+    type: RGB565
+    resize: 118x118
+    update_interval: never
+    on_download_finished:
+      - lambda: |-
+          ESP_LOGI("proof", "grid[15] loaded (cached=%d), free PSRAM=%u B", cached,
+                   (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+          id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
+          if (id(grid_pending) == 0) {
+            ESP_LOGI("proof", "TEST5: full grid refresh took %ums",
+                     (unsigned) (millis() - id(grid_test_start_ms)));
+          }
+      - lvgl.widget.redraw: grid_widget_15
+    on_error:
+      - lambda: |-
+          ESP_LOGW("proof", "grid[15] FAILED");
+          id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
+  - platform: online_image
+    id: grid_img_16
+    url: "${image_base_url}/real/r06.png"
+    format: PNG
+    type: RGB565
+    resize: 118x118
+    update_interval: never
+    on_download_finished:
+      - lambda: |-
+          ESP_LOGI("proof", "grid[16] loaded (cached=%d), free PSRAM=%u B", cached,
+                   (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+          id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
+          if (id(grid_pending) == 0) {
+            ESP_LOGI("proof", "TEST5: full grid refresh took %ums",
+                     (unsigned) (millis() - id(grid_test_start_ms)));
+          }
+      - lvgl.widget.redraw: grid_widget_16
+    on_error:
+      - lambda: |-
+          ESP_LOGW("proof", "grid[16] FAILED");
+          id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
+  - platform: online_image
+    id: grid_img_17
+    url: "${image_base_url}/real/r07.png"
+    format: PNG
+    type: RGB565
+    resize: 118x118
+    update_interval: never
+    on_download_finished:
+      - lambda: |-
+          ESP_LOGI("proof", "grid[17] loaded (cached=%d), free PSRAM=%u B", cached,
+                   (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+          id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
+          if (id(grid_pending) == 0) {
+            ESP_LOGI("proof", "TEST5: full grid refresh took %ums",
+                     (unsigned) (millis() - id(grid_test_start_ms)));
+          }
+      - lvgl.widget.redraw: grid_widget_17
+    on_error:
+      - lambda: |-
+          ESP_LOGW("proof", "grid[17] FAILED");
+          id(grid_pending) = id(grid_pending) > 0 ? id(grid_pending) - 1 : 0;
+
+# --- Periodic free-memory log, independent of any test, so PSRAM headroom
+# over time is recoverable from serial output even if no test is running.
+interval:
+  - interval: 30s
+    then:
+      - lambda: |-
+          ESP_LOGI("proof", "heartbeat: free PSRAM=%u B, free internal=%u B",
+                   (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
+                   (unsigned) heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+  # Test 2 driver: while soak_running, re-fetch+decode a rotating real
+  # thumbnail into the single soak_img slot every 2s.
+  - interval: 2s
+    then:
+      - if:
+          condition:
+            lambda: "return id(soak_running);"
+          then:
+            - lambda: |-
+                id(soak_slot) = (id(soak_slot) + 1) % 10;
+                id(preview_start_ms) = millis();
+            - online_image.set_url:
+                id: soak_img
+                url: !lambda |-
+                  static const char *urls[10] = {
+                    "${image_base_url}/real/r00.png", "${image_base_url}/real/r01.png",
+                    "${image_base_url}/real/r02.png", "${image_base_url}/real/r03.png",
+                    "${image_base_url}/real/r04.png", "${image_base_url}/real/r05.png",
+                    "${image_base_url}/real/r06.png", "${image_base_url}/real/r07.png",
+                    "${image_base_url}/real/r08.png", "${image_base_url}/real/r09.png",
+                  };
+                  return std::string(urls[id(soak_slot)]);
+
+lvgl:
+  displays:
+    - main_display
+  touchscreens:
+    - touch
+  buffer_size: 12%
+  pages:
+    - id: proof_page
+      widgets:
+        - obj:
+            id: control_bar
+            x: 0
+            y: 0
+            width: 800
+            height: 116
+            pad_all: 4
+            layout:
+              type: flex
+              flex_flow: ROW_WRAP
+            widgets:
+              # Test 1: proves http_request works at all over ESP-Hosted SDIO.
+              - button:
+                  id: btn_fetch_once
+                  text: "Fetch1"
+                  width: 90
+                  height: 52
+                  on_click:
+                    - lambda: |-
+                        id(preview_test_name) = "TEST1 fetch_once";
+                        id(preview_start_ms) = millis();
+                        ESP_LOGI("proof", "TEST1: fetch_once pressed");
+                    - online_image.set_url:
+                        id: preview_img
+                        url: "${image_base_url}/real/r00.png"
+              # Test 2: soak toggle.
+              - switch:
+                  id: soak_switch
+                  width: 60
+                  height: 52
+                  on_value:
+                    - lambda: |-
+                        id(soak_running) = x;
+                        ESP_LOGI("proof", "TEST2 soak %s", x ? "STARTED" : "stopped");
+              # Test 3: PNG vs JPEG decode time + PSRAM cost, same source image.
+              - button:
+                  id: btn_png_vs_jpeg
+                  text: "PNG/JPG"
+                  width: 90
+                  height: 52
+                  on_click:
+                    - lambda: |-
+                        id(timing_png_start_ms) = millis();
+                        id(timing_jpeg_start_ms) = millis();
+                        ESP_LOGI("proof", "TEST3: PNG vs JPEG timing start");
+                    - component.update: timing_png
+                    - component.update: timing_jpeg
+              # Test 4: runtime set_url + update, repaint on_download_finished.
+              - button:
+                  id: btn_cycle
+                  text: "Cycle"
+                  width: 90
+                  height: 52
+                  on_click:
+                    - lambda: |-
+                        id(cycle_index) = (id(cycle_index) + 1) % 4;
+                        id(preview_test_name) = "TEST4 cycle";
+                        id(preview_start_ms) = millis();
+                    - online_image.set_url:
+                        id: preview_img
+                        url: !lambda |-
+                          static const char *urls[4] = {
+                            "${image_base_url}/p00.png",
+                            "${image_base_url}/p00.jpg",
+                            "${image_base_url}/s00.png",
+                            "${image_base_url}/s00.jpg",
+                          };
+                          return std::string(urls[id(cycle_index)]);
+              # Test 5: 18 simultaneous instances, wall-clock full-grid refresh.
+              - button:
+                  id: btn_fill_grid
+                  text: "Fill18"
+                  width: 90
+                  height: 52
+                  on_click:
+                    - lambda: |-
+                        id(grid_pending) = 18;
+                        id(grid_test_start_ms) = millis();
+                        ESP_LOGI("proof", "TEST5: filling all 18 grid slots simultaneously");
+                    - component.update: grid_img_00
+                    - component.update: grid_img_01
+                    - component.update: grid_img_02
+                    - component.update: grid_img_03
+                    - component.update: grid_img_04
+                    - component.update: grid_img_05
+                    - component.update: grid_img_06
+                    - component.update: grid_img_07
+                    - component.update: grid_img_08
+                    - component.update: grid_img_09
+                    - component.update: grid_img_10
+                    - component.update: grid_img_11
+                    - component.update: grid_img_12
+                    - component.update: grid_img_13
+                    - component.update: grid_img_14
+                    - component.update: grid_img_15
+                    - component.update: grid_img_16
+                    - component.update: grid_img_17
+              # Test 6a: 404.
+              - button:
+                  id: btn_404
+                  text: "404"
+                  width: 70
+                  height: 52
+                  on_click:
+                    - lambda: |-
+                        id(preview_test_name) = "TEST6 404";
+                        id(preview_start_ms) = millis();
+                    - online_image.set_url:
+                        id: preview_img
+                        url: "${image_base_url}/real/does-not-exist.png"
+              # Test 6b: timeout (unreachable host).
+              - button:
+                  id: btn_timeout
+                  text: "T/O"
+                  width: 70
+                  height: 52
+                  on_click:
+                    - lambda: |-
+                        id(preview_test_name) = "TEST6 timeout";
+                        id(preview_start_ms) = millis();
+                    - online_image.set_url:
+                        id: preview_img
+                        url: "${timeout_test_url}"
+              # Test 6c: mid-download Wi-Fi drop — manual. Fetches a real
+              # image; disable the AP or walk the panel out of range while
+              # this is in flight to see the failure behavior.
+              - button:
+                  id: btn_drop
+                  text: "Drop"
+                  width: 70
+                  height: 52
+                  on_click:
+                    - lambda: |-
+                        id(preview_test_name) = "TEST6 mid-download drop (manual)";
+                        id(preview_start_ms) = millis();
+                        ESP_LOGW("proof", "TEST6 drop: fetching now - disable Wi-Fi mid-download to observe failure behavior");
+                    - online_image.set_url:
+                        id: preview_img
+                        url: "${image_base_url}/real/r09.png"
+              - image:
+                  id: preview_widget
+                  src: preview_img
+                  width: 56
+                  height: 56
+              - image:
+                  id: soak_widget
+                  src: soak_img
+                  width: 56
+                  height: 56
+        - obj:
+            id: grid_container
+            x: 0
+            y: 116
+            width: 800
+            height: 364
+            pad_all: 2
+            layout:
+              type: flex
+              flex_flow: ROW_WRAP
+            widgets:
+              - image: {id: grid_widget_00, src: grid_img_00, width: 118, height: 118}
+              - image: {id: grid_widget_01, src: grid_img_01, width: 118, height: 118}
+              - image: {id: grid_widget_02, src: grid_img_02, width: 118, height: 118}
+              - image: {id: grid_widget_03, src: grid_img_03, width: 118, height: 118}
+              - image: {id: grid_widget_04, src: grid_img_04, width: 118, height: 118}
+              - image: {id: grid_widget_05, src: grid_img_05, width: 118, height: 118}
+              - image: {id: grid_widget_06, src: grid_img_06, width: 118, height: 118}
+              - image: {id: grid_widget_07, src: grid_img_07, width: 118, height: 118}
+              - image: {id: grid_widget_08, src: grid_img_08, width: 118, height: 118}
+              - image: {id: grid_widget_09, src: grid_img_09, width: 118, height: 118}
+              - image: {id: grid_widget_10, src: grid_img_10, width: 118, height: 118}
+              - image: {id: grid_widget_11, src: grid_img_11, width: 118, height: 118}
+              - image: {id: grid_widget_12, src: grid_img_12, width: 118, height: 118}
+              - image: {id: grid_widget_13, src: grid_img_13, width: 118, height: 118}
+              - image: {id: grid_widget_14, src: grid_img_14, width: 118, height: 118}
+              - image: {id: grid_widget_15, src: grid_img_15, width: 118, height: 118}
+              - image: {id: grid_widget_16, src: grid_img_16, width: 118, height: 118}
+              - image: {id: grid_widget_17, src: grid_img_17, width: 118, height: 118}
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "AlarmClock Online Image Proof Fallback"
+    password: !secret wifi_fallback_password
+
+mdns:
+  disabled: true
+
+captive_portal:
+
+api:
+  encryption:
+    key: !secret encryption_key
+  # No HA client ever connects to this proof device, so the default 15min
+  # reboot_timeout would otherwise reboot it on a cycle during log captures.
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+logger:
+  level: DEBUG
+  hardware_uart: UART0
+
+dashboard_import:
+  package_import_url: github://aclight/esphome-alarmclock/online-image-proof-p4.yaml@online-image-proof-p4
+  import_full_config: true
