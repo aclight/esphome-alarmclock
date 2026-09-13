@@ -789,22 +789,29 @@ lvgl:
                   width: 90
                   height: 52
                   on_click:
+                    # Firing all 18 at once proved a hard ~6-7 concurrent HTTP
+                    # connection ceiling on this device: the 7th+ request fails
+                    # instantly with ESP_ERR_HTTP_CONNECT (socket exhaustion),
+                    # not queued/delayed. Batches of 6 with a settle delay stay
+                    # under that ceiling so all 18 tiles actually load.
                     - lambda: |-
                         id(grid_pending) = 18;
                         id(grid_test_start_ms) = millis();
-                        ESP_LOGI("proof", "TEST5: filling all 18 grid slots simultaneously");
+                        ESP_LOGI("proof", "TEST5: filling all 18 grid slots in batches of 6");
                     - component.update: grid_img_00
                     - component.update: grid_img_01
                     - component.update: grid_img_02
                     - component.update: grid_img_03
                     - component.update: grid_img_04
                     - component.update: grid_img_05
+                    - delay: 2200ms
                     - component.update: grid_img_06
                     - component.update: grid_img_07
                     - component.update: grid_img_08
                     - component.update: grid_img_09
                     - component.update: grid_img_10
                     - component.update: grid_img_11
+                    - delay: 2200ms
                     - component.update: grid_img_12
                     - component.update: grid_img_13
                     - component.update: grid_img_14
