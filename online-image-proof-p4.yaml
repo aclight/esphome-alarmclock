@@ -204,13 +204,19 @@ image:
           id(preview_img)->get_lv_image_dsc();
           uint32_t elapsed = millis() - id(preview_start_ms);
           ESP_LOGI("proof", "%s finished in %ums (cached=%d), free PSRAM=%u B",
-                   id(preview_test_name).c_str(), elapsed, cached,
+                   id(preview_test_name).c_str(), (unsigned) elapsed, cached,
                    (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
-      - lvgl.widget.redraw: preview_widget
+      # lvgl.widget.redraw only invalidates - it doesn't re-run the widget's
+      # to_code, so the cached lv_image src never actually gets re-bound.
+      # lvgl.<widget-type>.update re-applies src, which is the documented fix:
+      # https://community.home-assistant.io/t/display-an-online-image-in-lvgl/897845/3
+      - lvgl.image.update:
+          id: preview_widget
+          src: preview_img
     on_error:
       - lambda: |-
           uint32_t elapsed = millis() - id(preview_start_ms);
-          ESP_LOGW("proof", "%s FAILED after %ums", id(preview_test_name).c_str(), elapsed);
+          ESP_LOGW("proof", "%s FAILED after %ums", id(preview_test_name).c_str(), (unsigned) elapsed);
 
   # --- Test 3: PNG vs JPEG decode time + PSRAM cost, same source image.
   - platform: online_image
@@ -224,7 +230,7 @@ image:
       - lambda: |-
           uint32_t elapsed = millis() - id(timing_png_start_ms);
           ESP_LOGI("proof", "TEST3 PNG decode: %ums (cached=%d), free PSRAM=%u B",
-                   elapsed, cached, (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+                   (unsigned) elapsed, cached, (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
     on_error:
       - lambda: 'ESP_LOGW("proof", "TEST3 PNG fetch failed");'
   - platform: online_image
@@ -238,7 +244,7 @@ image:
       - lambda: |-
           uint32_t elapsed = millis() - id(timing_jpeg_start_ms);
           ESP_LOGI("proof", "TEST3 JPEG decode: %ums (cached=%d), free PSRAM=%u B",
-                   elapsed, cached, (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+                   (unsigned) elapsed, cached, (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
     on_error:
       - lambda: 'ESP_LOGW("proof", "TEST3 JPEG fetch failed");'
 
@@ -258,9 +264,11 @@ image:
           id(soak_img)->get_lv_image_dsc();
           uint32_t elapsed = millis() - id(preview_start_ms);
           ESP_LOGI("proof", "TEST2 soak slot %d: %ums (cached=%d), free PSRAM=%u B",
-                   id(soak_slot), elapsed, cached,
+                   id(soak_slot), (unsigned) elapsed, cached,
                    (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
-      - lvgl.widget.redraw: soak_widget
+      - lvgl.image.update:
+          id: soak_widget
+          src: soak_img
     on_error:
       - lambda: |-
           ESP_LOGW("proof", "TEST2 soak slot %d FAILED", id(soak_slot));
@@ -285,7 +293,7 @@ image:
             ESP_LOGI("proof", "TEST5: full grid refresh took %ums",
                      (unsigned) (millis() - id(grid_test_start_ms)));
           }
-      - lvgl.widget.redraw: grid_widget_00
+      - lvgl.image.update: {id: grid_widget_00, src: grid_img_00}
     on_error:
       - lambda: |-
           ESP_LOGW("proof", "grid[00] FAILED");
@@ -307,7 +315,7 @@ image:
             ESP_LOGI("proof", "TEST5: full grid refresh took %ums",
                      (unsigned) (millis() - id(grid_test_start_ms)));
           }
-      - lvgl.widget.redraw: grid_widget_01
+      - lvgl.image.update: {id: grid_widget_01, src: grid_img_01}
     on_error:
       - lambda: |-
           ESP_LOGW("proof", "grid[01] FAILED");
@@ -329,7 +337,7 @@ image:
             ESP_LOGI("proof", "TEST5: full grid refresh took %ums",
                      (unsigned) (millis() - id(grid_test_start_ms)));
           }
-      - lvgl.widget.redraw: grid_widget_02
+      - lvgl.image.update: {id: grid_widget_02, src: grid_img_02}
     on_error:
       - lambda: |-
           ESP_LOGW("proof", "grid[02] FAILED");
@@ -351,7 +359,7 @@ image:
             ESP_LOGI("proof", "TEST5: full grid refresh took %ums",
                      (unsigned) (millis() - id(grid_test_start_ms)));
           }
-      - lvgl.widget.redraw: grid_widget_03
+      - lvgl.image.update: {id: grid_widget_03, src: grid_img_03}
     on_error:
       - lambda: |-
           ESP_LOGW("proof", "grid[03] FAILED");
@@ -373,7 +381,7 @@ image:
             ESP_LOGI("proof", "TEST5: full grid refresh took %ums",
                      (unsigned) (millis() - id(grid_test_start_ms)));
           }
-      - lvgl.widget.redraw: grid_widget_04
+      - lvgl.image.update: {id: grid_widget_04, src: grid_img_04}
     on_error:
       - lambda: |-
           ESP_LOGW("proof", "grid[04] FAILED");
@@ -395,7 +403,7 @@ image:
             ESP_LOGI("proof", "TEST5: full grid refresh took %ums",
                      (unsigned) (millis() - id(grid_test_start_ms)));
           }
-      - lvgl.widget.redraw: grid_widget_05
+      - lvgl.image.update: {id: grid_widget_05, src: grid_img_05}
     on_error:
       - lambda: |-
           ESP_LOGW("proof", "grid[05] FAILED");
@@ -417,7 +425,7 @@ image:
             ESP_LOGI("proof", "TEST5: full grid refresh took %ums",
                      (unsigned) (millis() - id(grid_test_start_ms)));
           }
-      - lvgl.widget.redraw: grid_widget_06
+      - lvgl.image.update: {id: grid_widget_06, src: grid_img_06}
     on_error:
       - lambda: |-
           ESP_LOGW("proof", "grid[06] FAILED");
@@ -439,7 +447,7 @@ image:
             ESP_LOGI("proof", "TEST5: full grid refresh took %ums",
                      (unsigned) (millis() - id(grid_test_start_ms)));
           }
-      - lvgl.widget.redraw: grid_widget_07
+      - lvgl.image.update: {id: grid_widget_07, src: grid_img_07}
     on_error:
       - lambda: |-
           ESP_LOGW("proof", "grid[07] FAILED");
@@ -461,7 +469,7 @@ image:
             ESP_LOGI("proof", "TEST5: full grid refresh took %ums",
                      (unsigned) (millis() - id(grid_test_start_ms)));
           }
-      - lvgl.widget.redraw: grid_widget_08
+      - lvgl.image.update: {id: grid_widget_08, src: grid_img_08}
     on_error:
       - lambda: |-
           ESP_LOGW("proof", "grid[08] FAILED");
@@ -483,7 +491,7 @@ image:
             ESP_LOGI("proof", "TEST5: full grid refresh took %ums",
                      (unsigned) (millis() - id(grid_test_start_ms)));
           }
-      - lvgl.widget.redraw: grid_widget_09
+      - lvgl.image.update: {id: grid_widget_09, src: grid_img_09}
     on_error:
       - lambda: |-
           ESP_LOGW("proof", "grid[09] FAILED");
@@ -505,7 +513,7 @@ image:
             ESP_LOGI("proof", "TEST5: full grid refresh took %ums",
                      (unsigned) (millis() - id(grid_test_start_ms)));
           }
-      - lvgl.widget.redraw: grid_widget_10
+      - lvgl.image.update: {id: grid_widget_10, src: grid_img_10}
     on_error:
       - lambda: |-
           ESP_LOGW("proof", "grid[10] FAILED");
@@ -527,7 +535,7 @@ image:
             ESP_LOGI("proof", "TEST5: full grid refresh took %ums",
                      (unsigned) (millis() - id(grid_test_start_ms)));
           }
-      - lvgl.widget.redraw: grid_widget_11
+      - lvgl.image.update: {id: grid_widget_11, src: grid_img_11}
     on_error:
       - lambda: |-
           ESP_LOGW("proof", "grid[11] FAILED");
@@ -549,7 +557,7 @@ image:
             ESP_LOGI("proof", "TEST5: full grid refresh took %ums",
                      (unsigned) (millis() - id(grid_test_start_ms)));
           }
-      - lvgl.widget.redraw: grid_widget_12
+      - lvgl.image.update: {id: grid_widget_12, src: grid_img_12}
     on_error:
       - lambda: |-
           ESP_LOGW("proof", "grid[12] FAILED");
@@ -571,7 +579,7 @@ image:
             ESP_LOGI("proof", "TEST5: full grid refresh took %ums",
                      (unsigned) (millis() - id(grid_test_start_ms)));
           }
-      - lvgl.widget.redraw: grid_widget_13
+      - lvgl.image.update: {id: grid_widget_13, src: grid_img_13}
     on_error:
       - lambda: |-
           ESP_LOGW("proof", "grid[13] FAILED");
@@ -593,7 +601,7 @@ image:
             ESP_LOGI("proof", "TEST5: full grid refresh took %ums",
                      (unsigned) (millis() - id(grid_test_start_ms)));
           }
-      - lvgl.widget.redraw: grid_widget_14
+      - lvgl.image.update: {id: grid_widget_14, src: grid_img_14}
     on_error:
       - lambda: |-
           ESP_LOGW("proof", "grid[14] FAILED");
@@ -615,7 +623,7 @@ image:
             ESP_LOGI("proof", "TEST5: full grid refresh took %ums",
                      (unsigned) (millis() - id(grid_test_start_ms)));
           }
-      - lvgl.widget.redraw: grid_widget_15
+      - lvgl.image.update: {id: grid_widget_15, src: grid_img_15}
     on_error:
       - lambda: |-
           ESP_LOGW("proof", "grid[15] FAILED");
@@ -637,7 +645,7 @@ image:
             ESP_LOGI("proof", "TEST5: full grid refresh took %ums",
                      (unsigned) (millis() - id(grid_test_start_ms)));
           }
-      - lvgl.widget.redraw: grid_widget_16
+      - lvgl.image.update: {id: grid_widget_16, src: grid_img_16}
     on_error:
       - lambda: |-
           ESP_LOGW("proof", "grid[16] FAILED");
@@ -659,7 +667,7 @@ image:
             ESP_LOGI("proof", "TEST5: full grid refresh took %ums",
                      (unsigned) (millis() - id(grid_test_start_ms)));
           }
-      - lvgl.widget.redraw: grid_widget_17
+      - lvgl.image.update: {id: grid_widget_17, src: grid_img_17}
     on_error:
       - lambda: |-
           ESP_LOGW("proof", "grid[17] FAILED");
