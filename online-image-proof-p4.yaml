@@ -772,14 +772,18 @@ lvgl:
                         id(cycle_index) = (id(cycle_index) + 1) % 4;
                         id(preview_test_name) = "TEST4 cycle";
                         id(preview_start_ms) = millis();
+                    # preview_img's format is fixed to PNG at compile time -
+                    # set_url only changes the URL, not the decoder, so
+                    # pointing it at a .jpg makes the PNG decoder choke
+                    # ("Incorrect PNG signature"). Keep this list PNG-only.
                     - online_image.set_url:
                         id: preview_img
                         url: !lambda |-
                           static const char *urls[4] = {
                             "${image_base_url}/p00.png",
-                            "${image_base_url}/p00.jpg",
+                            "${image_base_url}/p01.png",
                             "${image_base_url}/s00.png",
-                            "${image_base_url}/s00.jpg",
+                            "${image_base_url}/s01.png",
                           };
                           return std::string(urls[id(cycle_index)]);
               # Test 5: 18 simultaneous instances, wall-clock full-grid refresh.
