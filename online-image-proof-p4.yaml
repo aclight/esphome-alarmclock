@@ -827,11 +827,15 @@ lvgl:
                   src: preview_img
                   width: 56
                   height: 56
+                  border_width: 1
+                  border_color: 0xFF0000
               - image:
                   id: soak_widget
                   src: soak_img
                   width: 56
                   height: 56
+                  border_width: 1
+                  border_color: 0xFF0000
         - obj:
             id: grid_container
             x: 0
@@ -843,24 +847,28 @@ lvgl:
               type: flex
               flex_flow: ROW_WRAP
             widgets:
-              - image: {id: grid_widget_00, src: grid_img_00, width: 118, height: 118}
-              - image: {id: grid_widget_01, src: grid_img_01, width: 118, height: 118}
-              - image: {id: grid_widget_02, src: grid_img_02, width: 118, height: 118}
-              - image: {id: grid_widget_03, src: grid_img_03, width: 118, height: 118}
-              - image: {id: grid_widget_04, src: grid_img_04, width: 118, height: 118}
-              - image: {id: grid_widget_05, src: grid_img_05, width: 118, height: 118}
-              - image: {id: grid_widget_06, src: grid_img_06, width: 118, height: 118}
-              - image: {id: grid_widget_07, src: grid_img_07, width: 118, height: 118}
-              - image: {id: grid_widget_08, src: grid_img_08, width: 118, height: 118}
-              - image: {id: grid_widget_09, src: grid_img_09, width: 118, height: 118}
-              - image: {id: grid_widget_10, src: grid_img_10, width: 118, height: 118}
-              - image: {id: grid_widget_11, src: grid_img_11, width: 118, height: 118}
-              - image: {id: grid_widget_12, src: grid_img_12, width: 118, height: 118}
-              - image: {id: grid_widget_13, src: grid_img_13, width: 118, height: 118}
-              - image: {id: grid_widget_14, src: grid_img_14, width: 118, height: 118}
-              - image: {id: grid_widget_15, src: grid_img_15, width: 118, height: 118}
-              - image: {id: grid_widget_16, src: grid_img_16, width: 118, height: 118}
-              - image: {id: grid_widget_17, src: grid_img_17, width: 118, height: 118}
+              # Red 1px border on every tile is a rendering diagnostic: if a
+              # tile's border shows but its interior stays blank, the widget
+              # is drawing fine and the image content is the problem (and
+              # vice versa).
+              - image: {id: grid_widget_00, src: grid_img_00, width: 118, height: 118, border_width: 1, border_color: 0xFF0000}
+              - image: {id: grid_widget_01, src: grid_img_01, width: 118, height: 118, border_width: 1, border_color: 0xFF0000}
+              - image: {id: grid_widget_02, src: grid_img_02, width: 118, height: 118, border_width: 1, border_color: 0xFF0000}
+              - image: {id: grid_widget_03, src: grid_img_03, width: 118, height: 118, border_width: 1, border_color: 0xFF0000}
+              - image: {id: grid_widget_04, src: grid_img_04, width: 118, height: 118, border_width: 1, border_color: 0xFF0000}
+              - image: {id: grid_widget_05, src: grid_img_05, width: 118, height: 118, border_width: 1, border_color: 0xFF0000}
+              - image: {id: grid_widget_06, src: grid_img_06, width: 118, height: 118, border_width: 1, border_color: 0xFF0000}
+              - image: {id: grid_widget_07, src: grid_img_07, width: 118, height: 118, border_width: 1, border_color: 0xFF0000}
+              - image: {id: grid_widget_08, src: grid_img_08, width: 118, height: 118, border_width: 1, border_color: 0xFF0000}
+              - image: {id: grid_widget_09, src: grid_img_09, width: 118, height: 118, border_width: 1, border_color: 0xFF0000}
+              - image: {id: grid_widget_10, src: grid_img_10, width: 118, height: 118, border_width: 1, border_color: 0xFF0000}
+              - image: {id: grid_widget_11, src: grid_img_11, width: 118, height: 118, border_width: 1, border_color: 0xFF0000}
+              - image: {id: grid_widget_12, src: grid_img_12, width: 118, height: 118, border_width: 1, border_color: 0xFF0000}
+              - image: {id: grid_widget_13, src: grid_img_13, width: 118, height: 118, border_width: 1, border_color: 0xFF0000}
+              - image: {id: grid_widget_14, src: grid_img_14, width: 118, height: 118, border_width: 1, border_color: 0xFF0000}
+              - image: {id: grid_widget_15, src: grid_img_15, width: 118, height: 118, border_width: 1, border_color: 0xFF0000}
+              - image: {id: grid_widget_16, src: grid_img_16, width: 118, height: 118, border_width: 1, border_color: 0xFF0000}
+              - image: {id: grid_widget_17, src: grid_img_17, width: 118, height: 118, border_width: 1, border_color: 0xFF0000}
 
 wifi:
   ssid: !secret wifi_ssid
