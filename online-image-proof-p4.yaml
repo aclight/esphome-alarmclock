@@ -879,11 +879,51 @@ lvgl:
                   border_width: 1
                   border_color: 0xFF0000
         - obj:
-            id: grid_container
+            id: phase2_bar
             x: 0
             y: 116
             width: 800
-            height: 364
+            height: 48
+            pad_all: 2
+            layout:
+              type: flex
+              flex_flow: ROW_WRAP
+            widgets:
+              # Phase 2: HA round-trip proof - calling a HA action from the
+              # device, and reading the resulting state back via a
+              # homeassistant text_sensor (see bottom of file).
+              - button:
+                  id: btn_select_000
+                  text: "Sel 000"
+                  width: 90
+                  height: 40
+                  on_click:
+                    - homeassistant.action:
+                        action: select.select_option
+                        data:
+                          entity_id: select.picframe_directory
+                          option: "000"
+              - button:
+                  id: btn_select_001
+                  text: "Sel 001"
+                  width: 90
+                  height: 40
+                  on_click:
+                    - homeassistant.action:
+                        action: select.select_option
+                        data:
+                          entity_id: select.picframe_directory
+                          option: "001"
+              - label:
+                  id: picframe_dir_label
+                  text: "dir: ?"
+                  text_font: montserrat_18
+        - obj:
+            id: grid_container
+            x: 0
+            y: 164
+            width: 800
+            height: 316
             pad_all: 2
             layout:
               type: flex
@@ -924,11 +964,29 @@ mdns:
 
 captive_portal:
 
+# Phase 2: reads select.picframe_directory's state back from HA, to drive the
+# on-screen label and (later) selection-highlight logic.
+text_sensor:
+  - platform: homeassistant
+    id: ha_picframe_directory
+    entity_id: select.picframe_directory
+    on_value:
+      - lvgl.label.update:
+          id: picframe_dir_label
+          text: !lambda 'return "dir: " + x;'
+
 api:
   encryption:
     key: !secret encryption_key
-  # No HA client ever connects to this proof device, so the default 15min
-  # reboot_timeout would otherwise reboot it on a cycle during log captures.
+  # Required for the homeassistant.action calls below to compile in. HA-side,
+  # the device must also have "Allow the device to perform Home Assistant
+  # actions" enabled (Settings > Devices & services > ESPHome > this device >
+  # gear icon > enable that toggle) or the calls are silently rejected.
+  homeassistant_services: true
+  # Phase 2 needs this device adopted by HA, so the 15min no-client
+  # reboot_timeout is no longer a concern in the same way phase 1 was - kept
+  # at 0s regardless, since a stray reboot mid-test would be more disruptive
+  # than useful here too.
   reboot_timeout: 0s
 
 ota:
