@@ -38,7 +38,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install ESPHome
-        run: pip install esphome
+        run: pip install esphome==2026.7.4
 
       - name: Create dummy secrets
         run: |
@@ -50,13 +50,13 @@ jobs:
           ota_password: "testotapassword"
           EOF
 
-      - name: Use checked-out component
+      - name: Use checked-out alarm clock component
         run: |
-          for f in alarmclock.yaml alarmclock-p4-5inch.yaml; do
-            grep -Fq "url: https://github.com/aclight/esphome-alarmclock.git" "$f"
-            sed -i '/^      type: git$/,/^      path: components$/c\      type: local\n      path: components' "$f"
-            ! grep -Fq "type: git" "$f"
-          done
+          grep -Fq "url: https://github.com/aclight/esphome-alarmclock.git" alarmclock.yaml
+          sed -i '/^      type: git$/,/^      path: components$/c\      type: local\n      path: components' alarmclock.yaml
+          ! grep -Fq "type: git" alarmclock.yaml
+          grep -Fq "url: https://github.com/aclight/esphome-mipi-rgb.git" alarmclock-p4-5inch.yaml
+          grep -Fq "ref: esphome-2026.7.4-r1" alarmclock-p4-5inch.yaml
 
       - name: Compile ESPHome config
         run: esphome compile "${{ matrix.config }}"
@@ -74,7 +74,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install ESPHome
-        run: pip install esphome
+        run: pip install esphome==2026.7.4
 
       - name: Create dummy secrets
         run: |
@@ -86,11 +86,9 @@ jobs:
           ota_password: "testotapassword"
           EOF
 
-      - name: Use checked-out component
+      - name: Use checked-out alarm clock component
         run: |
-          for f in alarmclock.yaml alarmclock-p4-5inch.yaml; do
-            sed -i '/^      type: git$/,/^      path: components$/c\      type: local\n      path: components' "$f"
-          done
+          sed -i '/^      type: git$/,/^      path: components$/c\      type: local\n      path: components' alarmclock.yaml
 
       - name: Rejects a bounce_buffer_lines that does not divide the height
         run: |

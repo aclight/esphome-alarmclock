@@ -76,13 +76,13 @@ esp32_hosted:
   slot: 1
   sdio_frequency: 40MHz
 
-# Vendored copy of the stock component that shadows the built-in one and adds
+# Versioned copy of the stock component that shadows the built-in one and adds
 # the two options set on the display below.
 external_components:
   - source:
       type: git
-      url: https://github.com/aclight/esphome-alarmclock.git
-      ref: main
+      url: https://github.com/aclight/esphome-mipi-rgb.git
+      ref: esphome-2026.7.4-r1
       path: components
     components: [mipi_rgb]
     refresh: 0s

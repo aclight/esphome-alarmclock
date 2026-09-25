@@ -126,9 +126,10 @@ independent defects — both are required, neither alone is sufficient:
   shifted/wrapped image and a fixed horizontal offset. ESP-IDF still restarts on
   a genuine underrun via its own `bb_eof_count` check, so recovery is retained.
 
-Both options come from the vendored `components/mipi_rgb/`, which is why
-`alarmclock-p4-5inch.yaml` declares its own `external_components` entry. The
-S3 config deliberately does not use them — see the note at the end of this
+Both options come from the versioned
+[`esphome-mipi-rgb`](https://github.com/aclight/esphome-mipi-rgb) external
+component. `alarmclock-p4-5inch.yaml` pins the ESPHome 2026.7.4 release tag.
+The S3 config deliberately does not use it — see the note at the end of this
 section.
 
 ### If tearing comes back: `CONFIG_CACHE_L2_CACHE_256KB`
@@ -165,16 +166,17 @@ should have removed entirely rather than merely widened the margin on.
 
 ### Upgrading ESPHome
 
-`components/mipi_rgb/` is a modified copy of ESPHome's built-in component,
-forked at **2026.7.4**. ESPHome's external-component loader installs itself at
-the front of `sys.meta_path`, so the local copy **always shadows the built-in
-one**. Bumping the ESPHome version therefore never picks up upstream changes to
-`mipi_rgb`; the fork has to be rebased deliberately.
+The external `esphome-mipi-rgb` component is a modified copy of ESPHome's
+built-in component and is currently pinned to **2026.7.4**. ESPHome's
+external-component loader installs itself at the front of `sys.meta_path`, so
+the external copy **always shadows the built-in one**. Bumping the ESPHome
+version therefore never picks up upstream changes to `mipi_rgb`; the fork and
+the configuration's release tag have to be updated deliberately.
 
-1. Diff upstream's `esphome/components/mipi_rgb/` at the new version against the
-   2026.7.4 baseline and reapply the fork's changes, which are listed in
-   `components/mipi_rgb/LICENSE`. That file has changed rarely, so this is
-   usually a small job.
+1. In the external component repository, diff upstream's
+  `esphome/components/mipi_rgb/` at the new version against the 2026.7.4
+  baseline and reapply the fork's documented changes. That component has
+  changed rarely, so this is usually a small job.
 2. Make the upgrade its own change with its own soak. Do not combine it with
    hardware or display-config changes — the two knobs above took a 2×2 matrix on
    real hardware to separate, and that is not worth repeating.
@@ -211,7 +213,6 @@ components/alarmclock/       # Custom ESPHome component
   alarmclock.cpp             # Implementation
   alarm_time.h               # Alarm time representation and scheduling
   alarm_state.h              # Alarm state machine
-components/mipi_rgb/         # Vendored RGB display component (see RGB Panel Tuning)
 tests/
   test_framework.h           # Minimal test macros
   test_alarmclock.cpp        # Host-side unit tests
@@ -245,11 +246,7 @@ esphome run alarmclock-p4-5inch.yaml
 
 ## Licensing
 
-This project is MIT licensed (see `LICENSE`), with two exceptions:
+This project is MIT licensed (see `LICENSE`), with one exception:
 
-- `components/mipi_rgb/` is a modified copy of ESPHome's built-in `mipi_rgb`
-  component and keeps ESPHome's split licensing: the C++ files are
-  GPL-3.0-or-later and the Python files are MIT, both Copyright (c) 2019 ESPHome.
-  See `components/mipi_rgb/LICENSE` and `LICENSES/ESPHome-LICENSE.txt`.
 - Bundled fonts are licensed under the SIL Open Font License; see
   `LICENSES/OFL-1.1.txt`.
