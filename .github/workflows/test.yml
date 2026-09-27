@@ -47,7 +47,6 @@ jobs:
           wifi_password: "TestPassword"
           wifi_fallback_password: "TestFallback123"
           encryption_key: "qQpfEIA1sPWVORMZ3QJKuRYAigxlOyParAwrqBm95Hg="
-          ota_password: "testotapassword"
           EOF
 
       - name: Use checked-out alarm clock component
@@ -83,7 +82,6 @@ jobs:
           wifi_password: "TestPassword"
           wifi_fallback_password: "TestFallback123"
           encryption_key: "qQpfEIA1sPWVORMZ3QJKuRYAigxlOyParAwrqBm95Hg="
-          ota_password: "testotapassword"
           EOF
 
       - name: Use checked-out alarm clock component

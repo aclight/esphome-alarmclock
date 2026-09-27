@@ -96,7 +96,8 @@ api:
 
 ota:
   - platform: esphome
-    password: !secret ota_password
+    # No key: inherits api.encryption.key, so a per-device key covers OTA too.
+    encryption:
 
 logger:
   level: INFO
