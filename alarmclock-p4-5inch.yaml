@@ -49,7 +49,7 @@ packages:
 
 # The mipi_rgb fork below is cut against a specific ESPHome release.
 esphome:
-  min_version: 2026.9.0
+  min_version: 2026.9.1
 
 esp32:
   # These boards ship pre-rev3 silicon (ROM banner "esp32p4-eco2", chip rev
@@ -89,7 +89,7 @@ external_components:
   - source:
       type: git
       url: https://github.com/aclight/esphome-mipi-rgb.git
-      ref: esphome-2026.9.0-r1
+      ref: esphome-2026.9.1-r1
       path: components
     components: [mipi_rgb]
     refresh: 0s
