@@ -1,5 +1,6 @@
 // Host-side tests for alarm clock logic.
-// Build: g++ -std=c++17 -Wall -Wextra -Werror -DUNIT_TEST -I . tests/test_alarmclock.cpp -o run_tests && ./run_tests
+// Build: g++ -std=c++17 -Wall -Wextra -Werror -DUNIT_TEST -I . -I <inc> tests/test_alarmclock.cpp -o run_tests && ./run_tests
+// <inc>/esphome/components must be a checkout of esphome-shared-components' components/ (see .github/workflows/test.yml).
 
 #include "tests/test_framework.h"
 #include "components/alarmclock/alarmclock.h"
@@ -87,45 +88,6 @@ TEST(raw_backlight_pwm_override) {
     ASSERT_EQ(resolve_backlight_pwm(0.5f, BacklightMode::kStc8Register, true,
                                     200),
               100);
-    PASS();
-}
-
-// ===========================================================================
-// lux_to_sensor_factor tests
-// ===========================================================================
-
-TEST(sensor_factor_dark) {
-    ASSERT_TRUE(lux_to_sensor_factor(0.0f, 10.0f, 500.0f) == 0.0f);
-    ASSERT_TRUE(lux_to_sensor_factor(10.0f, 10.0f, 500.0f) == 0.0f);
-    PASS();
-}
-
-TEST(sensor_factor_bright) {
-    ASSERT_TRUE(lux_to_sensor_factor(500.0f, 10.0f, 500.0f) == 1.0f);
-    ASSERT_TRUE(lux_to_sensor_factor(1000.0f, 10.0f, 500.0f) == 1.0f);
-    PASS();
-}
-
-TEST(sensor_factor_midpoint) {
-    float sf = lux_to_sensor_factor(4.0f, 1.0f, 16.0f);
-    ASSERT_TRUE(sf > 0.49f && sf < 0.51f);
-    PASS();
-}
-
-TEST(sensor_factor_calibrated_clock_range) {
-    ASSERT_TRUE(lux_to_sensor_factor(kAmbientDarkLux, kAmbientDarkLux,
-                                     kAmbientDayLux) == 0.0f);
-    ASSERT_TRUE(lux_to_sensor_factor(kAmbientDayLux, kAmbientDarkLux,
-                                     kAmbientDayLux) == 1.0f);
-    const float low_light =
-        lux_to_sensor_factor(0.2f, kAmbientDarkLux, kAmbientDayLux);
-    ASSERT_TRUE(low_light > 0.32f && low_light < 0.34f);
-    PASS();
-}
-
-TEST(sensor_factor_invalid_range) {
-    ASSERT_TRUE(lux_to_sensor_factor(100.0f, 500.0f, 10.0f) == 0.0f);
-    ASSERT_TRUE(lux_to_sensor_factor(100.0f, 100.0f, 100.0f) == 0.0f);
     PASS();
 }
 
@@ -651,46 +613,64 @@ TEST(screen_awake_only_while_firing) {
     PASS();
 }
 
-TEST(screen_wake_never_reduces_brightness) {
-    const float configured_levels[] = {0.0f, 0.1f, 0.5f, 1.0f};
-    const float sensor_factors[] = {0.0f, 0.2f, 0.35f, 0.7f, 1.0f};
-    for (float configured_level : configured_levels) {
-        for (float sensor_factor : sensor_factors) {
-            const float asleep = compute_screen_brightness(
-                configured_level, sensor_factor, true);
-            const float awake = compute_screen_brightness(
-                configured_level, sensor_factor, false);
-            ASSERT_TRUE(asleep <= awake);
-        }
+TEST(idle_screen_is_dimmer_than_awake) {
+    const float levels[] = {0.0f, 0.1f, 0.5f, 1.0f};
+    for (float level : levels) {
+        const float asleep = compute_screen_brightness(level, true);
+        const float awake = compute_screen_brightness(level, false);
+        ASSERT_TRUE(asleep <= awake);
     }
+    ASSERT_TRUE(compute_screen_brightness(0.5f, false) == 0.5f);
     PASS();
 }
 
-TEST(screen_wake_increases_brightness_in_dark_room) {
-    const float asleep = compute_screen_brightness(0.5f, 0.0f, true);
-    const float awake = compute_screen_brightness(0.5f, 0.0f, false);
-    ASSERT_TRUE(awake > asleep);
+TEST(idle_screen_uses_fixed_fraction) {
+    const float asleep = compute_screen_brightness(0.5f, true);
+    ASSERT_TRUE(asleep > 0.5f * kSleepMaxAwakeFraction - 1e-6f &&
+                asleep < 0.5f * kSleepMaxAwakeFraction + 1e-6f);
     PASS();
 }
 
-TEST(adaptive_brightness_uses_night_level_in_darkness) {
-    const float brightness =
-        compute_screen_brightness(1.0f, 0.0f, false, 0.05f);
-    ASSERT_TRUE(brightness > 0.049f && brightness < 0.051f);
+TEST(screen_brightness_clamps_input) {
+    ASSERT_TRUE(compute_screen_brightness(-1.0f, false) == 0.0f);
+    ASSERT_TRUE(compute_screen_brightness(2.0f, false) == 1.0f);
+    ASSERT_TRUE(compute_screen_brightness(std::nanf(""), true) == 0.0f);
     PASS();
 }
 
-TEST(adaptive_brightness_reaches_day_setting) {
-    const float brightness =
-        compute_screen_brightness(0.75f, 1.0f, false, 0.05f);
-    ASSERT_TRUE(brightness > 0.749f && brightness < 0.751f);
+TEST(permille_conversion_roundtrip_and_clamp) {
+    ASSERT_TRUE(brightness_to_permille(0.5f) == 500.0f);
+    ASSERT_TRUE(brightness_to_permille(-0.2f) == 0.0f);
+    ASSERT_TRUE(brightness_to_permille(1.5f) == 1000.0f);
+    ASSERT_TRUE(permille_to_brightness(250.0f) == 0.25f);
+    ASSERT_TRUE(permille_to_brightness(5000.0f) == 1.0f);
+    ASSERT_TRUE(permille_to_brightness(-5.0f) == 0.0f);
     PASS();
 }
 
-TEST(adaptive_brightness_scales_night_level_with_day_setting) {
-    const float brightness =
-        compute_screen_brightness(0.5f, 0.0f, false, 0.10f);
-    ASSERT_TRUE(brightness > 0.049f && brightness < 0.051f);
+TEST(curve_from_storage_accepts_valid_curve) {
+    const uint16_t knots[kStorageCurveKnots] = {0,   100, 200, 300, 400,
+                                                 500, 600, 700, 800};
+    adaptive_brightness::Curve curve;
+    ASSERT_TRUE(curve_from_storage(knots, kStorageCurveKnots, &curve));
+    ASSERT_EQ(curve.level[4], (uint16_t)400);
+    PASS();
+}
+
+TEST(curve_from_storage_rejects_bad_curves) {
+    adaptive_brightness::Curve curve;
+    curve.level[0] = 77;
+    const uint16_t decreasing[kStorageCurveKnots] = {0,   100, 200, 50, 400,
+                                                      500, 600, 700, 800};
+    ASSERT_FALSE(curve_from_storage(decreasing, kStorageCurveKnots, &curve));
+    const uint16_t too_big[kStorageCurveKnots] = {0,   100, 200, 300, 400,
+                                                   500, 600, 700, 2000};
+    ASSERT_FALSE(curve_from_storage(too_big, kStorageCurveKnots, &curve));
+    const uint16_t ok[kStorageCurveKnots] = {};
+    ASSERT_FALSE(curve_from_storage(ok, kStorageCurveKnots - 1, &curve));
+    ASSERT_FALSE(curve_from_storage(nullptr, kStorageCurveKnots, &curve));
+    // A rejected curve leaves the output untouched.
+    ASSERT_EQ(curve.level[0], (uint16_t)77);
     PASS();
 }
 
@@ -1271,7 +1251,8 @@ TEST(serialized_alarm_size_constant) {
 
 TEST(serialized_settings_size_constant) {
     ASSERT_EQ(kLegacySerializedSettingsSize, (size_t)13);
-    ASSERT_EQ(kSerializedSettingsSize, (size_t)17);
+    ASSERT_EQ(kMinBrightnessSettingsSize, (size_t)17);
+    ASSERT_EQ(kSerializedSettingsSize, (size_t)44);
     PASS();
 }
 
@@ -1457,7 +1438,13 @@ TEST(serialize_settings_roundtrip) {
     orig.time_format_24h = true;
     orig.selected_sound_index = 2;
     orig.pre_alarm_minutes = 10;
-    orig.night_brightness_fraction = 0.2f;
+    orig.min_brightness = 0.2f;
+    orig.max_brightness = 0.9f;
+    orig.ambient_full_lux = 2.5f;
+    orig.curve_taught = true;
+    for (size_t i = 0; i < kStorageCurveKnots; ++i) {
+        orig.curve[i] = static_cast<uint16_t>(100 * i);
+    }
 
     uint8_t buf[kSerializedSettingsSize];
     size_t written = serialize_settings(orig, buf, sizeof(buf));
@@ -1471,12 +1458,34 @@ TEST(serialize_settings_roundtrip) {
     ASSERT_TRUE(loaded.time_format_24h);
     ASSERT_EQ(loaded.selected_sound_index, 2);
     ASSERT_EQ(loaded.pre_alarm_minutes, 10);
-    ASSERT_TRUE(loaded.night_brightness_fraction > 0.19f &&
-                loaded.night_brightness_fraction < 0.21f);
+    ASSERT_TRUE(loaded.min_brightness > 0.19f && loaded.min_brightness < 0.21f);
+    ASSERT_TRUE(loaded.max_brightness > 0.89f && loaded.max_brightness < 0.91f);
+    ASSERT_TRUE(loaded.ambient_full_lux > 2.49f && loaded.ambient_full_lux < 2.51f);
+    ASSERT_TRUE(loaded.curve_taught);
+    for (size_t i = 0; i < kStorageCurveKnots; ++i) {
+        ASSERT_EQ(loaded.curve[i], static_cast<uint16_t>(100 * i));
+    }
     PASS();
 }
 
-TEST(deserialize_legacy_settings_defaults_night_brightness) {
+// A record written before the adaptive curve existed keeps its minimum
+// brightness and gets defaults for the new fields.
+TEST(deserialize_settings_without_curve_defaults) {
+    StorageSettings orig{};
+    orig.min_brightness = 0.2f;
+    uint8_t buf[kSerializedSettingsSize];
+    serialize_settings(orig, buf, sizeof(buf));
+
+    StorageSettings loaded{};
+    ASSERT_TRUE(deserialize_settings(buf, kMinBrightnessSettingsSize, &loaded));
+    ASSERT_TRUE(loaded.min_brightness > 0.19f && loaded.min_brightness < 0.21f);
+    ASSERT_TRUE(loaded.max_brightness == kDefaultMaxBrightness);
+    ASSERT_TRUE(loaded.ambient_full_lux == kDefaultAmbientFullLux);
+    ASSERT_FALSE(loaded.curve_taught);
+    PASS();
+}
+
+TEST(deserialize_legacy_settings_defaults_min_brightness) {
     StorageSettings orig{};
     uint8_t current_buf[kSerializedSettingsSize];
     serialize_settings(orig, current_buf, sizeof(current_buf));
@@ -1484,8 +1493,8 @@ TEST(deserialize_legacy_settings_defaults_night_brightness) {
     StorageSettings loaded{};
     ASSERT_TRUE(deserialize_settings(current_buf,
                                      kLegacySerializedSettingsSize, &loaded));
-    ASSERT_TRUE(loaded.night_brightness_fraction > 0.04f &&
-                loaded.night_brightness_fraction < 0.06f);
+    ASSERT_TRUE(loaded.min_brightness > 0.04f && loaded.min_brightness < 0.06f);
+    ASSERT_FALSE(loaded.curve_taught);
     PASS();
 }
 
@@ -2029,7 +2038,7 @@ TEST(deserialize_settings_invalid_brightness_nan) {
     PASS();
 }
 
-TEST(deserialize_settings_invalid_night_brightness) {
+TEST(deserialize_settings_invalid_min_brightness) {
     StorageSettings orig{};
     uint8_t buf[kSerializedSettingsSize];
     serialize_settings(orig, buf, sizeof(buf));
@@ -2038,8 +2047,30 @@ TEST(deserialize_settings_invalid_night_brightness) {
 
     StorageSettings loaded{};
     ASSERT_TRUE(deserialize_settings(buf, sizeof(buf), &loaded));
-    ASSERT_TRUE(loaded.night_brightness_fraction > 0.04f &&
-                loaded.night_brightness_fraction < 0.06f);
+    ASSERT_TRUE(loaded.min_brightness > 0.04f && loaded.min_brightness < 0.06f);
+    PASS();
+}
+
+TEST(deserialize_settings_invalid_max_and_full_lux) {
+    StorageSettings orig{};
+    uint8_t buf[kSerializedSettingsSize];
+    serialize_settings(orig, buf, sizeof(buf));
+    float bad_max = -1.0f;
+    memcpy(&buf[kMinBrightnessSettingsSize], &bad_max, sizeof(float));
+    uint32_t nan_bits = 0x7FC00000;  // quiet NaN
+    memcpy(&buf[kMinBrightnessSettingsSize + sizeof(float)], &nan_bits,
+           sizeof(uint32_t));
+
+    StorageSettings loaded{};
+    ASSERT_TRUE(deserialize_settings(buf, sizeof(buf), &loaded));
+    ASSERT_TRUE(loaded.max_brightness == kDefaultMaxBrightness);
+    ASSERT_TRUE(loaded.ambient_full_lux == kDefaultAmbientFullLux);
+
+    float too_bright = 1.0e9f;
+    memcpy(&buf[kMinBrightnessSettingsSize + sizeof(float)], &too_bright,
+           sizeof(float));
+    ASSERT_TRUE(deserialize_settings(buf, sizeof(buf), &loaded));
+    ASSERT_TRUE(loaded.ambient_full_lux == kDefaultAmbientFullLux);
     PASS();
 }
 
@@ -2091,13 +2122,6 @@ int main() {
     RUN(backlight_constants_sanity);
     RUN(stc8_backlight_duty);
     RUN(raw_backlight_pwm_override);
-
-    // lux_to_sensor_factor
-    RUN(sensor_factor_dark);
-    RUN(sensor_factor_bright);
-    RUN(sensor_factor_midpoint);
-    RUN(sensor_factor_calibrated_clock_range);
-    RUN(sensor_factor_invalid_range);
 
     // compute_brightness
     RUN(brightness_user_high_sensor_bright);
@@ -2176,11 +2200,12 @@ int main() {
     RUN(state_machine_reset);
     RUN(state_machine_custom_snooze_duration);
     RUN(screen_awake_only_while_firing);
-    RUN(screen_wake_never_reduces_brightness);
-    RUN(screen_wake_increases_brightness_in_dark_room);
-    RUN(adaptive_brightness_uses_night_level_in_darkness);
-    RUN(adaptive_brightness_reaches_day_setting);
-    RUN(adaptive_brightness_scales_night_level_with_day_setting);
+    RUN(idle_screen_is_dimmer_than_awake);
+    RUN(idle_screen_uses_fixed_fraction);
+    RUN(screen_brightness_clamps_input);
+    RUN(permille_conversion_roundtrip_and_clamp);
+    RUN(curve_from_storage_accepts_valid_curve);
+    RUN(curve_from_storage_rejects_bad_curves);
     RUN(content_dim_disabled_at_threshold);
     RUN(content_dim_reaches_dark_grey_at_zero);
     RUN(content_dim_scales_smoothly_below_threshold);
@@ -2278,7 +2303,8 @@ int main() {
     RUN(serialize_alarm_skip_next_roundtrip);
     RUN(deserialize_alarm_legacy_buffer_defaults_skip_next_false);
     RUN(serialize_settings_roundtrip);
-    RUN(deserialize_legacy_settings_defaults_night_brightness);
+    RUN(deserialize_settings_without_curve_defaults);
+    RUN(deserialize_legacy_settings_defaults_min_brightness);
     RUN(serialize_settings_defaults);
     RUN(serialize_settings_null_buf);
     RUN(serialize_settings_small_buf);
@@ -2358,7 +2384,8 @@ int main() {
     // D3: deserialize_settings rejects out-of-range values (PLAN.md D3)
     RUN(deserialize_settings_invalid_volume);
     RUN(deserialize_settings_invalid_brightness_nan);
-    RUN(deserialize_settings_invalid_night_brightness);
+    RUN(deserialize_settings_invalid_min_brightness);
+    RUN(deserialize_settings_invalid_max_and_full_lux);
     RUN(deserialize_settings_invalid_sound_index);
 
     // D5: hour_24_to_12 / hour_12_to_24 out-of-range (PLAN.md D5)

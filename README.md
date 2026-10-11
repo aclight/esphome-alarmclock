@@ -97,10 +97,18 @@ The CrowPanel Advance 4.3" exposes a 4-pin I2C connector (IO15/IO16/3.3V/GND). I
 
 My BH1750 board uses I2C address 0x23 if ADDR is floating or grounded and 0x5C if it is tied to VCC.
 
-Display Brightness sets the daytime level. Night Brightness sets the dark-room
-level as a percentage of that daytime setting. The firmware interpolates between
-them from the BH1750 reading and applies neutral content shading when the
-backlight reaches the bottom of its useful range.
+Brightness adapts to the room like a phone's adaptive brightness. Moving the
+Display Brightness slider (on the clock or in Home Assistant) teaches the clock
+what you want in the light you are in, and it follows the room from there. The
+learned curve survives reboots; the Reset Learned Brightness button clears it.
+Minimum Brightness (on the clock) and Maximum Brightness (Home Assistant)
+bound the result. Until you first adjust it, the curve rises from the minimum
+in the dark to the maximum at the Full Brightness Ambient Light level (Home
+Assistant). The firmware also applies neutral content shading when the
+backlight reaches the bottom of its useful range. Without a light sensor the
+slider is plain manual brightness. The curve comes from the
+[esphome-shared-components](https://github.com/aclight/esphome-shared-components)
+`adaptive_brightness` component.
 
 For backlight diagnostics, Home Assistant exposes a Raw Backlight PWM slider
 and a Raw Backlight PWM Override switch. While the override is enabled, the

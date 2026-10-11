@@ -12,12 +12,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # alarmclock.h includes the shared header by its ESPHome build path, so
+      # lay the pinned checkout out as <inc>/esphome/components/...
+      - name: Fetch adaptive_brightness at the pinned tag
+        run: |
+          ref=$(grep -oP 'esphome-shared-components@\K\S+' alarmclock.yaml)
+          test -n "$ref"
+          git clone --depth 1 --branch "$ref" \
+            https://github.com/aclight/esphome-shared-components.git "$RUNNER_TEMP/shared"
+          mkdir -p "$RUNNER_TEMP/inc/esphome"
+          ln -s "$RUNNER_TEMP/shared/components" "$RUNNER_TEMP/inc/esphome/components"
+
       - name: Compile tests
-        run: >
-          g++ -std=c++17 -Wall -Wextra -Werror -DUNIT_TEST
-          -I .
-          tests/test_alarmclock.cpp
-          -o run_tests
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror -DUNIT_TEST \
+            -I . -I "$RUNNER_TEMP/inc" \
+            tests/test_alarmclock.cpp \
+            -o run_tests
 
       - name: Run tests
         run: ./run_tests
