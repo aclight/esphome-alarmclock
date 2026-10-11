@@ -72,22 +72,12 @@ TEST(stc8_backlight_duty) {
     PASS();
 }
 
-TEST(raw_backlight_pwm_override) {
-    ASSERT_EQ(resolve_backlight_pwm(0.5f, BacklightMode::kLegacyRaw, false, 7),
-              122);
-    ASSERT_EQ(resolve_backlight_pwm(0.5f, BacklightMode::kLegacyRaw, true, 7),
-              7);
-    ASSERT_EQ(resolve_backlight_pwm(0.5f, BacklightMode::kLegacyRaw, true, 255),
-              244);
-    ASSERT_EQ(resolve_backlight_pwm(0.5f, BacklightMode::kStc8Register, false,
-                                    7),
-              50);
-    ASSERT_EQ(resolve_backlight_pwm(0.5f, BacklightMode::kStc8Register, true,
-                                    75),
-              75);
-    ASSERT_EQ(resolve_backlight_pwm(0.5f, BacklightMode::kStc8Register, true,
-                                    200),
-              100);
+TEST(resolve_backlight_pwm_by_mode) {
+    ASSERT_EQ(resolve_backlight_pwm(0.5f, BacklightMode::kLegacyRaw), 122);
+    ASSERT_EQ(resolve_backlight_pwm(0.5f, BacklightMode::kStc8Register), 50);
+    ASSERT_EQ(resolve_backlight_pwm(0.0f, BacklightMode::kLegacyRaw),
+              kBacklightMin);
+    ASSERT_EQ(resolve_backlight_pwm(1.0f, BacklightMode::kStc8Register), 100);
     PASS();
 }
 
@@ -930,6 +920,86 @@ TEST(find_next_alarm_fires_now_is_zero) {
     int8_t idx = find_next_alarm_index(alarms, 4, 7, 30, 1, &minutes);
     ASSERT_EQ(idx, 0);
     ASSERT_EQ(minutes, 0);
+    PASS();
+}
+
+// ===========================================================================
+// next_alarm_epoch / format_iso8601_utc tests
+// ===========================================================================
+
+TEST(iso8601_utc_formats_epoch) {
+    char buf[24];
+    // 2026-10-12 14:30:05 UTC.
+    ASSERT_EQ(format_iso8601_utc(1791815405, buf, sizeof(buf)), (size_t)20);
+    ASSERT_TRUE(strcmp(buf, "2026-10-12T14:30:05Z") == 0);
+    ASSERT_EQ(format_iso8601_utc(0, buf, sizeof(buf)), (size_t)20);
+    ASSERT_TRUE(strcmp(buf, "1970-01-01T00:00:00Z") == 0);
+    PASS();
+}
+
+TEST(iso8601_utc_rejects_bad_buffer) {
+    char buf[24];
+    ASSERT_EQ(format_iso8601_utc(0, nullptr, 24), (size_t)0);
+    ASSERT_EQ(format_iso8601_utc(0, buf, 0), (size_t)0);
+    PASS();
+}
+
+TEST(next_alarm_epoch_none_scheduled) {
+    AlarmTime alarms[4] = {};
+    int64_t epoch = 123;
+    ASSERT_FALSE(next_alarm_epoch(alarms, 4, 1000000, 7, 0, 0, 1, &epoch));
+    ASSERT_EQ(epoch, (int64_t)123);
+    PASS();
+}
+
+TEST(next_alarm_epoch_later_today) {
+    AlarmTime alarms[4] = {};
+    alarms[0] = {7, 30, kMonday, true};
+    // 07:00:20 Monday; the alarm is 30 min after 07:00:00.
+    const int64_t now = 1000000;
+    int64_t epoch = 0;
+    ASSERT_TRUE(next_alarm_epoch(alarms, 4, now, 7, 0, 20, 1, &epoch));
+    ASSERT_EQ(epoch, now - 20 + 30 * 60);
+    PASS();
+}
+
+TEST(next_alarm_epoch_ignores_alarm_firing_this_minute) {
+    AlarmTime alarms[4] = {};
+    alarms[0] = {7, 30, kEveryDay, true};
+    const int64_t now = 1000000;
+    int64_t epoch = 0;
+    ASSERT_TRUE(next_alarm_epoch(alarms, 4, now, 7, 30, 10, 1, &epoch));
+    // Next occurrence is tomorrow: 24 h after 07:30:00.
+    ASSERT_EQ(epoch, now - 10 + 24 * 60 * 60);
+    PASS();
+}
+
+TEST(next_alarm_epoch_wraps_past_midnight) {
+    AlarmTime alarms[4] = {};
+    alarms[0] = {0, 5, kTuesday, true};
+    // 23:59:30 Monday; the following minute is 00:00 Tuesday.
+    const int64_t now = 1000000;
+    int64_t epoch = 0;
+    ASSERT_TRUE(next_alarm_epoch(alarms, 4, now, 23, 59, 30, 1, &epoch));
+    ASSERT_EQ(epoch, now - 30 + 60 + 5 * 60);
+    PASS();
+}
+
+TEST(next_alarm_epoch_honours_skip_next) {
+    AlarmTime alarms[4] = {};
+    alarms[0] = {7, 30, kEveryDay, true};
+    alarms[0].skip_next = true;
+    const int64_t now = 1000000;
+    int64_t epoch = 0;
+    ASSERT_TRUE(next_alarm_epoch(alarms, 4, now, 7, 0, 0, 1, &epoch));
+    ASSERT_EQ(epoch, now + 24 * 60 * 60 + 30 * 60);
+    PASS();
+}
+
+TEST(next_alarm_epoch_null_output) {
+    AlarmTime alarms[4] = {};
+    alarms[0] = {7, 30, kEveryDay, true};
+    ASSERT_FALSE(next_alarm_epoch(alarms, 4, 0, 7, 0, 0, 1, nullptr));
     PASS();
 }
 
@@ -2121,7 +2191,7 @@ int main() {
     RUN(backlight_invalid_range);
     RUN(backlight_constants_sanity);
     RUN(stc8_backlight_duty);
-    RUN(raw_backlight_pwm_override);
+    RUN(resolve_backlight_pwm_by_mode);
 
     // compute_brightness
     RUN(brightness_user_high_sensor_bright);
@@ -2245,6 +2315,14 @@ int main() {
     RUN(find_next_alarm_one_shot);
     RUN(find_next_alarm_null_minutes);
     RUN(find_next_alarm_fires_now_is_zero);
+    RUN(iso8601_utc_formats_epoch);
+    RUN(iso8601_utc_rejects_bad_buffer);
+    RUN(next_alarm_epoch_none_scheduled);
+    RUN(next_alarm_epoch_later_today);
+    RUN(next_alarm_epoch_ignores_alarm_firing_this_minute);
+    RUN(next_alarm_epoch_wraps_past_midnight);
+    RUN(next_alarm_epoch_honours_skip_next);
+    RUN(next_alarm_epoch_null_output);
 
     // format_next_alarm_text (Task 15)
     RUN(format_next_alarm_with_label_hours);

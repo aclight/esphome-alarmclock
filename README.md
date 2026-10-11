@@ -101,21 +101,23 @@ Brightness adapts to the room like a phone's adaptive brightness. Moving the
 Display Brightness slider (on the clock or in Home Assistant) teaches the clock
 what you want in the light you are in, and it follows the room from there. The
 learned curve survives reboots; the Reset Learned Brightness button clears it.
-Minimum Brightness (on the clock) and Maximum Brightness (Home Assistant)
-bound the result. Until you first adjust it, the curve rises from the minimum
-in the dark to the maximum at the Full Brightness Ambient Light level (Home
-Assistant). The firmware also applies neutral content shading when the
-backlight reaches the bottom of its useful range. Without a light sensor the
-slider is plain manual brightness. The curve comes from the
+Minimum Brightness (on the clock and in Home Assistant) and Maximum Brightness
+(Home Assistant configuration) bound the result. Until you first adjust it, the
+curve rises from the minimum in the dark to the maximum at the Full Brightness
+Ambient Light level (Home Assistant configuration). The firmware also applies
+neutral content shading when the backlight reaches the bottom of its useful
+range. Without a light sensor the slider is plain manual brightness. The curve
+comes from the
 [esphome-shared-components](https://github.com/aclight/esphome-shared-components)
 `adaptive_brightness` component.
 
-For backlight diagnostics, Home Assistant exposes a Raw Backlight PWM slider
-and a Raw Backlight PWM Override switch. While the override is enabled, the
-selected raw value is written directly and ambient, inactivity, and content
-dimming are bypassed. On the 4.3-inch controller, 0 is full brightness and 244
-is minimum brightness. On the 5-inch controller, 0 is minimum and 100 is full
-brightness. The override always starts disabled after a reboot.
+In Home Assistant, the controls (Alarm Volume, Display Brightness, Minimum
+Brightness) are the settings the clock's own Settings page also changes. The
+configuration entities (Maximum Brightness, Full Brightness Ambient Light,
+Reset Learned Brightness) only tune the adaptive curve.
+
+The Next Alarm sensor reports when the next alarm will fire as a timestamp, and
+is unknown when none is scheduled. It accounts for a pending skip.
 
 ## RGB Panel Tuning (ESP32-P4)
 

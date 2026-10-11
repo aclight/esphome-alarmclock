@@ -33,6 +33,9 @@ static uint8_t pre_alarm_selected_ = 1;
 
 static constexpr int16_t kControlGestureThresholdPx = 10;
 static constexpr int16_t kSliderHeight = 32;
+// The knob overhangs the slider's right end at 100%, so the label needs more
+// room than a plain gap.
+static constexpr int16_t kSliderLabelGap = 40;
 
 struct ControlGestureState {
   lv_point_t press_point = {};
@@ -302,7 +305,7 @@ void ui_build_settings_page(lv_obj_t *page) {
   lv_obj_t *vol_row = create_row(parent, theme::kScreenWidth - 60, 56);
   lv_obj_set_flex_align(vol_row, LV_FLEX_ALIGN_START,
                         LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-  lv_obj_set_style_pad_column(vol_row, 16, 0);
+  lv_obj_set_style_pad_column(vol_row, kSliderLabelGap, 0);
 
   volume_slider_ = lv_slider_create(vol_row);
   lv_obj_set_width(volume_slider_, theme::kScreenWidth - 300);
@@ -339,7 +342,7 @@ void ui_build_settings_page(lv_obj_t *page) {
   lv_obj_t *bright_row = create_row(parent, theme::kScreenWidth - 60, 56);
   lv_obj_set_flex_align(bright_row, LV_FLEX_ALIGN_START,
                         LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-  lv_obj_set_style_pad_column(bright_row, 16, 0);
+  lv_obj_set_style_pad_column(bright_row, kSliderLabelGap, 0);
 
   brightness_slider_ = lv_slider_create(bright_row);
   lv_obj_set_width(brightness_slider_, theme::kScreenWidth - 300);
@@ -377,7 +380,7 @@ void ui_build_settings_page(lv_obj_t *page) {
   lv_obj_t *min_row = create_row(parent, theme::kScreenWidth - 60, 56);
   lv_obj_set_flex_align(min_row, LV_FLEX_ALIGN_START,
                         LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-  lv_obj_set_style_pad_column(min_row, 16, 0);
+  lv_obj_set_style_pad_column(min_row, kSliderLabelGap, 0);
 
   min_brightness_slider_ = lv_slider_create(min_row);
   lv_obj_set_width(min_brightness_slider_, theme::kScreenWidth - 300);

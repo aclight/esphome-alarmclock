@@ -564,23 +564,6 @@ void AlarmClockComponent::tick_ambient_brightness_() {
   ui_update_brightness(brightness_);
 }
 
-void AlarmClockComponent::set_raw_backlight_pwm(uint8_t pwm) {
-  raw_backlight_pwm_ = resolve_backlight_pwm(
-      0.0f, backlight_mode_, true, pwm);
-  if (raw_backlight_override_) {
-    update_backlight_();
-  }
-  ESP_LOGI(TAG, "Raw backlight PWM set to %u",
-           static_cast<unsigned>(raw_backlight_pwm_));
-}
-
-void AlarmClockComponent::set_raw_backlight_override(bool enabled) {
-  raw_backlight_override_ = enabled;
-  update_backlight_();
-  ESP_LOGI(TAG, "Raw backlight PWM override %s",
-           raw_backlight_override_ ? "enabled" : "disabled");
-}
-
 void AlarmClockComponent::set_sound_index(uint8_t index) {
   if (index >= kAlarmSoundCount) {
     index = 0;
@@ -837,9 +820,7 @@ void AlarmClockComponent::check_alarms_(uint8_t hour, uint8_t minute,
 }
 
 bool AlarmClockComponent::write_backlight_(float brightness) {
-  const uint8_t pwm = resolve_backlight_pwm(
-      brightness, backlight_mode_, raw_backlight_override_, raw_backlight_pwm_);
-  return write_backlight_pwm_(pwm);
+  return write_backlight_pwm_(resolve_backlight_pwm(brightness, backlight_mode_));
 }
 
 bool AlarmClockComponent::write_backlight_pwm_(uint8_t pwm) {
@@ -864,7 +845,7 @@ bool AlarmClockComponent::write_backlight_pwm_(uint8_t pwm) {
 void AlarmClockComponent::update_backlight_() {
   const float brightness =
       compute_screen_brightness(brightness_, screen_asleep_);
-  ui_set_content_brightness(raw_backlight_override_ ? 1.0f : brightness);
+  ui_set_content_brightness(brightness);
   write_backlight_(brightness);
 }
 
@@ -1068,6 +1049,19 @@ void AlarmClockComponent::auto_disable_one_shot_alarm_() {
                       alarms_[fired_alarm_index_].skip_next,
                       last_known_hour_, last_known_minute_);
   mark_next_alarm_dirty_();
+}
+
+std::string AlarmClockComponent::next_alarm_iso8601(
+    int64_t now_epoch, uint8_t hour, uint8_t minute, uint8_t second,
+    uint8_t day_of_week) const {
+  int64_t epoch = 0;
+  if (!next_alarm_epoch(alarms_, kMaxAlarms, now_epoch, hour, minute, second,
+                        day_of_week, &epoch)) {
+    return std::string();
+  }
+  char buf[24];
+  const size_t length = format_iso8601_utc(epoch, buf, sizeof(buf));
+  return std::string(buf, length);
 }
 
 void AlarmClockComponent::update_next_alarm_display_(uint8_t hour,
