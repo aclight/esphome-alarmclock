@@ -82,11 +82,11 @@ Measurements with the revised enclosure established these operating points:
 
 Brightness now follows a curve learned from the Display Brightness slider (see
 the README); the shared component's seed ramps from the minimum at 0 lx to the
-maximum at the Full Brightness Ambient Light level (default 1 lx). These
-measurements set that default and show how little of the sensor's range this
-enclosure uses: one BH1750 count is about 0.11 lx, so dark-to-daylight spans
-only a handful of counts. Both backlight PWM and content filtering use the
-resulting effective brightness.
+maximum at the Full Brightness Ambient Light level (default 1 lx). The
+measurements above are from the earlier enclosure and the 4.3" board and may no
+longer apply, so the default full-brightness level is untuned: re-measure dark
+and daylight readings in the current enclosure before changing it. Both
+backlight PWM and content filtering use the resulting effective brightness.
 
 ## Hypotheses to test for the flicker (ranked)
 
