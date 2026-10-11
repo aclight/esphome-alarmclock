@@ -82,9 +82,10 @@ Measurements with the revised enclosure established these operating points:
 
 Brightness now follows a curve learned from the Display Brightness slider (see
 the README); the shared component's seed ramps from the minimum at 0 lx to the
-maximum at the Full Brightness Ambient Light level (default 1 lx). These
-measurements set that default and show how little of the sensor's range this
-enclosure uses: one BH1750 count is about 0.11 lx, so dark-to-daylight spans
+maximum at the Full Brightness Ambient Light level (default 100 lx, matching
+the memeboard control panel; the measurements above are from an earlier
+enclosure and gave a 1 lx default that was too low). One BH1750 count is about
+0.11 lx, so dark-to-daylight in that enclosure spanned
 only a handful of counts. Both backlight PWM and content filtering use the
 resulting effective brightness.
 
