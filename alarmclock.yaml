@@ -75,6 +75,10 @@ external_components:
       path: components
     components: [alarmclock]
     refresh: 0s
+  # Pinned tag: bump deliberately. Shorthand on purpose - CI rewrites the git
+  # source above to the checked-out copy and must leave this one alone.
+  - source: github://aclight/esphome-shared-components@adaptive-brightness-v0.1.0
+    components: [adaptive_brightness]
 
 dashboard_import:
   package_import_url: github://aclight/esphome-alarmclock/alarmclock.yaml@main
@@ -322,21 +326,21 @@ rtttl:
     - lambda: 'id(alarm_clock_component).on_rtttl_finished();'
 
 # --- Light sensor ---
-# BH1750 I²C light sensor. Feeds brightness data to the alarm clock component.
+# BH1750 I²C light sensor. Feeds the adaptive brightness in the alarmclock
+# component (see adaptive_brightness.h): it learns the preferred brightness from
+# Display Brightness slider moves. Sampled every 2 s through on_raw_value; the
+# entity published to Home Assistant is a clean 30 s mean.
 sensor:
   - platform: bh1750
     name: "Ambient Light"
     id: ambient_light
     address: 0x23
-    update_interval: 5s
-    on_value:
+    update_interval: 2s
+    filters:
+      - throttle_average: 30s
+    on_raw_value:
       then:
-        - lambda: |-
-            // Logarithmic interpolation from a dark bedroom to indirect
-            // daylight; brighter conditions use the configured daytime level.
-            float sf = alarmclock::lux_to_sensor_factor(
-                x, alarmclock::kAmbientDarkLux, alarmclock::kAmbientDayLux);
-            id(alarm_clock_component).set_sensor_factor(sf, x);
+        - lambda: 'id(alarm_clock_component).on_ambient_lux(x);'
 
   # On-die temperature. Worth watching because 120MHz PSRAM is temperature
   # sensitive and degrades before it fails outright.
@@ -371,6 +375,14 @@ button:
     on_press:
       - lambda: 'id(alarm_clock_component).snooze_alarm();'
 
+  - platform: template
+    name: "Reset Learned Brightness"
+    id: btn_reset_learned_brightness
+    icon: "mdi:restore"
+    entity_category: config
+    on_press:
+      - lambda: 'id(alarm_clock_component).reset_learned_brightness();'
+
 # --- Number: Volume / Brightness from HA ---
 number:
   - platform: template
@@ -402,19 +414,54 @@ number:
       - lambda: 'id(alarm_clock_component).set_brightness(x / 100.0f);'
 
   - platform: template
-    name: "Night Brightness"
-    id: num_night_brightness
+    name: "Minimum Brightness"
+    id: num_min_brightness
     icon: "mdi:brightness-4"
+    entity_category: config
     min_value: 0
     max_value: 100
-    step: 5
+    step: 1
     unit_of_measurement: "%"
     lambda: |-
-      return id(alarm_clock_component).night_brightness_fraction() * 100.0f;
+      return id(alarm_clock_component).min_brightness() * 100.0f;
     update_interval: 5s
     set_action:
       - lambda: |-
-          id(alarm_clock_component).set_night_brightness_fraction(x / 100.0f);
+          id(alarm_clock_component).set_min_brightness(x / 100.0f);
+
+  - platform: template
+    name: "Maximum Brightness"
+    id: num_max_brightness
+    icon: "mdi:brightness-7"
+    entity_category: config
+    min_value: 0
+    max_value: 100
+    step: 1
+    unit_of_measurement: "%"
+    lambda: |-
+      return id(alarm_clock_component).max_brightness() * 100.0f;
+    update_interval: 5s
+    set_action:
+      - lambda: |-
+          id(alarm_clock_component).set_max_brightness(x / 100.0f);
+
+  # Until the brightness is first adjusted the curve is a seed rising from the
+  # minimum at 0 lx to the maximum at this light level, on a log scale.
+  - platform: template
+    name: "Full Brightness Ambient Light"
+    id: num_ambient_full_lux
+    icon: "mdi:white-balance-sunny"
+    entity_category: config
+    min_value: 0.1
+    max_value: 1000
+    step: 0.1
+    unit_of_measurement: "lx"
+    lambda: |-
+      return id(alarm_clock_component).ambient_full_lux();
+    update_interval: 5s
+    set_action:
+      - lambda: |-
+          id(alarm_clock_component).set_ambient_full_lux(x);
 
   - platform: template
     name: "Raw Backlight PWM"

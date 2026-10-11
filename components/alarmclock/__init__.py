@@ -6,7 +6,7 @@ from esphome.components import i2c
 from esphome.const import CONF_ID
 
 DEPENDENCIES = ["i2c", "api"]
-AUTO_LOAD = ["sensor", "switch", "button", "number"]
+AUTO_LOAD = ["sensor", "switch", "button", "number", "adaptive_brightness"]
 
 CONF_RTTTL_ID = "rtttl_id"
 CONF_SPEAKER_ID = "speaker_id"

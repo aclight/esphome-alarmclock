@@ -13,6 +13,7 @@
 #include "alarm_time.h"
 #include "alarm_state.h"
 #include "storage.h"
+#include "esphome/components/adaptive_brightness/adaptive_brightness.h"
 
 // ESPHome headers must be included outside the alarmclock namespace.
 #ifndef UNIT_TEST
@@ -22,6 +23,9 @@
 #endif  // UNIT_TEST
 
 namespace alarmclock {
+
+static_assert(adaptive_brightness::kKnotCount == kStorageCurveKnots,
+              "storage.h kStorageCurveKnots must match the adaptive brightness curve");
 
 // ---------------------------------------------------------------------------
 // Audio playback constants.
@@ -292,26 +296,13 @@ inline uint8_t brightness_to_stc8_duty(float brightness) {
 // Idle timeout before dimming the screen (milliseconds).
 static constexpr uint32_t kScreenIdleTimeoutMs = 30000;
 
-// Idle brightness uses a mild dim in brighter rooms and a stronger dim in low
-// light so the clock stays readable without being overly bright at night.
-static constexpr float kSleepDayDimAmount = 0.10f;
-static constexpr float kSleepNightDimAmount = 0.45f;
-// Target floor before capping sleep below the corresponding awake level.
-static constexpr float kSleepBrightnessFloor = 0.08f;
-static constexpr float kSleepDaySensorThreshold = 0.35f;
+// While idle the screen drops to this fraction of the awake brightness.
 static constexpr float kSleepMaxAwakeFraction = 0.8f;
 
-// Ignore tiny ambient-light changes to reduce visible backlight flicker.
-static constexpr float kSensorFactorDeadband = 0.02f;
-// First-order smoothing factor for ambient-light updates.
-static constexpr float kSensorFactorAlpha = 0.75f;
-
-// Ambient calibration for the installed BH1750 and enclosure. Dark bedrooms
-// measure approximately 0.1 lx; indirect daylight reaches approximately 0.8 lx.
-static constexpr float kAmbientDarkLux = 0.1f;
-static constexpr float kAmbientDayLux = 0.8f;
-static constexpr float kDefaultNightBrightnessFraction = 0.05f;
-
+// Adaptive brightness slews at this rate (permille per second), updated every
+// kAmbientRampTickMs.
+static constexpr float kAmbientRatePermillePerS = 100.0f;
+static constexpr uint32_t kAmbientRampTickMs = 50;
 // Below this user setting, progressively shade UI colors toward black. This
 // extends the useful dimming range after the backlight reaches its hardware
 // minimum. At 0%, white content becomes approximately 0x404040.
@@ -331,46 +322,47 @@ inline uint8_t compute_content_dim_opacity(float configured_brightness) {
   return static_cast<uint8_t>(dim_fraction * kContentDimMaxOpacity + 0.5f);
 }
 
-inline float compute_screen_brightness(float configured_brightness,
-                     float sensor_factor, bool asleep,
-                     float night_brightness_fraction =
-                       kDefaultNightBrightnessFraction) {
-  if (configured_brightness < 0.0f) {
-    configured_brightness = 0.0f;
+// Brightness (0.0-1.0) actually shown: the awake level, or a fixed fraction of
+// it while the screen is idle.
+inline float compute_screen_brightness(float awake_brightness, bool asleep) {
+  if (!(awake_brightness > 0.0f)) {
+    return 0.0f;
   }
-  if (configured_brightness > 1.0f) {
-    configured_brightness = 1.0f;
+  if (awake_brightness > 1.0f) {
+    awake_brightness = 1.0f;
   }
-  if (sensor_factor < 0.0f) {
-    sensor_factor = 0.0f;
-  }
-  if (sensor_factor > 1.0f) {
-    sensor_factor = 1.0f;
-  }
-  if (night_brightness_fraction < 0.0f) {
-    night_brightness_fraction = 0.0f;
-  }
-  if (night_brightness_fraction > 1.0f) {
-    night_brightness_fraction = 1.0f;
-  }
+  return asleep ? awake_brightness * kSleepMaxAwakeFraction : awake_brightness;
+}
 
-  const float ambient_scale = night_brightness_fraction +
-      (1.0f - night_brightness_fraction) * sensor_factor;
-  const float awake_brightness = configured_brightness * ambient_scale;
-  if (!asleep) {
-    return awake_brightness;
+// Adaptive brightness works in permille (0-1000); settings and the UI use 0.0-1.0.
+inline float brightness_to_permille(float brightness) {
+  if (!(brightness > 0.0f)) {
+    return 0.0f;
   }
+  return brightness > 1.0f ? adaptive_brightness::kMaxLevel
+                           : brightness * adaptive_brightness::kMaxLevel;
+}
 
-  const float dim_amount = sensor_factor >= kSleepDaySensorThreshold
-                               ? kSleepDayDimAmount
-                               : kSleepNightDimAmount;
-  float sleep_brightness = configured_brightness - dim_amount;
-  if (sleep_brightness < kSleepBrightnessFloor) {
-    sleep_brightness = kSleepBrightnessFloor;
+inline float permille_to_brightness(float permille) {
+  return adaptive_brightness::clamp_level(permille) / adaptive_brightness::kMaxLevel;
+}
+
+// Rebuilds a saved curve; false if the stored knots are not a valid curve.
+inline bool curve_from_storage(const uint16_t *knots, size_t count,
+                               adaptive_brightness::Curve *curve) {
+  if (knots == nullptr || curve == nullptr ||
+      count != adaptive_brightness::kKnotCount) {
+    return false;
   }
-
-  const float sleep_ceiling = awake_brightness * kSleepMaxAwakeFraction;
-  return sleep_brightness < sleep_ceiling ? sleep_brightness : sleep_ceiling;
+  adaptive_brightness::Curve candidate;
+  for (size_t i = 0; i < count; ++i) {
+    candidate.level[i] = knots[i];
+  }
+  if (!candidate.plausible()) {
+    return false;
+  }
+  *curve = candidate;
+  return true;
 }
 
 // Minimum delay between NVS settings writes (milliseconds).
@@ -426,22 +418,6 @@ inline uint8_t compute_backlight_value(float lux, float min_lux, float max_lux) 
   float ratio = (lux - min_lux) / (max_lux - min_lux);
   return static_cast<uint8_t>(
       static_cast<float>(kBacklightMin) * (1.0f - ratio));
-}
-
-// Convert an ambient lux reading to a sensor factor (0.0–1.0).
-//   - lux <= min_lux → 0.0 (dark)
-//   - lux >= max_lux → 1.0 (bright)
-inline float lux_to_sensor_factor(float lux, float min_lux, float max_lux) {
-  if (min_lux <= 0.0f || max_lux <= min_lux) {
-    return 0.0f;
-  }
-  if (lux <= min_lux) {
-    return 0.0f;
-  }
-  if (lux >= max_lux) {
-    return 1.0f;
-  }
-  return std::log(lux / min_lux) / std::log(max_lux / min_lux);
 }
 
 // Compute final brightness (0.0–1.0) from a user-chosen level and a sensor
@@ -769,10 +745,14 @@ class AlarmClockComponent : public ::esphome::Component,
   // --- Settings ---
   void set_volume(float volume);
   void set_brightness(float brightness);
-  void set_night_brightness_fraction(float brightness_fraction);
+  void set_min_brightness(float brightness);
+  void set_max_brightness(float brightness);
+  void set_ambient_full_lux(float lux);
+  void reset_learned_brightness();
   void set_raw_backlight_pwm(uint8_t pwm);
   void set_raw_backlight_override(bool enabled);
-  void set_sensor_factor(float sensor_factor, float lux);
+  // Called with each ambient light sample from the BH1750.
+  void on_ambient_lux(float lux);
   void set_sound_index(uint8_t index);
   void preview_sound(uint8_t sound_index);
   void cancel_sound_preview();
@@ -781,9 +761,10 @@ class AlarmClockComponent : public ::esphome::Component,
   void set_pre_alarm_option(uint8_t option_index);
   float volume() const { return volume_; }
   float brightness() const { return brightness_; }
-  float night_brightness_fraction() const {
-    return night_brightness_fraction_;
-  }
+  float min_brightness() const { return min_brightness_; }
+  float max_brightness() const { return max_brightness_; }
+  float ambient_full_lux() const { return ambient_full_lux_; }
+  bool brightness_taught() const { return ambient_.taught(); }
   uint8_t raw_backlight_pwm() const { return raw_backlight_pwm_; }
   bool raw_backlight_override() const { return raw_backlight_override_; }
   uint8_t sound_index() const { return selected_sound_index_; }
@@ -820,9 +801,15 @@ class AlarmClockComponent : public ::esphome::Component,
 
   // Settings.
   float volume_ = 0.5f;
+  // Awake brightness (0.0-1.0): the adaptive level, or the manual level when
+  // no ambient light reading is available.
   float brightness_ = 0.5f;
-  float night_brightness_fraction_ = kDefaultNightBrightnessFraction;
-  float sensor_factor_ = 1.0f;
+  float min_brightness_ = kDefaultMinBrightness;
+  float max_brightness_ = kDefaultMaxBrightness;
+  float ambient_full_lux_ = kDefaultAmbientFullLux;
+  adaptive_brightness::Controller ambient_;
+  uint32_t last_ambient_tick_ms_ = 0;
+  uint32_t ambient_sample_count_ = 0;
   uint8_t selected_sound_index_ = 0;
   bool time_format_24h_ = false;
   uint8_t pre_alarm_minutes_ = kDefaultPreAlarmMinutes;
@@ -873,6 +860,9 @@ class AlarmClockComponent : public ::esphome::Component,
   bool write_backlight_(float brightness);
   bool write_backlight_pwm_(uint8_t pwm);
   void update_backlight_();
+  void apply_ambient_limits_();
+  void tick_ambient_brightness_();
+  bool ambient_shadowed_() const;
   void check_screen_sleep_();
   void start_alarm_sound_();
   void stop_alarm_sound_();

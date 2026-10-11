@@ -20,6 +20,17 @@ static const char *const TAG = "alarmclock";
 // Pointer to the singleton component (used by UI callbacks).
 static AlarmClockComponent *instance_ = nullptr;
 
+// Clamps value into [lo, hi]; a NaN becomes lo and hi below lo is raised to lo.
+static float clamp_to_limits(float value, float lo, float hi) {
+  if (hi < lo) {
+    hi = lo;
+  }
+  if (!(value > lo)) {
+    return lo;
+  }
+  return value > hi ? hi : value;
+}
+
 // ---------------------------------------------------------------------------
 // UI callback handlers (bridge UI events → component methods).
 // ---------------------------------------------------------------------------
@@ -47,9 +58,9 @@ static void on_brightness_change(float brightness) {
   }
 }
 
-static void on_night_brightness_change(float brightness_fraction) {
+static void on_min_brightness_change(float brightness) {
   if (instance_) {
-    instance_->set_night_brightness_fraction(brightness_fraction);
+    instance_->set_min_brightness(brightness);
   }
 }
 
@@ -158,7 +169,7 @@ void AlarmClockComponent::setup() {
   cb.on_alarm_snooze = on_snooze;
   cb.on_volume_change = on_volume_change;
   cb.on_brightness_change = on_brightness_change;
-  cb.on_night_brightness_change = on_night_brightness_change;
+  cb.on_min_brightness_change = on_min_brightness_change;
   cb.on_alarm_add = on_alarm_add;
   cb.on_alarm_toggle = on_alarm_toggle;
   cb.on_alarm_save = on_alarm_save;
@@ -207,6 +218,8 @@ void AlarmClockComponent::loop() {
 
   // Check screen sleep/wake state based on LVGL inactivity.
   check_screen_sleep_();
+
+  tick_ambient_brightness_();
 
   // Refresh home-page next-alarm summary after deferred alarm edits.
   if (next_alarm_dirty_ && ui_current_page() == theme::kPageClock) {
@@ -451,25 +464,104 @@ void AlarmClockComponent::set_volume(float volume) {
 }
 
 void AlarmClockComponent::set_brightness(float brightness) {
-  if (brightness < 0.0f) { brightness = 0.0f; }
-  if (brightness > 1.0f) { brightness = 1.0f; }
-  brightness_ = brightness;
+  const float clamped =
+      clamp_to_limits(brightness, min_brightness_, max_brightness_);
+  // A manual change teaches the adaptive curve at the current light level;
+  // without a light reading it is plain manual control.
+  brightness_ = permille_to_brightness(
+      ambient_.teach(brightness_to_permille(clamped)));
   mark_settings_dirty_();
   update_backlight_();
-  ui_update_brightness(brightness);
-  ESP_LOGI(TAG, "Brightness set to %.0f%%", brightness_ * 100.0f);
+  ui_update_brightness(brightness_);
+  ESP_LOGI(TAG, "Brightness set to %.0f%% (%s)", brightness_ * 100.0f,
+           ambient_.taught() ? "learned" : "manual");
 }
 
-void AlarmClockComponent::set_night_brightness_fraction(
-    float brightness_fraction) {
-  if (brightness_fraction < 0.0f) { brightness_fraction = 0.0f; }
-  if (brightness_fraction > 1.0f) { brightness_fraction = 1.0f; }
-  night_brightness_fraction_ = brightness_fraction;
+void AlarmClockComponent::set_min_brightness(float brightness) {
+  min_brightness_ = clamp_to_limits(brightness, 0.0f, 1.0f);
   mark_settings_dirty_();
+  apply_ambient_limits_();
   update_backlight_();
-  ui_update_night_brightness(brightness_fraction);
-  ESP_LOGI(TAG, "Night brightness set to %.0f%% of daytime",
-           night_brightness_fraction_ * 100.0f);
+  ui_update_brightness(brightness_);
+  ui_update_min_brightness(min_brightness_);
+  ESP_LOGI(TAG, "Minimum brightness set to %.0f%%", min_brightness_ * 100.0f);
+}
+
+void AlarmClockComponent::set_max_brightness(float brightness) {
+  max_brightness_ = clamp_to_limits(brightness, 0.0f, 1.0f);
+  mark_settings_dirty_();
+  apply_ambient_limits_();
+  update_backlight_();
+  ui_update_brightness(brightness_);
+  ESP_LOGI(TAG, "Maximum brightness set to %.0f%%", max_brightness_ * 100.0f);
+}
+
+void AlarmClockComponent::set_ambient_full_lux(float lux) {
+  if (!(lux > 0.0f && lux <= kMaxAmbientFullLux)) {
+    return;
+  }
+  ambient_full_lux_ = lux;
+  mark_settings_dirty_();
+  apply_ambient_limits_();
+  ESP_LOGI(TAG, "Full-brightness ambient light set to %.2f lx", lux);
+}
+
+void AlarmClockComponent::reset_learned_brightness() {
+  ambient_.reset_learning();
+  mark_settings_dirty_();
+  ESP_LOGI(TAG, "Learned brightness reset; the curve re-seeds on the next light reading");
+}
+
+// Pushes the limits into the controller. With no light reading there is no
+// ramp to apply them, so the shown level is moved inside them directly.
+void AlarmClockComponent::apply_ambient_limits_() {
+  ambient_.set_limits(brightness_to_permille(min_brightness_),
+                      brightness_to_permille(max_brightness_),
+                      ambient_full_lux_);
+  if (!ambient_.has_lux()) {
+    brightness_ = permille_to_brightness(ambient_.teach(brightness_to_permille(
+        clamp_to_limits(brightness_, min_brightness_, max_brightness_))));
+  }
+}
+
+bool AlarmClockComponent::ambient_shadowed_() const {
+  // The user's hand is over the sensor while they use the screen.
+  return lv_disp_get_inactive_time(nullptr) < adaptive_brightness::kTouchHoldMs;
+}
+
+void AlarmClockComponent::on_ambient_lux(float lux) {
+  ambient_.on_lux(lux, ambient_shadowed_());
+  // About every 10 s at the 2 s sample interval.
+  if (ambient_sample_count_++ % 5 == 0) {
+    ESP_LOGI(TAG,
+             "Ambient raw %.2f lx, median %.2f lx (%.2f stops): level %.1f%% -> "
+             "%.1f%%%s, state %s, PWM %u",
+             static_cast<double>(lux),
+             static_cast<double>(ambient_.median_lux()),
+             static_cast<double>(ambient_.stops()),
+             static_cast<double>(ambient_.level() / 10.0f),
+             static_cast<double>(ambient_.target() / 10.0f),
+             ambient_.taught() ? " (learned)" : "",
+             screen_asleep_ ? "idle" : "awake",
+             static_cast<unsigned>(brightness_to_pwm(
+                 compute_screen_brightness(brightness_, screen_asleep_))));
+  }
+}
+
+void AlarmClockComponent::tick_ambient_brightness_() {
+  const uint32_t now_ms = ::esphome::millis();
+  const uint32_t elapsed_ms = now_ms - last_ambient_tick_ms_;
+  if (elapsed_ms < kAmbientRampTickMs) {
+    return;
+  }
+  last_ambient_tick_ms_ = now_ms;
+  if (!ambient_.tick(elapsed_ms, kAmbientRatePermillePerS,
+                     ambient_shadowed_())) {
+    return;
+  }
+  brightness_ = permille_to_brightness(ambient_.level());
+  update_backlight_();
+  ui_update_brightness(brightness_);
 }
 
 void AlarmClockComponent::set_raw_backlight_pwm(uint8_t pwm) {
@@ -487,34 +579,6 @@ void AlarmClockComponent::set_raw_backlight_override(bool enabled) {
   update_backlight_();
   ESP_LOGI(TAG, "Raw backlight PWM override %s",
            raw_backlight_override_ ? "enabled" : "disabled");
-}
-
-void AlarmClockComponent::set_sensor_factor(float sensor_factor, float lux) {
-  if (sensor_factor < 0.0f) { sensor_factor = 0.0f; }
-  if (sensor_factor > 1.0f) { sensor_factor = 1.0f; }
-
-  // Ignore tiny sensor jitter to reduce backlight shimmer.
-  if (fabsf(sensor_factor - sensor_factor_) >= kSensorFactorDeadband) {
-    // Smooth larger transitions so brightness changes feel stable.
-    sensor_factor_ = sensor_factor_ +
-        (sensor_factor - sensor_factor_) * kSensorFactorAlpha;
-    update_backlight_();
-  }
-
-  const float effective_brightness =
-      compute_screen_brightness(brightness_, sensor_factor_, screen_asleep_,
-                  night_brightness_fraction_);
-  const uint8_t content_dim_opacity =
-      compute_content_dim_opacity(effective_brightness);
-  ESP_LOGI(TAG,
-           "Ambient %.1f lx: day %.0f%%, night %.0f%%, sensor %.1f%%, "
-           "state %s, effective %.1f%%, PWM %u, color filter %.1f%%",
-           lux, brightness_ * 100.0f,
-           night_brightness_fraction_ * 100.0f, sensor_factor_ * 100.0f,
-           screen_asleep_ ? "idle" : "awake",
-           effective_brightness * 100.0f,
-           static_cast<unsigned>(brightness_to_pwm(effective_brightness)),
-           content_dim_opacity * 100.0f / 255.0f);
 }
 
 void AlarmClockComponent::set_sound_index(uint8_t index) {
@@ -799,8 +863,7 @@ bool AlarmClockComponent::write_backlight_pwm_(uint8_t pwm) {
 
 void AlarmClockComponent::update_backlight_() {
   const float brightness =
-      compute_screen_brightness(brightness_, sensor_factor_, screen_asleep_,
-                                night_brightness_fraction_);
+      compute_screen_brightness(brightness_, screen_asleep_);
   ui_set_content_brightness(raw_backlight_override_ ? 1.0f : brightness);
   write_backlight_(brightness);
 }
@@ -960,7 +1023,7 @@ void AlarmClockComponent::sync_ui_() {
   sync_alarm_slots_ui_();
   ui_update_volume(volume_);
   ui_update_brightness(brightness_);
-  ui_update_night_brightness(night_brightness_fraction_);
+  ui_update_min_brightness(min_brightness_);
   ui_update_sound_selection(selected_sound_index_);
   ui_update_snooze_selection(
       snooze_minutes_to_option(state_machine_.snooze_duration_minutes()));
@@ -1052,7 +1115,13 @@ void AlarmClockComponent::save_settings_to_storage_() {
   StorageSettings settings;
   settings.volume = volume_;
   settings.brightness = brightness_;
-  settings.night_brightness_fraction = night_brightness_fraction_;
+  settings.min_brightness = min_brightness_;
+  settings.max_brightness = max_brightness_;
+  settings.ambient_full_lux = ambient_full_lux_;
+  settings.curve_taught = ambient_.taught();
+  for (size_t i = 0; i < kStorageCurveKnots; ++i) {
+    settings.curve[i] = ambient_.curve().level[i];
+  }
   settings.snooze_duration_minutes = state_machine_.snooze_duration_minutes();
   settings.time_format_24h = time_format_24h_;
   settings.selected_sound_index = selected_sound_index_;
@@ -1093,7 +1162,14 @@ void AlarmClockComponent::load_from_storage_() {
   if (storage_load_settings(&settings)) {
     volume_ = settings.volume;
     brightness_ = settings.brightness;
-    night_brightness_fraction_ = settings.night_brightness_fraction;
+    min_brightness_ = settings.min_brightness;
+    max_brightness_ = settings.max_brightness;
+    ambient_full_lux_ = settings.ambient_full_lux;
+    adaptive_brightness::Curve curve;
+    if (settings.curve_taught &&
+        curve_from_storage(settings.curve, kStorageCurveKnots, &curve)) {
+      ambient_.restore(curve);
+    }
     state_machine_.set_snooze_duration(settings.snooze_duration_minutes);
     selected_sound_index_ = settings.selected_sound_index;
     time_format_24h_ = settings.time_format_24h;
@@ -1101,6 +1177,8 @@ void AlarmClockComponent::load_from_storage_() {
     ESP_LOGI(TAG, "Loaded settings from NVS");
   }
 
+  // Also starts the ambient ramp from the stored level instead of a jump.
+  apply_ambient_limits_();
   update_backlight_();
 
   // Sync UI with loaded data.

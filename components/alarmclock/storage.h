@@ -27,8 +27,23 @@ static constexpr uint8_t kMaxStoredSoundIndex = 10;
 static constexpr size_t kLegacySerializedAlarmSize = 1 + 1 + 1 + 1 + 1 + kAlarmLabelMaxLen;  // 21
 static constexpr size_t kSerializedAlarmSize = kLegacySerializedAlarmSize + 1;  // 22
 static constexpr size_t kLegacySerializedSettingsSize = 1 + 4 + 4 + 1 + 1 + 1 + 1;  // 13
-static constexpr size_t kSerializedSettingsSize =
+// Adds min_brightness (previously the night brightness fraction).
+static constexpr size_t kMinBrightnessSettingsSize =
     kLegacySerializedSettingsSize + 4;  // 17
+
+// Knots in the learned ambient brightness curve; must equal
+// adaptive_brightness::kKnotCount (checked by a static_assert in alarmclock.h).
+static constexpr size_t kStorageCurveKnots = 9;
+
+// Adds max_brightness, ambient_full_lux, curve_taught and the curve knots.
+static constexpr size_t kSerializedSettingsSize =
+    kMinBrightnessSettingsSize + 4 + 4 + 1 + 2 * kStorageCurveKnots;  // 44
+
+static constexpr float kDefaultMinBrightness = 0.05f;
+static constexpr float kDefaultMaxBrightness = 1.0f;
+// Ambient lux at which the untaught curve reaches max brightness.
+static constexpr float kDefaultAmbientFullLux = 1.0f;
+static constexpr float kMaxAmbientFullLux = 10000.0f;
 
 // ---------------------------------------------------------------------------
 // Global settings stored in NVS.
@@ -41,7 +56,11 @@ struct StorageSettings {
   bool time_format_24h = false;
   uint8_t selected_sound_index = 0;
   uint8_t pre_alarm_minutes = 5;
-  float night_brightness_fraction = 0.05f;
+  float min_brightness = kDefaultMinBrightness;
+  float max_brightness = kDefaultMaxBrightness;
+  float ambient_full_lux = kDefaultAmbientFullLux;
+  bool curve_taught = false;
+  uint16_t curve[kStorageCurveKnots] = {};
 };
 
 // ---------------------------------------------------------------------------
@@ -116,12 +135,21 @@ inline size_t serialize_settings(const StorageSettings &settings, uint8_t *buf,
   buf[offset++] = settings.time_format_24h ? 1 : 0;
   buf[offset++] = settings.selected_sound_index;
   buf[offset++] = settings.pre_alarm_minutes;
-  std::memcpy(&buf[offset], &settings.night_brightness_fraction, sizeof(float));
+  std::memcpy(&buf[offset], &settings.min_brightness, sizeof(float));
   offset += sizeof(float);
+  std::memcpy(&buf[offset], &settings.max_brightness, sizeof(float));
+  offset += sizeof(float);
+  std::memcpy(&buf[offset], &settings.ambient_full_lux, sizeof(float));
+  offset += sizeof(float);
+  buf[offset++] = settings.curve_taught ? 1 : 0;
+  for (size_t i = 0; i < kStorageCurveKnots; ++i) {
+    std::memcpy(&buf[offset], &settings.curve[i], sizeof(uint16_t));
+    offset += sizeof(uint16_t);
+  }
   return offset;
 }
 
-// Deserialize current settings or a legacy record without night brightness.
+// Deserialize current settings or an older record missing the newer fields.
 // Returns true on success. Clamps out-of-range values to valid defaults.
 inline bool deserialize_settings(const uint8_t *buf, size_t buf_size,
                                  StorageSettings *settings) {
@@ -142,10 +170,27 @@ inline bool deserialize_settings(const uint8_t *buf, size_t buf_size,
   settings->time_format_24h = buf[offset++] != 0;
   settings->selected_sound_index = buf[offset++];
   settings->pre_alarm_minutes = buf[offset++];
-  settings->night_brightness_fraction = 0.05f;
+  settings->min_brightness = kDefaultMinBrightness;
+  if (buf_size >= kMinBrightnessSettingsSize) {
+    std::memcpy(&settings->min_brightness, &buf[offset], sizeof(float));
+  }
+  offset += sizeof(float);
+  settings->max_brightness = kDefaultMaxBrightness;
+  settings->ambient_full_lux = kDefaultAmbientFullLux;
+  settings->curve_taught = false;
+  for (size_t i = 0; i < kStorageCurveKnots; ++i) {
+    settings->curve[i] = 0;
+  }
   if (buf_size >= kSerializedSettingsSize) {
-    std::memcpy(&settings->night_brightness_fraction, &buf[offset],
-                sizeof(float));
+    std::memcpy(&settings->max_brightness, &buf[offset], sizeof(float));
+    offset += sizeof(float);
+    std::memcpy(&settings->ambient_full_lux, &buf[offset], sizeof(float));
+    offset += sizeof(float);
+    settings->curve_taught = buf[offset++] != 0;
+    for (size_t i = 0; i < kStorageCurveKnots; ++i) {
+      std::memcpy(&settings->curve[i], &buf[offset], sizeof(uint16_t));
+      offset += sizeof(uint16_t);
+    }
   }
 
   // Clamp volume and brightness to [0.0, 1.0].
@@ -157,11 +202,15 @@ inline bool deserialize_settings(const uint8_t *buf, size_t buf_size,
       std::isnan(settings->brightness) || std::isinf(settings->brightness)) {
     settings->brightness = 0.5f;
   }
-  if (settings->night_brightness_fraction < 0.0f ||
-      settings->night_brightness_fraction > 1.0f ||
-      std::isnan(settings->night_brightness_fraction) ||
-      std::isinf(settings->night_brightness_fraction)) {
-    settings->night_brightness_fraction = 0.05f;
+  if (!(settings->min_brightness >= 0.0f && settings->min_brightness <= 1.0f)) {
+    settings->min_brightness = kDefaultMinBrightness;
+  }
+  if (!(settings->max_brightness >= 0.0f && settings->max_brightness <= 1.0f)) {
+    settings->max_brightness = kDefaultMaxBrightness;
+  }
+  if (!(settings->ambient_full_lux > 0.0f &&
+        settings->ambient_full_lux <= kMaxAmbientFullLux)) {
+    settings->ambient_full_lux = kDefaultAmbientFullLux;
   }
   // Clamp sound index to valid range.
   if (settings->selected_sound_index >= kMaxStoredSoundIndex) {

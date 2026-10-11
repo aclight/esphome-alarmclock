@@ -20,8 +20,8 @@ Relevant code:
 
 - `update_backlight_()` — [components/alarmclock/alarmclock.cpp](../components/alarmclock/alarmclock.cpp#L606)
 - `brightness_to_pwm()` — [components/alarmclock/alarmclock.h](../components/alarmclock/alarmclock.h#L272)
-- `set_sensor_factor()` (deadband 0.02, EMA alpha 0.75) — [components/alarmclock/alarmclock.cpp](../components/alarmclock/alarmclock.cpp)
-- `lux_to_sensor_factor()` (logarithmically maps 0.1–0.8 lx to 0.0–1.0) — [components/alarmclock/alarmclock.h](../components/alarmclock/alarmclock.h)
+- `AlarmClockComponent::on_ambient_lux()` / `tick_ambient_brightness_()` — feed and ramp the shared `adaptive_brightness::Controller` — [components/alarmclock/alarmclock.cpp](../components/alarmclock/alarmclock.cpp)
+- `adaptive_brightness.h` (learned curve, from [esphome-shared-components](https://github.com/aclight/esphome-shared-components))
 - Clock tick / redraw throttling — [alarmclock.yaml](../alarmclock.yaml#L218)
 
 ## Observed symptoms
@@ -80,12 +80,13 @@ Measurements with the revised enclosure established these operating points:
 | Indirect overcast daylight, room lights off | 0.8 lx |
 | Office lights on | 5.1 lx |
 
-Ambient light is mapped logarithmically from 0.1 lx (night) to 0.8 lx (day).
-Readings above 0.8 lx use the configured Display Brightness. At the dark end,
-the persisted Night Brightness setting selects a percentage of Display
-Brightness; it defaults to 5% and can be adjusted from the clock or Home
-Assistant. Both backlight PWM and content filtering use the resulting effective
-brightness.
+Brightness now follows a curve learned from the Display Brightness slider (see
+the README); the shared component's seed ramps from the minimum at 0 lx to the
+maximum at the Full Brightness Ambient Light level (default 1 lx). These
+measurements set that default and show how little of the sensor's range this
+enclosure uses: one BH1750 count is about 0.11 lx, so dark-to-daylight spans
+only a handful of counts. Both backlight PWM and content filtering use the
+resulting effective brightness.
 
 ## Hypotheses to test for the flicker (ranked)
 
