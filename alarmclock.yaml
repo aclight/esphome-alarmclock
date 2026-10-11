@@ -42,7 +42,6 @@ substitutions:
   i2s_dout_pin: GPIO4
   controller_address: "0x30"
   backlight_mode: legacy_raw
-  raw_backlight_pwm_max: "244"
   speaker_amp_mode: legacy_command
 
 esphome:
@@ -384,6 +383,9 @@ button:
       - lambda: 'id(alarm_clock_component).reset_learned_brightness();'
 
 # --- Number: Volume / Brightness from HA ---
+# Controls are what the clock's own Settings page also adjusts (volume,
+# brightness, minimum brightness). Configuration entities are set-and-forget
+# tuning of the adaptive brightness curve.
 number:
   - platform: template
     name: "Alarm Volume"
@@ -417,7 +419,6 @@ number:
     name: "Minimum Brightness"
     id: num_min_brightness
     icon: "mdi:brightness-4"
-    entity_category: config
     min_value: 0
     max_value: 100
     step: 1
@@ -463,34 +464,6 @@ number:
       - lambda: |-
           id(alarm_clock_component).set_ambient_full_lux(x);
 
-  - platform: template
-    name: "Raw Backlight PWM"
-    id: num_raw_backlight_pwm
-    icon: "mdi:pulse"
-    min_value: 0
-    max_value: ${raw_backlight_pwm_max}
-    step: 1
-    lambda: |-
-      return id(alarm_clock_component).raw_backlight_pwm();
-    update_interval: 1s
-    set_action:
-      - lambda: |-
-          id(alarm_clock_component).set_raw_backlight_pwm(
-              static_cast<uint8_t>(x));
-
-switch:
-  - platform: template
-    name: "Raw Backlight PWM Override"
-    id: switch_raw_backlight_override
-    icon: "mdi:tune-variant"
-    restore_mode: ALWAYS_OFF
-    lambda: |-
-      return id(alarm_clock_component).raw_backlight_override();
-    turn_on_action:
-      - lambda: 'id(alarm_clock_component).set_raw_backlight_override(true);'
-    turn_off_action:
-      - lambda: 'id(alarm_clock_component).set_raw_backlight_override(false);'
-
 # --- Text Sensor: Alarm state (idle/firing/snoozed) ---
 text_sensor:
   - platform: template
@@ -508,6 +481,32 @@ text_sensor:
         default:
           return std::string("idle");
       }
+
+  # When the next alarm will fire, as a timestamp HA renders as a date/time or
+  # a relative time. Empty (unknown) when no alarm is scheduled.
+  - platform: template
+    name: "Next Alarm"
+    id: next_alarm_sensor
+    icon: "mdi:alarm-check"
+    device_class: timestamp
+    update_interval: 5s
+    lambda: |-
+      auto time = id(ha_time).now();
+      if (!time.is_valid()) {
+        time = id(sntp_time).now();
+      }
+      if (!time.is_valid()) {
+        return {};
+      }
+      // ESPTime::day_of_week is 1-based; the component uses 0 = Sunday.
+      const std::string next = id(alarm_clock_component).next_alarm_iso8601(
+          time.timestamp, time.hour, time.minute, time.second,
+          static_cast<uint8_t>(time.day_of_week - 1));
+      // This polls far more often than the value changes; publish only on change.
+      if (next == id(next_alarm_sensor).state) {
+        return {};
+      }
+      return next;
 
 # --- Binary Sensor: Is alarm currently firing? ---
 binary_sensor:

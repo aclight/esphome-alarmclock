@@ -8,6 +8,8 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <ctime>
+#include <string>
 #include <utility>
 
 #include "alarm_time.h"
@@ -474,14 +476,7 @@ inline uint8_t brightness_to_pwm(float brightness) {
       static_cast<float>(kBacklightMin) * (1.0f - brightness));
 }
 
-inline uint8_t resolve_backlight_pwm(float brightness, BacklightMode mode,
-                                     bool raw_override_enabled,
-                                     uint8_t raw_pwm) {
-  if (raw_override_enabled) {
-    const uint8_t max_pwm =
-        mode == BacklightMode::kStc8Register ? 100 : kBacklightMin;
-    return raw_pwm > max_pwm ? max_pwm : raw_pwm;
-  }
+inline uint8_t resolve_backlight_pwm(float brightness, BacklightMode mode) {
   if (mode == BacklightMode::kStc8Register) {
     return brightness_to_stc8_duty(brightness);
   }
@@ -653,6 +648,58 @@ inline size_t format_next_alarm_text(const AlarmTime &alarm,
   return total;
 }
 
+// Epoch (UTC seconds) of the next alarm that fires after the current minute,
+// honouring skip-next. Returns false if no alarm is scheduled.
+inline bool next_alarm_epoch(const AlarmTime *alarms, uint8_t count,
+                             int64_t now_epoch, uint8_t now_hour,
+                             uint8_t now_minute, uint8_t now_second,
+                             uint8_t now_day_index, int64_t *epoch_out) {
+  if (alarms == nullptr || epoch_out == nullptr) {
+    return false;
+  }
+  // Search from the following minute so an alarm firing right now is not
+  // reported as upcoming.
+  const uint16_t following = static_cast<uint16_t>(
+      time_to_minutes(now_hour, now_minute) + 1);
+  const uint16_t minutes_per_day = 24 * 60;
+  const uint8_t day_index = following >= minutes_per_day
+                                ? static_cast<uint8_t>((now_day_index + 1) % 7)
+                                : now_day_index;
+  const uint16_t time_of_day = following % minutes_per_day;
+  int32_t minutes = 0;
+  if (find_next_alarm_index(alarms, count,
+                            static_cast<uint8_t>(time_of_day / 60),
+                            static_cast<uint8_t>(time_of_day % 60), day_index,
+                            &minutes) < 0) {
+    return false;
+  }
+  *epoch_out = now_epoch - now_second + 60 + static_cast<int64_t>(minutes) * 60;
+  return true;
+}
+
+// Format UTC epoch seconds as "2026-10-12T14:00:00Z", the form HA parses for
+// timestamp entities. Returns the number of characters written, or 0 on error.
+inline size_t format_iso8601_utc(int64_t epoch, char *buf, size_t buf_size) {
+  if (buf == nullptr || buf_size == 0) {
+    return 0;
+  }
+  const std::time_t t = static_cast<std::time_t>(epoch);
+  const std::tm *utc = std::gmtime(&t);
+  if (utc == nullptr) {
+    buf[0] = '\0';
+    return 0;
+  }
+  const int written = snprintf(buf, buf_size, "%04d-%02d-%02dT%02d:%02d:%02dZ",
+                               utc->tm_year + 1900, utc->tm_mon + 1,
+                               utc->tm_mday, utc->tm_hour, utc->tm_min,
+                               utc->tm_sec);
+  if (written < 0) {
+    buf[0] = '\0';
+    return 0;
+  }
+  return static_cast<size_t>(written);
+}
+
 // Format the pre-alarm banner text.
 // Output example: "Alarm in 5 min - Work" or "Alarm in 5 min"
 // Returns the number of characters written (excluding null terminator).
@@ -749,8 +796,6 @@ class AlarmClockComponent : public ::esphome::Component,
   void set_max_brightness(float brightness);
   void set_ambient_full_lux(float lux);
   void reset_learned_brightness();
-  void set_raw_backlight_pwm(uint8_t pwm);
-  void set_raw_backlight_override(bool enabled);
   // Called with each ambient light sample from the BH1750.
   void on_ambient_lux(float lux);
   void set_sound_index(uint8_t index);
@@ -765,8 +810,6 @@ class AlarmClockComponent : public ::esphome::Component,
   float max_brightness() const { return max_brightness_; }
   float ambient_full_lux() const { return ambient_full_lux_; }
   bool brightness_taught() const { return ambient_.taught(); }
-  uint8_t raw_backlight_pwm() const { return raw_backlight_pwm_; }
-  bool raw_backlight_override() const { return raw_backlight_override_; }
   uint8_t sound_index() const { return selected_sound_index_; }
   bool time_format_24h() const { return time_format_24h_; }
   uint8_t pre_alarm_minutes() const { return pre_alarm_minutes_; }
@@ -790,6 +833,12 @@ class AlarmClockComponent : public ::esphome::Component,
   bool is_firing() const {
     return state_machine_.state() == AlarmState::kFiring;
   }
+
+  // ISO 8601 UTC time of the next alarm that will fire, or "" if none.
+  // |day_of_week| is 0-based (0 = Sunday).
+  std::string next_alarm_iso8601(int64_t now_epoch, uint8_t hour,
+                                 uint8_t minute, uint8_t second,
+                                 uint8_t day_of_week) const;
 
   // Called from YAML interval to check alarms against current time.
   void check_alarms_(uint8_t hour, uint8_t minute, uint8_t day_of_week);
@@ -843,8 +892,6 @@ class AlarmClockComponent : public ::esphome::Component,
 
   // Last backlight PWM written to the I2C controller.
   uint8_t last_backlight_pwm_ = 0xFF;
-  uint8_t raw_backlight_pwm_ = 0;
-  bool raw_backlight_override_ = false;
   BacklightMode backlight_mode_ = BacklightMode::kLegacyRaw;
   SpeakerAmpMode speaker_amp_mode_ = SpeakerAmpMode::kLegacyCommand;
 
