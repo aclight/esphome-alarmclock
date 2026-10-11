@@ -42,7 +42,7 @@ static constexpr size_t kSerializedSettingsSize =
 static constexpr float kDefaultMinBrightness = 0.05f;
 static constexpr float kDefaultMaxBrightness = 1.0f;
 // Ambient lux at which the untaught curve reaches max brightness.
-static constexpr float kDefaultAmbientFullLux = 1.0f;
+static constexpr float kDefaultAmbientFullLux = 100.0f;
 static constexpr float kMaxAmbientFullLux = 10000.0f;
 
 // ---------------------------------------------------------------------------
