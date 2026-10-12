@@ -545,7 +545,7 @@ void AlarmClockComponent::on_ambient_lux(float lux) {
              screen_asleep_ ? "idle" : "awake",
              static_cast<unsigned>(resolve_backlight_pwm(
                  compute_screen_brightness(brightness_, screen_asleep_),
-                 backlight_mode_))));
+                 backlight_mode_)));
   }
 }
 
