@@ -266,6 +266,9 @@ static constexpr uint8_t kBuzzerOff = 247;     // Command to deactivate buzzer.
 static constexpr uint8_t kStc8BacklightPowerRegister = 0x1B;
 static constexpr uint8_t kStc8BacklightPwmRegister = 0x20;
 static constexpr uint8_t kStc8AudioShutdownRegister = 0x1A;
+// The STC8 switches the panel off below this duty, so it is also the floor for
+// any request; dimmer than this is done by shading the content.
+static constexpr uint8_t kStc8MinDuty = 5;
 
 enum class BacklightMode : uint8_t {
   kLegacyRaw = 0,
@@ -278,13 +281,14 @@ enum class SpeakerAmpMode : uint8_t {
 };
 
 inline uint8_t brightness_to_stc8_duty(float brightness) {
-  if (brightness <= 0.0f) {
-    return 0;
-  }
   if (brightness >= 1.0f) {
     return 100;
   }
-  return static_cast<uint8_t>(brightness * 100.0f + 0.5f);
+  if (!(brightness > 0.0f)) {
+    return kStc8MinDuty;
+  }
+  const uint8_t duty = static_cast<uint8_t>(brightness * 100.0f + 0.5f);
+  return duty < kStc8MinDuty ? kStc8MinDuty : duty;
 }
 
 // ---------------------------------------------------------------------------
@@ -298,30 +302,39 @@ inline uint8_t brightness_to_stc8_duty(float brightness) {
 // Idle timeout before dimming the screen (milliseconds).
 static constexpr uint32_t kScreenIdleTimeoutMs = 30000;
 
-// While idle the screen drops to this fraction of the awake brightness.
-static constexpr float kSleepMaxAwakeFraction = 0.8f;
+// While idle the screen drops to this fraction of the awake brightness; it
+// must be low enough that a tap is visibly brighter even at the minimum.
+static constexpr float kSleepMaxAwakeFraction = 0.5f;
 
 // Adaptive brightness slews at this rate (permille per second), updated every
 // kAmbientRampTickMs.
 static constexpr float kAmbientRatePermillePerS = 100.0f;
 static constexpr uint32_t kAmbientRampTickMs = 50;
-// Below this user setting, progressively shade UI colors toward black. This
-// extends the useful dimming range after the backlight reaches its hardware
-// minimum. At 0%, white content becomes approximately 0x404040.
+// Below the threshold, progressively shade UI colors toward black. The
+// backlight stops dimming at kContentDimFloor (kStc8MinDuty), so below it the
+// shading alone does the work. Fractions of the original color value:
+// 1.0 at the threshold, kContentValueAtFloor at the floor (white is ~0x38) and
+// kContentValueAtZero at 0% (white is ~0x1A).
 static constexpr float kContentDimThreshold = 0.25f;
-static constexpr uint8_t kContentDimMaxOpacity = 191;
+static constexpr float kContentDimFloor = kStc8MinDuty / 100.0f;
+static constexpr float kContentValueAtFloor = 0.22f;
+static constexpr float kContentValueAtZero = 0.10f;
 
 inline uint8_t compute_content_dim_opacity(float configured_brightness) {
-  if (configured_brightness <= 0.0f) {
-    return kContentDimMaxOpacity;
-  }
-  if (configured_brightness >= kContentDimThreshold) {
+  float value;
+  if (!(configured_brightness > 0.0f)) {
+    value = kContentValueAtZero;
+  } else if (configured_brightness >= kContentDimThreshold) {
     return 0;
+  } else if (configured_brightness >= kContentDimFloor) {
+    const float t = (configured_brightness - kContentDimFloor) /
+                    (kContentDimThreshold - kContentDimFloor);
+    value = kContentValueAtFloor + (1.0f - kContentValueAtFloor) * t;
+  } else {
+    const float t = configured_brightness / kContentDimFloor;
+    value = kContentValueAtZero + (kContentValueAtFloor - kContentValueAtZero) * t;
   }
-
-  const float dim_fraction =
-      (kContentDimThreshold - configured_brightness) / kContentDimThreshold;
-  return static_cast<uint8_t>(dim_fraction * kContentDimMaxOpacity + 0.5f);
+  return static_cast<uint8_t>((1.0f - value) * 255.0f + 0.5f);
 }
 
 // Brightness (0.0-1.0) actually shown: the awake level, or a fixed fraction of

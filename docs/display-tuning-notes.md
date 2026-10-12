@@ -62,8 +62,10 @@ is already in use, so backlight math alone cannot make the display darker.
    Arduino examples) — the 0–244/245 mapping came from a v1.1-era example and may
    be wrong or coarser than the real range.
 2. Below 25% effective brightness, an inherited LVGL color filter shades all UI
-  colors smoothly toward black. At 0%, white content is approximately
-  `0x404040`. This neutral-grey approach preserves color meaning and avoids
+  colors smoothly toward black. The STC8 backlight cannot go below 5% duty (it
+  switches the panel off), so below 5% the shading alone does the dimming. At
+  5% white content is approximately `0x383838`, at 0% approximately `0x1A1A1A`.
+  This neutral-grey approach preserves color meaning and avoids
   maintaining separate night colors for every widget. The alarm-firing overlay
   opts out so Snooze and Dismiss controls remain fully colored and legible.
 
