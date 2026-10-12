@@ -63,12 +63,25 @@ TEST(backlight_constants_sanity) {
 }
 
 TEST(stc8_backlight_duty) {
-    ASSERT_EQ(brightness_to_stc8_duty(-0.1f), 0);
-    ASSERT_EQ(brightness_to_stc8_duty(0.0f), 0);
+    ASSERT_EQ(brightness_to_stc8_duty(-0.1f), kStc8MinDuty);
+    ASSERT_EQ(brightness_to_stc8_duty(0.0f), kStc8MinDuty);
+    ASSERT_EQ(brightness_to_stc8_duty(std::nanf("")), kStc8MinDuty);
     ASSERT_EQ(brightness_to_stc8_duty(0.504f), 50);
     ASSERT_EQ(brightness_to_stc8_duty(0.505f), 51);
     ASSERT_EQ(brightness_to_stc8_duty(1.0f), 100);
     ASSERT_EQ(brightness_to_stc8_duty(1.1f), 100);
+    PASS();
+}
+
+TEST(stc8_backlight_never_below_floor) {
+    // Duty below the floor switches the panel off.
+    for (int percent = 0; percent <= 100; ++percent) {
+        ASSERT_TRUE(brightness_to_stc8_duty(static_cast<float>(percent) / 100.0f) >=
+                    kStc8MinDuty);
+    }
+    ASSERT_EQ(brightness_to_stc8_duty(0.02f), kStc8MinDuty);
+    ASSERT_EQ(brightness_to_stc8_duty(0.049f), kStc8MinDuty);
+    ASSERT_EQ(brightness_to_stc8_duty(0.06f), 6);
     PASS();
 }
 
@@ -671,18 +684,43 @@ TEST(content_dim_disabled_at_threshold) {
 }
 
 TEST(content_dim_reaches_dark_grey_at_zero) {
-    ASSERT_EQ(compute_content_dim_opacity(0.0f), kContentDimMaxOpacity);
-    ASSERT_EQ(compute_content_dim_opacity(-1.0f), kContentDimMaxOpacity);
+    const uint8_t zero = compute_content_dim_opacity(0.0f);
+    ASSERT_TRUE(zero > 228 && zero < 232);
+    ASSERT_EQ(compute_content_dim_opacity(-1.0f), zero);
+    ASSERT_EQ(compute_content_dim_opacity(std::nanf("")), zero);
     PASS();
 }
 
 TEST(content_dim_scales_smoothly_below_threshold) {
-    const uint8_t quarter_dim = compute_content_dim_opacity(0.1875f);
-    const uint8_t half_dim = compute_content_dim_opacity(0.125f);
-    const uint8_t three_quarter_dim = compute_content_dim_opacity(0.0625f);
-    ASSERT_TRUE(quarter_dim > 45 && quarter_dim < 50);
-    ASSERT_TRUE(half_dim > 93 && half_dim < 98);
-    ASSERT_TRUE(three_quarter_dim > 140 && three_quarter_dim < 145);
+    // Halfway between the threshold and the backlight floor.
+    const uint8_t upper_half = compute_content_dim_opacity(0.15f);
+    ASSERT_TRUE(upper_half > 97 && upper_half < 102);
+    // At the backlight floor white is about 0x38.
+    const uint8_t at_floor = compute_content_dim_opacity(kContentDimFloor);
+    ASSERT_TRUE(at_floor > 197 && at_floor < 202);
+    // Halfway between 0% and the floor.
+    const uint8_t lower_half = compute_content_dim_opacity(0.025f);
+    ASSERT_TRUE(lower_half > 212 && lower_half < 217);
+    PASS();
+}
+
+TEST(content_dim_never_lightens_as_brightness_falls) {
+    uint8_t previous = 0;
+    for (int permille = 1000; permille >= 0; --permille) {
+        const uint8_t opacity =
+            compute_content_dim_opacity(static_cast<float>(permille) / 1000.0f);
+        ASSERT_TRUE(opacity >= previous);
+        previous = opacity;
+    }
+    PASS();
+}
+
+TEST(idle_screen_visibly_dimmer_than_awake) {
+    // A tap must be noticeable even at the minimum brightness.
+    const float awake = 0.05f;
+    const float asleep = compute_screen_brightness(awake, true);
+    ASSERT_TRUE(compute_content_dim_opacity(asleep) >
+                compute_content_dim_opacity(awake) + 10);
     PASS();
 }
 
@@ -2191,6 +2229,7 @@ int main() {
     RUN(backlight_invalid_range);
     RUN(backlight_constants_sanity);
     RUN(stc8_backlight_duty);
+    RUN(stc8_backlight_never_below_floor);
     RUN(resolve_backlight_pwm_by_mode);
 
     // compute_brightness
@@ -2279,6 +2318,8 @@ int main() {
     RUN(content_dim_disabled_at_threshold);
     RUN(content_dim_reaches_dark_grey_at_zero);
     RUN(content_dim_scales_smoothly_below_threshold);
+    RUN(content_dim_never_lightens_as_brightness_falls);
+    RUN(idle_screen_visibly_dimmer_than_awake);
 
     // Volume ramp
     RUN(ramp_volume_at_start);
