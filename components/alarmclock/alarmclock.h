@@ -314,11 +314,12 @@ static constexpr uint32_t kAmbientRampTickMs = 50;
 // backlight stops dimming at kContentDimFloor (kStc8MinDuty), so below it the
 // shading alone does the work. Fractions of the original color value:
 // 1.0 at the threshold, kContentValueAtFloor at the floor (white is ~0x38) and
-// kContentValueAtZero at 0% (white is ~0x1A).
+// kContentValueAtZero at 0% (white is ~0x08, about the lowest neutral grey the
+// panel's RGB565 channels can show; below it channels round to 0 and tint).
 static constexpr float kContentDimThreshold = 0.25f;
 static constexpr float kContentDimFloor = kStc8MinDuty / 100.0f;
 static constexpr float kContentValueAtFloor = 0.22f;
-static constexpr float kContentValueAtZero = 0.10f;
+static constexpr float kContentValueAtZero = 0.03f;
 
 inline uint8_t compute_content_dim_opacity(float configured_brightness) {
   float value;

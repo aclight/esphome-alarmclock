@@ -64,7 +64,7 @@ is already in use, so backlight math alone cannot make the display darker.
 2. Below 25% effective brightness, an inherited LVGL color filter shades all UI
   colors smoothly toward black. The STC8 backlight cannot go below 5% duty (it
   switches the panel off), so below 5% the shading alone does the dimming. At
-  5% white content is approximately `0x383838`, at 0% approximately `0x1A1A1A`.
+  5% white content is approximately `0x383838`, at 0% approximately `0x080808`.
   This neutral-grey approach preserves color meaning and avoids
   maintaining separate night colors for every widget. The alarm-firing overlay
   opts out so Snooze and Dismiss controls remain fully colored and legible.
