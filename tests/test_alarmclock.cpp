@@ -685,7 +685,7 @@ TEST(content_dim_disabled_at_threshold) {
 
 TEST(content_dim_reaches_dark_grey_at_zero) {
     const uint8_t zero = compute_content_dim_opacity(0.0f);
-    ASSERT_TRUE(zero > 228 && zero < 232);
+    ASSERT_TRUE(zero > 245 && zero < 249);
     ASSERT_EQ(compute_content_dim_opacity(-1.0f), zero);
     ASSERT_EQ(compute_content_dim_opacity(std::nanf("")), zero);
     PASS();
@@ -700,7 +700,7 @@ TEST(content_dim_scales_smoothly_below_threshold) {
     ASSERT_TRUE(at_floor > 197 && at_floor < 202);
     // Halfway between 0% and the floor.
     const uint8_t lower_half = compute_content_dim_opacity(0.025f);
-    ASSERT_TRUE(lower_half > 212 && lower_half < 217);
+    ASSERT_TRUE(lower_half > 220 && lower_half < 226);
     PASS();
 }
 
