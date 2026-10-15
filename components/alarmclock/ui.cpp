@@ -17,6 +17,9 @@ static uint8_t current_page_ = theme::kPageClock;
 static UiCallbacks callbacks_ = {};
 static lv_color_filter_dsc_t content_dim_filter_;
 static uint8_t content_dim_opacity_ = 0;
+static bool controls_page_enabled_ = false;
+static bool minisplit_page_enabled_ = false;
+static lv_obj_t *header_time_labels_[theme::kPageCount] = {};
 
 static lv_color_t content_dim_filter_cb(
     const lv_color_filter_dsc_t *filter, lv_color_t color, lv_opa_t opacity) {
@@ -37,6 +40,20 @@ void ui_set_callbacks(const UiCallbacks &cb) {
   callbacks_ = cb;
 }
 
+void ui_configure_optional_pages(bool controls_enabled,
+                                 bool minisplit_enabled) {
+  controls_page_enabled_ = controls_enabled;
+  minisplit_page_enabled_ = minisplit_enabled;
+}
+
+bool ui_controls_page_enabled() {
+  return controls_page_enabled_;
+}
+
+bool ui_minisplit_page_enabled() {
+  return minisplit_page_enabled_;
+}
+
 void ui_create_page_header(lv_obj_t *parent, const char *title) {
   lv_obj_t *header = lv_obj_create(parent);
   lv_obj_set_size(header, theme::kScreenWidth, theme::kPageHeaderHeight);
@@ -55,6 +72,18 @@ void ui_create_page_header(lv_obj_t *parent, const char *title) {
     title_label, lv_color_hex(theme::kColorPrimary), 0);
   lv_label_set_text(title_label, title);
 
+  lv_obj_t *time_label = lv_label_create(header);
+  lv_obj_set_style_text_font(time_label, &lv_font_montserrat_28, 0);
+  lv_obj_set_style_text_color(
+      time_label, lv_color_hex(theme::kColorSecondary), 0);
+  lv_label_set_text(time_label, "--:--");
+  for (uint8_t i = 0; i < theme::kPageCount; ++i) {
+    if (pages_[i] == parent) {
+      header_time_labels_[i] = time_label;
+      break;
+    }
+  }
+
   lv_obj_t *home_button = lv_button_create(header);
   lv_obj_set_size(
     home_button, theme::kNavButtonWidth, theme::kNavButtonHeight);
@@ -72,6 +101,23 @@ void ui_create_page_header(lv_obj_t *parent, const char *title) {
   lv_obj_set_style_text_color(
     home_label, lv_color_hex(theme::kColorPrimary), 0);
   lv_label_set_text(home_label, LV_SYMBOL_HOME);
+}
+
+void ui_update_header_time(uint8_t hour, uint8_t minute,
+                           bool time_format_24h) {
+  char buf[16];
+  if (time_format_24h) {
+    snprintf(buf, sizeof(buf), "%02u:%02u", hour, minute);
+  } else {
+    auto [hour_12, is_pm] = hour_24_to_12(hour);
+    snprintf(buf, sizeof(buf), "%u:%02u %s", hour_12, minute,
+             is_pm ? "PM" : "AM");
+  }
+  for (uint8_t i = 0; i < theme::kPageCount; ++i) {
+    if (header_time_labels_[i] != nullptr) {
+      lv_label_set_text(header_time_labels_[i], buf);
+    }
+  }
 }
 
 void ui_init() {
@@ -107,6 +153,12 @@ void ui_init() {
   ui_build_clock_page(pages_[theme::kPageClock]);
   ui_build_alarm_page(pages_[theme::kPageAlarms]);
   ui_build_settings_page(pages_[theme::kPageSettings]);
+  if (controls_page_enabled_) {
+    ui_build_controls_page(pages_[theme::kPageControls]);
+  }
+  if (minisplit_page_enabled_) {
+    ui_build_minisplit_page(pages_[theme::kPageMinisplit]);
+  }
 
   // Create firing overlay (hidden by default, shown above everything).
   firing_overlay_ = lv_obj_create(scr);
@@ -141,6 +193,18 @@ void ui_show_settings_page() {
   ui_show_page(theme::kPageSettings);
 }
 
+void ui_show_controls_page() {
+  if (controls_page_enabled_) {
+    ui_show_page(theme::kPageControls);
+  }
+}
+
+void ui_show_minisplit_page() {
+  if (minisplit_page_enabled_) {
+    ui_show_page(theme::kPageMinisplit);
+  }
+}
+
 void ui_show_page(uint8_t page_index) {
   if (page_index >= theme::kPageCount) {
     return;
@@ -148,11 +212,17 @@ void ui_show_page(uint8_t page_index) {
   if (page_index == current_page_) {
     return;
   }
+  if ((page_index == theme::kPageControls && !controls_page_enabled_) ||
+      (page_index == theme::kPageMinisplit && !minisplit_page_enabled_)) {
+    return;
+  }
   if (current_page_ == theme::kPageSettings &&
       callbacks_.on_sound_preview_cancel != nullptr) {
     callbacks_.on_sound_preview_cancel();
   }
-
+  if (current_page_ == theme::kPageMinisplit) {
+    ui_close_minisplit_picker();
+  }
   lv_obj_t *old_page = pages_[current_page_];
   lv_obj_t *new_page = pages_[page_index];
 

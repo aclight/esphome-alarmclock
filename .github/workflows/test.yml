@@ -68,6 +68,31 @@ jobs:
           grep -Fq "url: https://github.com/aclight/esphome-mipi-rgb.git" alarmclock-p4-5inch.yaml
           grep -Fq "ref: esphome-2026.9.1-r1" alarmclock-p4-5inch.yaml
 
+      - name: Add sample controls so the controls page is compiled
+        run: |
+          python - <<'EOF'
+          import pathlib
+          path = pathlib.Path("alarmclock.yaml")
+          text = path.read_text()
+          sample = """    controls:
+                - type: toggle
+                  name: Lamp
+                  entity_id: light.lamp
+                - type: dimmer
+                  name: Bedside
+                  entity_id: light.bedside
+                - type: action
+                  name: Goodnight
+                  on_press:
+                    - homeassistant.action:
+                        action: automation.trigger
+                        data:
+                          entity_id: automation.goodnight
+          """
+          assert "    controls: []\n" in text
+          path.write_text(text.replace("    controls: []\n", sample))
+          EOF
+
       - name: Compile ESPHome config
         run: esphome compile "${{ matrix.config }}"
 
@@ -113,3 +138,29 @@ jobs:
 
       - name: Accepts the production value
         run: esphome config alarmclock-p4-5inch.yaml > /dev/null
+
+      - name: Accepts unquoted off in the HVAC mode list
+        run: |
+          sed 's/^    vertical_vane_entity_id: .*$/&\n    hvac_modes: [off, cool]/' \
+            alarmclock.yaml > modes.yaml
+          grep -Fq "hvac_modes: [off, cool]" modes.yaml
+          esphome config modes.yaml > /dev/null
+
+      - name: Rejects more than six controls
+        run: |
+          python - <<'EOF'
+          import pathlib
+          text = pathlib.Path("alarmclock.yaml").read_text()
+          items = "".join(
+              f"      - type: toggle\n        name: L{i}\n        entity_id: light.l{i}\n"
+              for i in range(7)
+          )
+          assert "    controls: []\n" in text
+          pathlib.Path("too_many.yaml").write_text(
+              text.replace("    controls: []\n", "    controls:\n" + items)
+          )
+          EOF
+          if esphome config too_many.yaml > out.log 2>&1; then
+            echo "::error::expected config validation to fail"
+            exit 1
+          fi

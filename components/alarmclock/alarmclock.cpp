@@ -3,6 +3,7 @@
 
 #include "alarmclock.h"
 
+#include <algorithm>
 #include <cstring>
 
 #ifndef UNIT_TEST
@@ -137,6 +138,48 @@ static void on_alarm_skip_toggle(uint8_t index, bool skip) {
   }
 }
 
+static void on_control_press(uint8_t index) {
+  if (instance_) {
+    instance_->press_control_(index);
+  }
+}
+
+static void on_control_brightness_change(uint8_t index, float brightness) {
+  if (instance_) {
+    instance_->set_control_brightness_(index, brightness);
+  }
+}
+
+static void on_minisplit_power() {
+  if (instance_) {
+    instance_->toggle_minisplit_power_();
+  }
+}
+
+static void on_minisplit_temperature_change(float delta) {
+  if (instance_) {
+    instance_->change_minisplit_temperature_(delta);
+  }
+}
+
+static void on_minisplit_hvac_mode(const char *mode) {
+  if (instance_) {
+    instance_->set_minisplit_hvac_mode_(mode);
+  }
+}
+
+static void on_minisplit_fan_mode(const char *mode) {
+  if (instance_) {
+    instance_->set_minisplit_fan_mode_(mode);
+  }
+}
+
+static void on_minisplit_vane_step(bool horizontal, bool next) {
+  if (instance_) {
+    instance_->step_minisplit_vane_(horizontal, next);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Component lifecycle.
 // ---------------------------------------------------------------------------
@@ -182,16 +225,298 @@ void AlarmClockComponent::setup() {
   cb.on_snooze_duration_change = on_snooze_duration_change;
   cb.on_time_format_change = on_time_format_change;
   cb.on_pre_alarm_change = on_pre_alarm_change;
+  cb.on_control_press = on_control_press;
+  cb.on_control_brightness_change = on_control_brightness_change;
+  cb.on_minisplit_power = on_minisplit_power;
+  cb.on_minisplit_temperature_change = on_minisplit_temperature_change;
+  cb.on_minisplit_hvac_mode = on_minisplit_hvac_mode;
+  cb.on_minisplit_fan_mode = on_minisplit_fan_mode;
+  cb.on_minisplit_vane_step = on_minisplit_vane_step;
   ui_set_callbacks(cb);
+
+  ui_configure_optional_pages(controls_page_enabled_,
+                              minisplit_page_enabled_);
+  for (uint8_t i = 0; i < control_count_; ++i) {
+    ui_add_control(i, controls_[i].type, controls_[i].name.c_str());
+  }
+  const char *hvac_modes[theme::kMaxClimateOptions] = {};
+  const char *fan_modes[theme::kMaxClimateOptions] = {};
+  for (uint8_t i = 0; i < hvac_mode_count_; ++i) {
+    hvac_modes[i] = hvac_modes_[i].c_str();
+  }
+  for (uint8_t i = 0; i < fan_mode_count_; ++i) {
+    fan_modes[i] = fan_modes_[i].c_str();
+  }
+  ui_set_minisplit_options(
+      hvac_modes, hvac_mode_count_, fan_modes, fan_mode_count_,
+      min_temperature_, max_temperature_, temperature_step_,
+      temperature_unit_.c_str());
 
   // Build the UI (LVGL must already be initialized by the lvgl: component).
   ui_init();
+  setup_home_assistant_subscriptions_();
 
   // Initialize NVS and load persisted alarms + settings.
   storage_init();
   load_from_storage_();
 
   ESP_LOGI(TAG, "AlarmClock ready");
+}
+
+void AlarmClockComponent::add_control(uint8_t type, const std::string &name,
+                                      const std::string &entity_id) {
+  if (control_count_ >= theme::kMaxControls) {
+    ESP_LOGE(TAG, "Ignoring control '%s': maximum is %u", name.c_str(),
+             theme::kMaxControls);
+    return;
+  }
+  auto &control = controls_[control_count_++];
+  control.type = static_cast<UiControlType>(type);
+  control.name = name;
+  control.entity_id = entity_id;
+}
+
+void AlarmClockComponent::add_hvac_mode(const std::string &mode) {
+  if (hvac_mode_count_ < theme::kMaxClimateOptions) {
+    hvac_modes_[hvac_mode_count_++] = mode;
+  }
+}
+
+void AlarmClockComponent::add_fan_mode(const std::string &mode) {
+  if (fan_mode_count_ < theme::kMaxClimateOptions) {
+    fan_modes_[fan_mode_count_++] = mode;
+  }
+}
+
+static bool ha_state_available(::esphome::StringRef state) {
+  return !state.empty() && state != "unknown" && state != "unavailable";
+}
+
+static float parse_ha_float(::esphome::StringRef state) {
+  if (!ha_state_available(state)) {
+    return NAN;
+  }
+  char *end = nullptr;
+  float value = std::strtof(state.c_str(), &end);
+  if (end == state.c_str() || *end != '\0' || !std::isfinite(value)) {
+    return NAN;
+  }
+  return value;
+}
+
+void AlarmClockComponent::setup_home_assistant_subscriptions_() {
+  if (controls_page_enabled_) {
+    for (uint8_t i = 0; i < control_count_; ++i) {
+      auto &control = controls_[i];
+      if (control.type == UiControlType::kAction ||
+          control.entity_id.empty()) {
+        continue;
+      }
+      ::esphome::api::global_api_server->subscribe_home_assistant_state(
+          control.entity_id, {},
+          [this, i](::esphome::StringRef state) {
+            this->on_control_state_(i, state);
+          });
+      if (control.type == UiControlType::kDimmer) {
+        ::esphome::api::global_api_server->subscribe_home_assistant_state(
+            control.entity_id, std::string("brightness"),
+            [this, i](::esphome::StringRef state) {
+              this->on_control_brightness_(i, state);
+            });
+      }
+    }
+  }
+
+  if (!minisplit_page_enabled_) {
+    return;
+  }
+  auto subscribe_climate_string =
+      [this](const char *attribute, std::string *target) {
+        ::esphome::api::global_api_server->subscribe_home_assistant_state(
+            climate_entity_id_, std::string(attribute),
+            [this, target](::esphome::StringRef state) {
+              this->on_climate_string_state_(target, state);
+            });
+      };
+  auto subscribe_climate_number = [this](const char *attribute,
+                                         float *target) {
+    ::esphome::api::global_api_server->subscribe_home_assistant_state(
+        climate_entity_id_, std::string(attribute),
+        [this, target](::esphome::StringRef state) {
+          this->on_climate_number_state_(target, state);
+        });
+  };
+
+  ::esphome::api::global_api_server->subscribe_home_assistant_state(
+      climate_entity_id_, {},
+      [this](::esphome::StringRef state) {
+        climate_available_ = ha_state_available(state);
+        climate_mode_ = climate_available_ ? state.str() : "";
+        refresh_minisplit_ui_();
+      });
+  subscribe_climate_string("hvac_action", &climate_action_);
+  subscribe_climate_string("fan_mode", &climate_fan_mode_);
+  subscribe_climate_number("current_temperature",
+                           &climate_current_temperature_);
+  subscribe_climate_number("temperature", &climate_target_temperature_);
+
+  ::esphome::api::global_api_server->subscribe_home_assistant_state(
+      horizontal_vane_entity_id_, {},
+      [this](::esphome::StringRef state) {
+        horizontal_vane_state_ =
+            ha_state_available(state) ? state.str() : "";
+        refresh_minisplit_ui_();
+      });
+  ::esphome::api::global_api_server->subscribe_home_assistant_state(
+      vertical_vane_entity_id_, {},
+      [this](::esphome::StringRef state) {
+        vertical_vane_state_ =
+            ha_state_available(state) ? state.str() : "";
+        refresh_minisplit_ui_();
+      });
+}
+
+void AlarmClockComponent::on_control_state_(uint8_t index,
+                                            ::esphome::StringRef state) {
+  if (index >= control_count_) {
+    return;
+  }
+  auto &control = controls_[index];
+  control.available = ha_state_available(state);
+  control.state = control.available ? state.str() : "";
+  ui_update_control_state(index, control.state.c_str(), control.available);
+}
+
+void AlarmClockComponent::on_control_brightness_(
+    uint8_t index, ::esphome::StringRef state) {
+  if (index >= control_count_) {
+    return;
+  }
+  auto &control = controls_[index];
+  const float raw = parse_ha_float(state);
+  control.brightness = std::isfinite(raw) ? raw / 255.0f : NAN;
+  ui_update_control_brightness(index, control.brightness,
+                               control.available &&
+                                   std::isfinite(control.brightness));
+}
+
+void AlarmClockComponent::on_climate_string_state_(
+    std::string *target, ::esphome::StringRef state) {
+  if (target == nullptr) {
+    return;
+  }
+  *target = ha_state_available(state) ? state.str() : "";
+  refresh_minisplit_ui_();
+}
+
+void AlarmClockComponent::on_climate_number_state_(
+    float *target, ::esphome::StringRef state) {
+  if (target == nullptr) {
+    return;
+  }
+  *target = parse_ha_float(state);
+  refresh_minisplit_ui_();
+}
+
+void AlarmClockComponent::refresh_minisplit_ui_() {
+  ui_update_minisplit_state(
+      climate_mode_.c_str(), climate_action_.c_str(),
+      climate_current_temperature_, climate_target_temperature_,
+      climate_fan_mode_.c_str(), horizontal_vane_state_.c_str(),
+      vertical_vane_state_.c_str(), climate_available_);
+}
+
+void AlarmClockComponent::call_ha_action_(
+    const std::string &action,
+    const std::map<std::string, std::string> &data) {
+  if (!this->is_connected()) {
+    ESP_LOGW(TAG, "Cannot call %s: Home Assistant API is disconnected",
+             action.c_str());
+    return;
+  }
+  this->call_homeassistant_service(action, data);
+}
+
+void AlarmClockComponent::press_control_(uint8_t index) {
+  if (index >= control_count_) {
+    return;
+  }
+  auto &control = controls_[index];
+  if (control.type == UiControlType::kAction) {
+    control_action_triggers_[index].trigger();
+    return;
+  }
+  if (!control.available) {
+    ESP_LOGW(TAG, "Cannot toggle unavailable entity %s",
+             control.entity_id.c_str());
+    return;
+  }
+  call_ha_action_("homeassistant.toggle",
+                  {{"entity_id", control.entity_id}});
+}
+
+void AlarmClockComponent::set_control_brightness_(uint8_t index,
+                                                  float brightness) {
+  if (index >= control_count_ ||
+      controls_[index].type != UiControlType::kDimmer ||
+      !controls_[index].available) {
+    return;
+  }
+  brightness = std::max(0.0f, std::min(1.0f, brightness));
+  char value[8];
+  snprintf(value, sizeof(value), "%.0f", brightness * 100.0f);
+  call_ha_action_("light.turn_on",
+                  {{"entity_id", controls_[index].entity_id},
+                   {"brightness_pct", value}});
+}
+
+void AlarmClockComponent::toggle_minisplit_power_() {
+  if (!climate_available_) {
+    ESP_LOGW(TAG, "Cannot toggle unavailable climate entity %s",
+             climate_entity_id_.c_str());
+    return;
+  }
+  call_ha_action_("climate.toggle", {{"entity_id", climate_entity_id_}});
+}
+
+void AlarmClockComponent::change_minisplit_temperature_(float delta) {
+  if (!climate_available_ || !std::isfinite(climate_target_temperature_)) {
+    ESP_LOGW(TAG, "Cannot adjust target temperature without a valid target");
+    return;
+  }
+  float target = climate_target_temperature_ + delta * temperature_step_;
+  target = std::max(min_temperature_, std::min(max_temperature_, target));
+  char value[16];
+  snprintf(value, sizeof(value), "%.1f", target);
+  call_ha_action_("climate.set_temperature",
+                  {{"entity_id", climate_entity_id_},
+                   {"temperature", value}});
+}
+
+void AlarmClockComponent::set_minisplit_hvac_mode_(const char *mode) {
+  if (!climate_available_ || mode == nullptr || mode[0] == '\0') {
+    return;
+  }
+  call_ha_action_("climate.set_hvac_mode",
+                  {{"entity_id", climate_entity_id_}, {"hvac_mode", mode}});
+}
+
+void AlarmClockComponent::set_minisplit_fan_mode_(const char *mode) {
+  if (!climate_available_ || mode == nullptr || mode[0] == '\0') {
+    return;
+  }
+  call_ha_action_("climate.set_fan_mode",
+                  {{"entity_id", climate_entity_id_}, {"fan_mode", mode}});
+}
+
+void AlarmClockComponent::step_minisplit_vane_(bool horizontal, bool next) {
+  const std::string &entity =
+      horizontal ? horizontal_vane_entity_id_ : vertical_vane_entity_id_;
+  if (entity.empty()) {
+    return;
+  }
+  call_ha_action_(next ? "select.select_next" : "select.select_previous",
+                  {{"entity_id", entity}, {"cycle", "true"}});
 }
 
 void AlarmClockComponent::loop() {

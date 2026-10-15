@@ -47,6 +47,16 @@ static void nav_settings_cb(lv_event_t *e) {
   ui_show_settings_page();
 }
 
+static void nav_controls_cb(lv_event_t *e) {
+  (void)e;
+  ui_show_controls_page();
+}
+
+static void nav_minisplit_cb(lv_event_t *e) {
+  (void)e;
+  ui_show_minisplit_page();
+}
+
 static lv_obj_t *create_nav_button(lv_obj_t *parent, const char *text,
                                    lv_align_t align, lv_coord_t x,
                                    lv_coord_t y, uint32_t bg_color,
@@ -73,6 +83,14 @@ static lv_obj_t *create_nav_button(lv_obj_t *parent, const char *text,
 void ui_build_clock_page(lv_obj_t *parent) {
   create_nav_button(parent, LV_SYMBOL_SETTINGS, LV_ALIGN_TOP_LEFT, 16, 16,
                     0x1F1F1F, nav_settings_cb);
+  if (ui_controls_page_enabled()) {
+    create_nav_button(parent, "HA", LV_ALIGN_TOP_LEFT, 88, 16,
+                      theme::kColorMuted, nav_controls_cb);
+  }
+  if (ui_minisplit_page_enabled()) {
+    create_nav_button(parent, "AC", LV_ALIGN_TOP_RIGHT, -88, 16,
+                      theme::kColorMuted, nav_minisplit_cb);
+  }
   create_nav_button(parent, LV_SYMBOL_BELL, LV_ALIGN_TOP_RIGHT, -16, 16,
                     theme::kColorAccent, nav_alarms_cb);
 
@@ -130,6 +148,7 @@ void ui_update_clock(uint8_t hour, uint8_t minute, bool time_format_24h) {
   }
   last_hour_ = hour;
   last_minute_ = minute;
+  ui_update_header_time(hour, minute, time_format_24h);
   char buf[12];
   if (time_format_24h) {
     snprintf(buf, sizeof(buf), "%02d:%02d", hour, minute);
