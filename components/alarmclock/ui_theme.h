@@ -46,7 +46,12 @@ static constexpr int16_t kFiringDismissY = 150;
 static constexpr uint8_t kPageClock = 0;
 static constexpr uint8_t kPageAlarms = 1;
 static constexpr uint8_t kPageSettings = 2;
-static constexpr uint8_t kPageCount = 3;
+static constexpr uint8_t kPageControls = 3;
+static constexpr uint8_t kPageMinisplit = 4;
+static constexpr uint8_t kPageCount = 5;
+
+static constexpr uint8_t kMaxControls = 6;
+static constexpr uint8_t kMaxClimateOptions = 8;
 
 }  // namespace theme
 }  // namespace alarmclock

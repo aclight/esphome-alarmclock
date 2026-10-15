@@ -13,20 +13,30 @@ namespace alarmclock {
 void ui_build_clock_page(lv_obj_t *parent);
 void ui_build_alarm_page(lv_obj_t *parent);
 void ui_build_settings_page(lv_obj_t *parent);
+void ui_build_controls_page(lv_obj_t *parent);
+void ui_build_minisplit_page(lv_obj_t *parent);
 void ui_build_firing_overlay(lv_obj_t *parent);
 
 // Called once after LVGL is initialized to build the entire UI.
 void ui_init();
+void ui_configure_optional_pages(bool controls_enabled,
+                                 bool minisplit_enabled);
+bool ui_controls_page_enabled();
+bool ui_minisplit_page_enabled();
 
 // Page navigation.
 void ui_show_clock_page();
 void ui_show_alarm_page();
 void ui_show_settings_page();
+void ui_show_controls_page();
+void ui_show_minisplit_page();
 void ui_show_page(uint8_t page_index);
 uint8_t ui_current_page();
 
 // Shared fixed header used by secondary pages.
 void ui_create_page_header(lv_obj_t *parent, const char *title);
+void ui_update_header_time(uint8_t hour, uint8_t minute,
+                           bool time_format_24h);
 
 // Firing overlay control.
 void ui_show_firing_overlay();
@@ -48,6 +58,33 @@ void ui_update_sound_selection(uint8_t sound_index);
 void ui_update_snooze_selection(uint8_t option_index);
 void ui_update_time_format(bool time_format_24h);
 void ui_update_pre_alarm_selection(uint8_t option_index);
+
+enum class UiControlType : uint8_t {
+  kToggle = 0,
+  kAction = 1,
+  kDimmer = 2,
+};
+
+void ui_add_control(uint8_t index, UiControlType type, const char *name);
+void ui_update_control_state(uint8_t index, const char *state,
+                             bool available);
+void ui_update_control_brightness(uint8_t index, float brightness,
+                                  bool available);
+
+void ui_set_minisplit_options(const char *const *hvac_modes,
+                              uint8_t hvac_mode_count,
+                              const char *const *fan_modes,
+                              uint8_t fan_mode_count,
+                              float min_temperature,
+                              float max_temperature,
+                              float temperature_step,
+                              const char *temperature_unit);
+void ui_update_minisplit_state(const char *mode, const char *action,
+                               float current_temperature,
+                               float target_temperature, const char *fan_mode,
+                               const char *horizontal_vane,
+                               const char *vertical_vane, bool available);
+void ui_close_minisplit_picker();
 
 // Alarm list management.
 // |now_hour|/|now_minute| are the current time-of-day, used to label a
@@ -98,6 +135,14 @@ struct UiCallbacks {
   void (*on_snooze_duration_change)(uint8_t option_index) = nullptr;
   void (*on_time_format_change)(bool time_format_24h) = nullptr;
   void (*on_pre_alarm_change)(uint8_t option_index) = nullptr;
+  void (*on_control_press)(uint8_t index) = nullptr;
+  void (*on_control_brightness_change)(uint8_t index, float brightness) =
+      nullptr;
+  void (*on_minisplit_power)() = nullptr;
+  void (*on_minisplit_temperature_change)(float delta) = nullptr;
+  void (*on_minisplit_hvac_mode)(const char *mode) = nullptr;
+  void (*on_minisplit_fan_mode)(const char *mode) = nullptr;
+  void (*on_minisplit_vane_step)(bool horizontal, bool next) = nullptr;
 };
 
 void ui_set_callbacks(const UiCallbacks &cb);

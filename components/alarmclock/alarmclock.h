@@ -9,6 +9,8 @@
 #include <cstdint>
 #include <cstdio>
 #include <ctime>
+#include <array>
+#include <map>
 #include <string>
 #include <utility>
 
@@ -20,6 +22,8 @@
 // ESPHome headers must be included outside the alarmclock namespace.
 #ifndef UNIT_TEST
 #include "esphome/core/component.h"
+#include "esphome/core/automation.h"
+#include "esphome/components/api/custom_api_device.h"
 #include "esphome/components/i2c/i2c.h"
 #include "ui.h"
 #endif  // UNIT_TEST
@@ -777,7 +781,8 @@ namespace alarmclock {
 static constexpr uint8_t kMaxAlarms = kMaxAlarmsCount;
 
 class AlarmClockComponent : public ::esphome::Component,
-                            public ::esphome::i2c::I2CDevice {
+                            public ::esphome::i2c::I2CDevice,
+                            public ::esphome::api::CustomAPIDevice {
  public:
   void setup() override;
   void loop() override;
@@ -837,6 +842,34 @@ class AlarmClockComponent : public ::esphome::Component,
   void set_speaker_amp_mode(uint8_t mode) {
     speaker_amp_mode_ = static_cast<SpeakerAmpMode>(mode);
   }
+  void enable_controls_page() { controls_page_enabled_ = true; }
+  void enable_minisplit_page() { minisplit_page_enabled_ = true; }
+  void add_control(uint8_t type, const std::string &name,
+                   const std::string &entity_id);
+  ::esphome::Trigger<> *get_control_action_trigger(uint8_t index) {
+    return index < theme::kMaxControls ? &control_action_triggers_[index]
+                                      : nullptr;
+  }
+  void set_climate_entity_id(const std::string &entity_id) {
+    climate_entity_id_ = entity_id;
+  }
+  void set_horizontal_vane_entity_id(const std::string &entity_id) {
+    horizontal_vane_entity_id_ = entity_id;
+  }
+  void set_vertical_vane_entity_id(const std::string &entity_id) {
+    vertical_vane_entity_id_ = entity_id;
+  }
+  void set_temperature_limits(float min_temperature, float max_temperature,
+                              float temperature_step) {
+    min_temperature_ = min_temperature;
+    max_temperature_ = max_temperature;
+    temperature_step_ = temperature_step;
+  }
+  void set_temperature_unit(const std::string &unit) {
+    temperature_unit_ = unit;
+  }
+  void add_hvac_mode(const std::string &mode);
+  void add_fan_mode(const std::string &mode);
   void on_rtttl_finished();
 
   // --- Screen sleep/wake ---
@@ -858,6 +891,15 @@ class AlarmClockComponent : public ::esphome::Component,
   void check_alarms_(uint8_t hour, uint8_t minute, uint8_t day_of_week);
 
  private:
+  struct ControlState {
+    UiControlType type = UiControlType::kToggle;
+    std::string name;
+    std::string entity_id;
+    std::string state;
+    float brightness = NAN;
+    bool available = false;
+  };
+
   // Alarm storage.
   AlarmTime alarms_[kMaxAlarms] = {};
   AlarmStateMachine state_machine_;
@@ -912,7 +954,55 @@ class AlarmClockComponent : public ::esphome::Component,
   // Tracks whether the home page alarm summary needs refresh.
   bool next_alarm_dirty_ = true;
 
+  bool controls_page_enabled_ = false;
+  bool minisplit_page_enabled_ = false;
+  std::array<ControlState, theme::kMaxControls> controls_;
+  std::array<::esphome::Trigger<>, theme::kMaxControls>
+      control_action_triggers_;
+  uint8_t control_count_ = 0;
+
+  std::string climate_entity_id_;
+  std::string horizontal_vane_entity_id_;
+  std::string vertical_vane_entity_id_;
+  std::array<std::string, theme::kMaxClimateOptions> hvac_modes_;
+  std::array<std::string, theme::kMaxClimateOptions> fan_modes_;
+  uint8_t hvac_mode_count_ = 0;
+  uint8_t fan_mode_count_ = 0;
+  float min_temperature_ = 60.0f;
+  float max_temperature_ = 88.0f;
+  float temperature_step_ = 1.0f;
+  std::string temperature_unit_ = "°F";
+  std::string climate_mode_;
+  std::string climate_action_;
+  std::string climate_fan_mode_;
+  std::string horizontal_vane_state_;
+  std::string vertical_vane_state_;
+  float climate_current_temperature_ = NAN;
+  float climate_target_temperature_ = NAN;
+  bool climate_available_ = false;
+
   // Internal helpers.
+  void setup_home_assistant_subscriptions_();
+  void on_control_state_(uint8_t index, ::esphome::StringRef state);
+  void on_control_brightness_(uint8_t index, ::esphome::StringRef state);
+  void on_climate_string_state_(std::string *target,
+                                ::esphome::StringRef state);
+  void on_climate_number_state_(float *target, ::esphome::StringRef state);
+  void refresh_minisplit_ui_();
+
+ public:
+  // UI event entry points.
+  void press_control_(uint8_t index);
+  void set_control_brightness_(uint8_t index, float brightness);
+  void toggle_minisplit_power_();
+  void change_minisplit_temperature_(float delta);
+  void set_minisplit_hvac_mode_(const char *mode);
+  void set_minisplit_fan_mode_(const char *mode);
+  void step_minisplit_vane_(bool horizontal, bool next);
+
+ private:
+  void call_ha_action_(const std::string &action,
+                       const std::map<std::string, std::string> &data);
   bool is_alarm_configured_(const AlarmTime &alarm) const;
   uint8_t configured_alarm_count_() const;
   void sync_alarm_slots_ui_();

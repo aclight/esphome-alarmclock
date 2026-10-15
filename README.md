@@ -51,6 +51,67 @@ The CrowPanel Advance 4.3" has a 4-position DIP switch used during flashing and 
 - **Adaptive display brightness** — Calibrated ambient-light control with separate daytime and night preferences
 - **Home Assistant integration** — Alarm control, sensor data, OTA updates via ESPHome API
 - **LVGL touchscreen UI** — Clock faces, alarm configuration, settings screens
+- **Optional Home Assistant controls page** — Up to 6 toggle, pushbutton and dimmer controls
+- **Optional minisplit page** — Power, target temperature, HVAC mode, fan speed and vane controls for a Home Assistant climate entity
+
+## Optional Pages
+
+Both pages are off unless configured, and each can be enabled independently.
+When enabled, an **HA** (controls) and/or **AC** (minisplit) button appears in
+the top bar of the clock page. Each page has a Home button and shows the
+current time in its header. Both need Home Assistant 2026.10 or newer with
+`homeassistant_states: true` and `homeassistant_services: true` under `api:`
+(already set in `alarmclock.yaml`). While the API is disconnected, or an
+entity is `unavailable`/`unknown`, the UI shows it as unavailable and ignores
+presses on it.
+
+### Controls page
+
+```yaml
+alarmclock:
+  controls_page:
+    controls:            # up to 6, shown in a 3x2 grid
+      - type: toggle     # tap toggles the entity and mirrors its state
+        name: Desk Lamp
+        entity_id: light.desk_lamp
+      - type: dimmer     # slider sets brightness; releases call light.turn_on
+        name: Bedside
+        entity_id: light.bedside
+      - type: action     # pushbutton that runs ESPHome actions
+        name: Goodnight
+        on_press:
+          - homeassistant.action:
+              action: automation.trigger
+              data:
+                entity_id: automation.goodnight
+```
+
+`toggle` calls `homeassistant.toggle` on any entity that supports it.
+`dimmer` expects a `light` entity and maps Home Assistant's 0-255 `brightness`
+attribute to 0-100%.
+
+### Minisplit page
+
+```yaml
+alarmclock:
+  minisplit_page:
+    climate_entity_id: climate.master_bedroom_climate
+    horizontal_vane_entity_id: select.mitsubishi_heat_pump_horizontal_vane
+    vertical_vane_entity_id: select.mitsubishi_heat_pump_vertical_vane
+    # Optional overrides (defaults shown)
+    hvac_modes: [off, heat, cool, heat_cool, dry, fan_only]
+    fan_modes: [auto, quiet, low, medium, high]
+    min_temperature: 60
+    max_temperature: 88
+    temperature_step: 1
+    temperature_unit: "°F"
+```
+
+The page ports the behaviour of `m5stack-dial-thermostat.yaml`: a power
+button (`climate.toggle`), +/- target temperature (clamped to the min/max),
+mode and fan pickers, and previous/next vane buttons (`select.select_next` /
+`select.select_previous` with `cycle`). Set `hvac_modes` and `fan_modes` to
+the values your climate entity actually supports (up to 8 each).
 
 ## Software Stack
 
@@ -138,7 +199,7 @@ independent defects — both are required, neither alone is sufficient:
 
 Both options come from the versioned
 [`esphome-mipi-rgb`](https://github.com/aclight/esphome-mipi-rgb) external
-component. `alarmclock-p4-5inch.yaml` pins the ESPHome 2026.7.4 release tag.
+component. `alarmclock-p4-5inch.yaml` pins the ESPHome 2026.9.1 release tag.
 The S3 config deliberately does not use it — see the note at the end of this
 section.
 
@@ -177,14 +238,14 @@ should have removed entirely rather than merely widened the margin on.
 ### Upgrading ESPHome
 
 The external `esphome-mipi-rgb` component is a modified copy of ESPHome's
-built-in component and is currently pinned to **2026.7.4**. ESPHome's
+built-in component and is currently pinned to **2026.9.1**. ESPHome's
 external-component loader installs itself at the front of `sys.meta_path`, so
 the external copy **always shadows the built-in one**. Bumping the ESPHome
 version therefore never picks up upstream changes to `mipi_rgb`; the fork and
 the configuration's release tag have to be updated deliberately.
 
 1. In the external component repository, diff upstream's
-  `esphome/components/mipi_rgb/` at the new version against the 2026.7.4
+  `esphome/components/mipi_rgb/` at the new version against the 2026.9.1
   baseline and reapply the fork's documented changes. That component has
   changed rarely, so this is usually a small job.
 2. Make the upgrade its own change with its own soak. Do not combine it with
