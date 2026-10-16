@@ -237,7 +237,8 @@ void AlarmClockComponent::setup() {
   ui_configure_optional_pages(controls_page_enabled_,
                               minisplit_page_enabled_);
   for (uint8_t i = 0; i < control_count_; ++i) {
-    ui_add_control(i, controls_[i].type, controls_[i].name.c_str());
+    ui_add_control(i, controls_[i].type, controls_[i].name.c_str(),
+                   controls_[i].entity_id.c_str());
   }
   const char *hvac_modes[theme::kMaxClimateOptions] = {};
   const char *fan_modes[theme::kMaxClimateOptions] = {};
@@ -395,9 +396,7 @@ void AlarmClockComponent::on_control_brightness_(
   auto &control = controls_[index];
   const float raw = parse_ha_float(state);
   control.brightness = std::isfinite(raw) ? raw / 255.0f : NAN;
-  ui_update_control_brightness(index, control.brightness,
-                               control.available &&
-                                   std::isfinite(control.brightness));
+  ui_update_control_brightness(index, control.brightness);
 }
 
 void AlarmClockComponent::on_climate_string_state_(
@@ -434,6 +433,11 @@ void AlarmClockComponent::call_ha_action_(
              action.c_str());
     return;
   }
+  const auto entity = data.find("entity_id");
+  // Home Assistant rejects these (raising a repair issue) unless the device
+  // may perform actions (ESPHome integration > Configure), so log each call.
+  ESP_LOGI(TAG, "Calling Home Assistant action %s on %s", action.c_str(),
+           entity == data.end() ? "(no entity)" : entity->second.c_str());
   this->call_homeassistant_service(action, data);
 }
 

@@ -5,6 +5,7 @@
 #include "tests/test_framework.h"
 #include "components/alarmclock/alarmclock.h"
 #include "components/alarmclock/storage.h"
+#include "components/alarmclock/ui_icons.h"
 #include <cstring>
 
 using namespace alarmclock;
@@ -2213,6 +2214,32 @@ TEST(hour_12_to_24_out_of_range) {
 }
 
 // ---------------------------------------------------------------------------
+// Controls page icons
+// ---------------------------------------------------------------------------
+
+TEST(control_icon_kind_by_domain) {
+    ASSERT_TRUE(control_icon_kind(false, "light.desk") == ControlIconKind::kLight);
+    ASSERT_TRUE(control_icon_kind(false, "fan.ceiling") == ControlIconKind::kFan);
+    ASSERT_TRUE(control_icon_kind(false, "switch.lamps") == ControlIconKind::kSwitch);
+    ASSERT_TRUE(control_icon_kind(false, "input_boolean.guest") == ControlIconKind::kPower);
+    ASSERT_TRUE(control_icon_kind(false, "lightning.x") == ControlIconKind::kPower);
+    ASSERT_TRUE(control_icon_kind(false, "") == ControlIconKind::kPower);
+    ASSERT_TRUE(control_icon_kind(false, nullptr) == ControlIconKind::kPower);
+    ASSERT_TRUE(control_icon_kind(true, "light.desk") == ControlIconKind::kAction);
+    PASS();
+}
+
+TEST(control_icon_reflects_state) {
+    ASSERT_EQ(std::strcmp(control_icon(ControlIconKind::kLight, true), icons::kLightbulb), 0);
+    ASSERT_EQ(std::strcmp(control_icon(ControlIconKind::kLight, false), icons::kLightbulbOutline), 0);
+    ASSERT_EQ(std::strcmp(control_icon(ControlIconKind::kFan, false), icons::kFanOff), 0);
+    ASSERT_EQ(std::strcmp(control_icon(ControlIconKind::kSwitch, true), icons::kPowerPlug), 0);
+    ASSERT_EQ(std::strcmp(control_icon(ControlIconKind::kSwitch, false), icons::kPowerPlugOff), 0);
+    ASSERT_EQ(std::strcmp(control_icon(ControlIconKind::kAction, false), icons::kGestureTapButton), 0);
+    PASS();
+}
+
+// ---------------------------------------------------------------------------
 // main — register every TEST here.
 // ---------------------------------------------------------------------------
 
@@ -2510,6 +2537,9 @@ int main() {
     // D5: hour_24_to_12 / hour_12_to_24 out-of-range (PLAN.md D5)
     RUN(hour_24_to_12_out_of_range);
     RUN(hour_12_to_24_out_of_range);
+
+    RUN(control_icon_kind_by_domain);
+    RUN(control_icon_reflects_state);
 
     printf("\n%d test(s) run, %d failed.\n", tests_run, tests_failed);
     return tests_failed == 0 ? 0 : 1;

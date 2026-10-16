@@ -65,11 +65,12 @@ enum class UiControlType : uint8_t {
   kDimmer = 2,
 };
 
-void ui_add_control(uint8_t index, UiControlType type, const char *name);
+void ui_add_control(uint8_t index, UiControlType type, const char *name,
+                    const char *entity_id);
 void ui_update_control_state(uint8_t index, const char *state,
                              bool available);
-void ui_update_control_brightness(uint8_t index, float brightness,
-                                  bool available);
+// |brightness| is 0.0-1.0, or NaN when Home Assistant reports none.
+void ui_update_control_brightness(uint8_t index, float brightness);
 
 void ui_set_minisplit_options(const char *const *hvac_modes,
                               uint8_t hvac_mode_count,
