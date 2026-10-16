@@ -3,6 +3,7 @@
 
 #include "ui.h"
 #include "ui_theme.h"
+#include "ui_icons.h"
 #include "alarmclock.h"
 #include "lvgl.h"
 #include <cstdio>
@@ -60,7 +61,9 @@ static void nav_minisplit_cb(lv_event_t *e) {
 static lv_obj_t *create_nav_button(lv_obj_t *parent, const char *text,
                                    lv_align_t align, lv_coord_t x,
                                    lv_coord_t y, uint32_t bg_color,
-                                   lv_event_cb_t cb) {
+                                   lv_event_cb_t cb,
+                                   const lv_font_t *font =
+                                       &lv_font_montserrat_28) {
   lv_obj_t *btn = lv_button_create(parent);
   lv_obj_set_size(btn, theme::kNavButtonWidth, theme::kNavButtonHeight);
   lv_obj_align(btn, align, x, y);
@@ -71,7 +74,7 @@ static lv_obj_t *create_nav_button(lv_obj_t *parent, const char *text,
 
   lv_obj_t *label = lv_label_create(btn);
   lv_obj_center(label);
-  lv_obj_set_style_text_font(label, &lv_font_montserrat_28, 0);
+  lv_obj_set_style_text_font(label, font, 0);
   lv_obj_set_style_text_color(label, lv_color_hex(theme::kColorPrimary), 0);
   lv_label_set_text(label, text);
   return btn;
@@ -84,12 +87,12 @@ void ui_build_clock_page(lv_obj_t *parent) {
   create_nav_button(parent, LV_SYMBOL_SETTINGS, LV_ALIGN_TOP_LEFT, 16, 16,
                     0x1F1F1F, nav_settings_cb);
   if (ui_controls_page_enabled()) {
-    create_nav_button(parent, "HA", LV_ALIGN_TOP_LEFT, 88, 16,
-                      theme::kColorMuted, nav_controls_cb);
+    create_nav_button(parent, icons::kLightbulb, LV_ALIGN_TOP_LEFT, 88, 16,
+                      theme::kColorMuted, nav_controls_cb, &icon_font_36);
   }
   if (ui_minisplit_page_enabled()) {
-    create_nav_button(parent, "AC", LV_ALIGN_TOP_RIGHT, -88, 16,
-                      theme::kColorMuted, nav_minisplit_cb);
+    create_nav_button(parent, icons::kSnowflake, LV_ALIGN_TOP_RIGHT, -88, 16,
+                      theme::kColorMuted, nav_minisplit_cb, &icon_font_36);
   }
   create_nav_button(parent, LV_SYMBOL_BELL, LV_ALIGN_TOP_RIGHT, -16, 16,
                     theme::kColorAccent, nav_alarms_cb);

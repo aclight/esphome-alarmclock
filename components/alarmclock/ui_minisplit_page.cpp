@@ -2,6 +2,7 @@
 #ifndef UNIT_TEST
 
 #include "ui.h"
+#include "ui_icons.h"
 #include "ui_theme.h"
 
 #include <algorithm>
@@ -147,6 +148,35 @@ static void vane_step_cb(lv_event_t *event) {
   }
 }
 
+static void refresh_picker_selection() {
+  if (picker_kind_ != PickerKind::kHvac && picker_kind_ != PickerKind::kFan) {
+    return;
+  }
+  const bool hvac = picker_kind_ == PickerKind::kHvac;
+  const uint8_t count = hvac ? hvac_mode_count_ : fan_mode_count_;
+  const auto &options = hvac ? hvac_modes_ : fan_modes_;
+  const std::string &current = hvac ? climate_mode_ : climate_fan_mode_;
+  for (uint8_t i = 0; i < count; ++i) {
+    const bool selected = !current.empty() && options[i] == current;
+    const char *name =
+        hvac ? display_mode_name(options[i].c_str()) : options[i].c_str();
+    char text[48];
+    if (selected) {
+      snprintf(text, sizeof(text), LV_SYMBOL_OK " %s", name);
+    } else {
+      snprintf(text, sizeof(text), "%s", name);
+    }
+    lv_label_set_text(picker_option_labels_[i], text);
+    lv_obj_set_style_bg_color(
+        picker_option_buttons_[i],
+        lv_color_hex(selected ? theme::kColorAccent : theme::kColorMuted), 0);
+    lv_obj_set_style_border_color(
+        picker_option_buttons_[i], lv_color_hex(theme::kColorPrimary), 0);
+    lv_obj_set_style_border_width(picker_option_buttons_[i],
+                                  selected ? 3 : 0, 0);
+  }
+}
+
 static void show_picker(PickerKind kind) {
   picker_kind_ = kind;
   lv_obj_clear_flag(picker_overlay_, LV_OBJ_FLAG_HIDDEN);
@@ -154,8 +184,6 @@ static void show_picker(PickerKind kind) {
                     kind == PickerKind::kVerticalVane;
   const uint8_t count =
       kind == PickerKind::kHvac ? hvac_mode_count_ : fan_mode_count_;
-  const auto &options =
-      kind == PickerKind::kHvac ? hvac_modes_ : fan_modes_;
 
   const char *title = "Select";
   if (kind == PickerKind::kHvac) {
@@ -171,16 +199,12 @@ static void show_picker(PickerKind kind) {
 
   for (uint8_t i = 0; i < theme::kMaxClimateOptions; ++i) {
     if (!vane && i < count) {
-      lv_label_set_text(
-          picker_option_labels_[i],
-          kind == PickerKind::kHvac
-              ? display_mode_name(options[i].c_str())
-              : options[i].c_str());
       lv_obj_clear_flag(picker_option_buttons_[i], LV_OBJ_FLAG_HIDDEN);
     } else {
       lv_obj_add_flag(picker_option_buttons_[i], LV_OBJ_FLAG_HIDDEN);
     }
   }
+  refresh_picker_selection();
   if (vane) {
     lv_label_set_text(
         vane_state_label_,
@@ -344,25 +368,28 @@ void ui_build_minisplit_page(lv_obj_t *parent) {
   create_button_label(
       temperature_up_button_, LV_SYMBOL_PLUS, &lv_font_montserrat_32);
 
-  power_button_ =
-      create_control_button(parent, 555, 105, 210, 65, power_button_cb);
-  create_button_label(power_button_, "Power", &lv_font_montserrat_24);
   mode_button_ =
-      create_control_button(parent, 555, 180, 210, 55, mode_button_cb);
+      create_control_button(parent, 555, 105, 210, 70, mode_button_cb);
   mode_label_ =
       create_button_label(mode_button_, "Mode: --", &lv_font_montserrat_20);
   fan_button_ =
-      create_control_button(parent, 555, 245, 210, 55, fan_button_cb);
+      create_control_button(parent, 555, 187, 210, 70, fan_button_cb);
   fan_label_ =
       create_button_label(fan_button_, "Fan: --", &lv_font_montserrat_20);
   horizontal_button_ =
-      create_control_button(parent, 555, 310, 210, 55, horizontal_button_cb);
+      create_control_button(parent, 555, 269, 210, 70, horizontal_button_cb);
   horizontal_label_ = create_button_label(
       horizontal_button_, "Horizontal: --", &lv_font_montserrat_18);
   vertical_button_ =
-      create_control_button(parent, 555, 375, 210, 55, vertical_button_cb);
+      create_control_button(parent, 555, 351, 210, 70, vertical_button_cb);
   vertical_label_ = create_button_label(
       vertical_button_, "Vertical: --", &lv_font_montserrat_18);
+
+  // Kept small and in the corner, away from the other controls, so it is
+  // hard to hit by accident.
+  power_button_ =
+      create_control_button(parent, 20, 390, 90, 70, power_button_cb);
+  create_button_label(power_button_, icons::kPower, &icon_font_36);
 
   picker_overlay_ = lv_obj_create(parent);
   lv_obj_set_pos(picker_overlay_, 0, theme::kPageHeaderHeight);
@@ -512,7 +539,9 @@ void ui_update_minisplit_state(const char *mode, const char *action,
       available && std::isfinite(target_temperature) &&
           target_temperature < max_temperature_);
 
-  if (picker_kind_ == PickerKind::kHorizontalVane) {
+  if (picker_kind_ == PickerKind::kHvac || picker_kind_ == PickerKind::kFan) {
+    refresh_picker_selection();
+  } else if (picker_kind_ == PickerKind::kHorizontalVane) {
     lv_label_set_text(
         vane_state_label_,
         horizontal_vane_.empty() ? "--" : horizontal_vane_.c_str());
