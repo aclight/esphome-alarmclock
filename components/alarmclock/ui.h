@@ -51,6 +51,8 @@ void ui_update_date(uint8_t month, uint8_t day, uint8_t day_of_week);
 void ui_update_next_alarm(const char *text);  // e.g. "Next: 7:00 AM" or ""
 void ui_update_pre_alarm_banner(const char *text);  // e.g. "Alarm in 5 min — Work" or "" to hide
 void ui_set_content_brightness(float brightness);
+// Switches the large time between the solid and outline fonts.
+void ui_set_clock_outline(bool outline);
 void ui_update_brightness(float brightness);
 void ui_update_min_brightness(float brightness_fraction);
 void ui_update_volume(float volume);

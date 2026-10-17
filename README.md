@@ -181,7 +181,9 @@ Minimum Brightness (on the clock and in Home Assistant) and Maximum Brightness
 curve rises from the minimum in the dark to the maximum at the Full Brightness
 Ambient Light level (Home Assistant configuration). The firmware also applies
 neutral content shading when the backlight reaches the bottom of its useful
-range. Without a light sensor the slider is plain manual brightness. The curve
+range. At very low brightness the large time also switches to an outline font
+(`scripts/gen_outline_font.py` derives it from `clock_font_160`) so far fewer
+pixels are lit. Without a light sensor the slider is plain manual brightness. The curve
 comes from the
 [esphome-shared-components](https://github.com/aclight/esphome-shared-components)
 `adaptive_brightness` component.
