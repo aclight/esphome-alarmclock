@@ -407,6 +407,10 @@ static constexpr uint32_t kSettingsDebouncePeriodMs = 2000;
 // Wait for sound roller movement to settle before starting a preview.
 static constexpr uint32_t kSoundPreviewDebouncePeriodMs = 300;
 
+// Time the speaker is muted before its I2S stream is cut, so the stream
+// ends on zeros (the DMA queue is ~50 ms deep).
+static constexpr uint32_t kAudioMuteBeforeStopMs = 150;
+
 inline bool deferred_action_ready(uint32_t now_ms, uint32_t started_ms,
                                   uint32_t delay_ms) {
   return now_ms - started_ms >= delay_ms;
@@ -947,6 +951,8 @@ class AlarmClockComponent : public ::esphome::Component,
   bool sound_preview_pending_ = false;
   uint8_t pending_sound_preview_index_ = 0;
   uint32_t sound_preview_pending_ms_ = 0;
+  bool audio_stop_pending_ = false;
+  uint32_t audio_stop_pending_ms_ = 0;
 
   // Timing.
   uint8_t last_checked_minute_ = 0xFF;
@@ -1032,6 +1038,7 @@ class AlarmClockComponent : public ::esphome::Component,
   void check_screen_sleep_();
   void start_alarm_sound_();
   void stop_alarm_sound_();
+  void silence_and_stop_audio_();
   void finish_active_alarm_();
   void play_alarm_melody_();
   void play_sample_chunk_();

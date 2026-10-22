@@ -545,6 +545,20 @@ void AlarmClockComponent::loop() {
     }
   }
 
+  if (audio_stop_pending_) {
+    uint32_t now_ms = ::esphome::millis();
+    if (deferred_action_ready(now_ms, audio_stop_pending_ms_,
+                              kAudioMuteBeforeStopMs)) {
+      audio_stop_pending_ = false;
+      if (rtttl_ != nullptr) {
+        rtttl_->stop();
+      }
+      if (speaker_ != nullptr) {
+        speaker_->stop();
+      }
+    }
+  }
+
   // Check screen sleep/wake state based on LVGL inactivity.
   check_screen_sleep_();
 
@@ -864,7 +878,7 @@ void AlarmClockComponent::on_ambient_lux(float lux) {
   if (ambient_sample_count_++ % 5 == 0) {
     ESP_LOGI(TAG,
              "Ambient raw %.2f lx, median %.2f lx (%.2f stops): level %.1f%% -> "
-             "%.1f%%%s, state %s, PWM %u",
+             "%.1f%%%s, state %s, PWM %u, speaker %s, rtttl %s, alarm sound %s",
              static_cast<double>(lux),
              static_cast<double>(ambient_.median_lux()),
              static_cast<double>(ambient_.stops()),
@@ -874,7 +888,10 @@ void AlarmClockComponent::on_ambient_lux(float lux) {
              screen_asleep_ ? "idle" : "awake",
              static_cast<unsigned>(resolve_backlight_pwm(
                  compute_screen_brightness(brightness_, screen_asleep_),
-                 backlight_mode_)));
+                 backlight_mode_)),
+             (speaker_ != nullptr && !speaker_->is_stopped()) ? "ACTIVE" : "stopped",
+             (rtttl_ != nullptr && rtttl_->is_playing()) ? "PLAYING" : "idle",
+             alarm_sound_active_ ? "ON" : "off");
   }
 }
 
@@ -915,18 +932,15 @@ void AlarmClockComponent::preview_sound(uint8_t sound_index) {
 
 void AlarmClockComponent::cancel_sound_preview() {
   sound_preview_pending_ = false;
-  if (!alarm_sound_active_ && rtttl_ != nullptr && rtttl_->is_playing()) {
-    rtttl_->stop();
-  }
-  if (!alarm_sound_active_ && sample_playback_.active()) {
-    sample_playback_.stop();
-    if (speaker_ != nullptr) {
-      speaker_->stop();
-    }
+  if (!alarm_sound_active_ &&
+      ((rtttl_ != nullptr && rtttl_->is_playing()) ||
+       sample_playback_.active())) {
+    silence_and_stop_audio_();
   }
 }
 
 void AlarmClockComponent::play_sound_preview_(uint8_t sound_index) {
+  audio_stop_pending_ = false;
   const AlarmSound &sound = kAlarmSounds[sound_index];
   if (sound.kind == SoundKind::kSample) {
     if (speaker_ == nullptr) {
@@ -1206,6 +1220,7 @@ void AlarmClockComponent::check_screen_sleep_() {
 void AlarmClockComponent::start_alarm_sound_() {
   ESP_LOGI(TAG, "Starting alarm sound (volume=%.0f%%)", volume_ * 100);
   sound_preview_pending_ = false;
+  audio_stop_pending_ = false;
   if (rtttl_ != nullptr && rtttl_->is_playing()) {
     rtttl_->stop();
   }
@@ -1234,10 +1249,23 @@ void AlarmClockComponent::stop_alarm_sound_() {
   ESP_LOGI(TAG, "Stopping alarm sound");
   alarm_sound_active_ = false;
   alarm_pause_active_ = false;
+  silence_and_stop_audio_();
+}
+
+// A hard speaker stop cuts the I2S clocks mid-waveform; the amp may hold the
+// last level, so mute first and stop once the stream is silent.
+void AlarmClockComponent::silence_and_stop_audio_() {
+  sample_playback_.stop();
+  if (speaker_ != nullptr && !speaker_->is_stopped()) {
+    speaker_->set_volume(0.0f);
+    audio_stop_pending_ = true;
+    audio_stop_pending_ms_ = ::esphome::millis();
+    return;
+  }
+  audio_stop_pending_ = false;
   if (rtttl_ != nullptr) {
     rtttl_->stop();
   }
-  sample_playback_.stop();
   if (speaker_ != nullptr) {
     speaker_->stop();
   }
@@ -1305,6 +1333,11 @@ void AlarmClockComponent::play_sample_chunk_() {
   }
   size_t accepted = speaker_->play(sample_chunk_buffer_, chunk_size);
   sample_playback_.accept(accepted, ::esphome::millis());
+  // The speaker is configured with timeout: never, so without this a finished
+  // one-shot preview leaves the I2S clocks running (amp live) indefinitely.
+  if (!sample_playback_.active()) {
+    speaker_->finish();
+  }
 }
 
 void AlarmClockComponent::on_rtttl_finished() {
