@@ -171,13 +171,15 @@ static void style_switch(lv_obj_t *toggle_switch) {
                             LV_PART_INDICATOR);
   lv_obj_set_style_bg_color(toggle_switch,
                             lv_color_hex(theme::kColorPrimary),
-                            LV_PART_INDICATOR | LV_STATE_CHECKED);
+                            static_cast<lv_style_selector_t>(LV_PART_INDICATOR) |
+                                static_cast<lv_style_selector_t>(LV_STATE_CHECKED));
   lv_obj_set_style_bg_color(toggle_switch,
                             lv_color_hex(theme::kColorSecondary),
                             LV_PART_KNOB);
   lv_obj_set_style_bg_color(toggle_switch,
                             lv_color_hex(theme::kColorAccent),
-                            LV_PART_KNOB | LV_STATE_CHECKED);
+                            static_cast<lv_style_selector_t>(LV_PART_KNOB) |
+                                static_cast<lv_style_selector_t>(LV_STATE_CHECKED));
 }
 
 void ui_build_controls_page(lv_obj_t *parent) {
