@@ -4,9 +4,10 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import i2c
+from esphome.components.lvgl import defines as lvgl_defines
 from esphome.const import CONF_ENTITY_ID, CONF_ID, CONF_NAME, CONF_ON_PRESS, CONF_TYPE
 
-DEPENDENCIES = ["i2c", "api"]
+DEPENDENCIES = ["i2c", "api", "lvgl"]
 AUTO_LOAD = ["sensor", "switch", "button", "number", "adaptive_brightness"]
 
 CONF_RTTTL_ID = "rtttl_id"
@@ -151,6 +152,17 @@ CONFIG_SCHEMA = (
         _validate_minisplit,
     )
 )
+
+
+def _enable_lvgl_color_filter(config):
+    # Night dimming shades the UI with an LVGL color filter, which LVGL
+    # compiles out unless LV_USE_COLOR_FILTER is set; ESPHome never sets it.
+    # Done at validation time so it lands before lvgl writes lv_conf.h.
+    lvgl_defines.add_define("LV_USE_COLOR_FILTER", "1")
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _enable_lvgl_color_filter
 
 
 async def to_code(config):

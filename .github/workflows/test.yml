@@ -96,6 +96,11 @@ jobs:
       - name: Compile ESPHome config
         run: esphome compile "${{ matrix.config }}"
 
+      # LVGL compiles color filters out by default, which silently disables
+      # the night content shading.
+      - name: Check LVGL color filter is enabled
+        run: grep -Fq "#define LV_USE_COLOR_FILTER 1" .esphome/build/*/src/lv_conf.h
+
   # ESP-IDF asserts at runtime if the frame buffer is not an exact multiple of
   # the bounce buffer, so the component rejects it at config time instead.
   bounce-buffer-validation:
