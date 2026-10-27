@@ -72,6 +72,12 @@ is already in use, so backlight math alone cannot make the display darker.
 The filter changes draw colors directly rather than lowering whole-object
 opacity, so it does not require a full-screen intermediate compositing layer.
 
+LVGL 9 compiles color filters out unless `LV_USE_COLOR_FILTER` is set, and
+ESPHome's generated `lv_conf.h` never sets it, so until the alarmclock
+component started adding the define (in `components/alarmclock/__init__.py`)
+the shading was a silent no-op and text stayed full white at night. CI checks
+the generated `lv_conf.h` for it.
+
 ## Adaptive brightness calibration
 
 Measurements with the revised enclosure established these operating points:
