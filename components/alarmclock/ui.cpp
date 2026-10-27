@@ -17,7 +17,6 @@ static uint8_t current_page_ = theme::kPageClock;
 static UiCallbacks callbacks_ = {};
 static lv_color_filter_dsc_t content_dim_filter_;
 static uint8_t content_dim_opacity_ = 0;
-static bool clock_outline_active_ = false;
 static bool controls_page_enabled_ = false;
 static bool minisplit_page_enabled_ = false;
 static lv_obj_t *header_time_labels_[theme::kPageCount] = {};
@@ -240,9 +239,6 @@ uint8_t ui_current_page() {
 }
 
 void ui_set_content_brightness(float brightness) {
-  clock_outline_active_ = compute_clock_outline(brightness, clock_outline_active_);
-  ui_set_clock_outline(clock_outline_active_);
-
   const uint8_t opacity = compute_content_dim_opacity(brightness);
   if (opacity == content_dim_opacity_) {
     return;

@@ -342,21 +342,6 @@ inline uint8_t compute_content_dim_opacity(float configured_brightness) {
   return static_cast<uint8_t>((1.0f - value) * 255.0f + 0.5f);
 }
 
-// Colors can't get darker than the shading above, so at very low brightness the
-// large time switches to an outline font that lights far fewer pixels. The
-// exit threshold is higher than the entry one so the font doesn't flicker
-// while an ambient reading hovers around the boundary.
-static constexpr float kClockOutlineEnter = 0.10f;
-static constexpr float kClockOutlineExit = 0.12f;
-
-inline bool compute_clock_outline(float configured_brightness,
-                                  bool currently_outline) {
-  if (currently_outline) {
-    return !(configured_brightness >= kClockOutlineExit);
-  }
-  return !(configured_brightness > kClockOutlineEnter);
-}
-
 // Brightness (0.0-1.0) actually shown: the awake level, or a fixed fraction of
 // it while the screen is idle.
 inline float compute_screen_brightness(float awake_brightness, bool asleep) {

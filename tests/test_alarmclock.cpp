@@ -716,23 +716,6 @@ TEST(content_dim_never_lightens_as_brightness_falls) {
     PASS();
 }
 
-TEST(clock_outline_only_when_very_dim) {
-    ASSERT_FALSE(compute_clock_outline(1.0f, false));
-    ASSERT_FALSE(compute_clock_outline(kContentDimThreshold, false));
-    ASSERT_TRUE(compute_clock_outline(kClockOutlineEnter, false));
-    ASSERT_TRUE(compute_clock_outline(0.0f, false));
-    ASSERT_TRUE(compute_clock_outline(std::nanf(""), false));
-    PASS();
-}
-
-TEST(clock_outline_has_hysteresis) {
-    const float between = (kClockOutlineEnter + kClockOutlineExit) / 2.0f;
-    ASSERT_FALSE(compute_clock_outline(between, false));
-    ASSERT_TRUE(compute_clock_outline(between, true));
-    ASSERT_FALSE(compute_clock_outline(kClockOutlineExit, true));
-    PASS();
-}
-
 TEST(idle_screen_visibly_dimmer_than_awake) {
     // A tap must be noticeable even at the minimum brightness.
     const float awake = 0.05f;
@@ -2363,8 +2346,6 @@ int main() {
     RUN(content_dim_reaches_dark_grey_at_zero);
     RUN(content_dim_scales_smoothly_below_threshold);
     RUN(content_dim_never_lightens_as_brightness_falls);
-    RUN(clock_outline_only_when_very_dim);
-    RUN(clock_outline_has_hysteresis);
     RUN(idle_screen_visibly_dimmer_than_awake);
 
     // Volume ramp
